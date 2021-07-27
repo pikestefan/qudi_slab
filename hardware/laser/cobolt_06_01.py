@@ -7,8 +7,9 @@ from interface.simple_laser_interface import ShutterState
 import visa
 
 class CoboltLaser(Base, SimpleLaserInterface):
+
     _com_port = ConfigOption('com_port', missing='error')
-    _timeout = ConfigOption('timeout', missing = 10)
+    #_timeout = ConfigOption('timeout', missing = 10)
 
     def on_activate(self):
         try:
