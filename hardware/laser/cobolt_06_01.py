@@ -46,6 +46,51 @@ class CoboltLaser(Base, SimpleLaserInterface):
     def off(self):
         self._send_msg('I0')
 
+    def get_power_range(self):
+        pass
+
+    def get_current_unit(self):
+        pass
+
+    def get_current_range(self):
+        pass
+
+    def get_current(self):
+        pass
+
+    def allowed_control_modes(self):
+        pass
+
+    def get_control_mode(self):
+        pass
+
+    def set_control_mode(self, control_mode):
+        pass
+
+    def get_laser_state(self):
+        pass
+
+    def set_laser_state(self, state):
+        pass
+
+    def get_shutter_state(self):
+        pass
+
+    def set_shutter_state(self, state):
+        pass
+
+    def get_temperatures(self):
+        pass
+
+    def get_temperature_setpoints(self):
+        pass
+
+    def set_temperatures(self, temps):
+        pass
+
+    def get_extra_info(self):
+        pass
+
     def _send_msg(self, message):
         ret_val = 0
         try:
