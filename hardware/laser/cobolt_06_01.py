@@ -14,7 +14,7 @@ class CoboltLaser(Base, SimpleLaserInterface):
     def on_activate(self):
         try:
             self.cobolt = visa.ResourceManager().open_resource(self._com_port)
-            self.cobolt.timeout = self._timeout
+            #self.cobolt.timeout = self._timeout
         except:
             self.log.exception('Could not open given COM port.')
 
@@ -24,27 +24,33 @@ class CoboltLaser(Base, SimpleLaserInterface):
 
     def get_power(self):
         actual_power = self._send_msg('pa?')
-        return actual_power
+        return float(actual_power)
 
     def set_power(self, power):
-        self._send_msg('p')
+        """
+        Set power in mW
+        """
+        self._send_msg('p {}'.format(power*1e-3))
 
     def get_power_setpoint(self):
         sp = self._send_msg('p?')
-        return sp
+        return float(sp)
 
     def get_current_setpoint(self):
         curr = self._send_msg('glc?')
-        return curr
+        return float(curr)
 
     def set_current(self, current):
-        self._send_msg('slc')
+        """
+        Set current in mA
+        """
+        self._send_msg('slc {}'.format(current*1e-3))
 
     def on(self):
-        self._send_msg('I1')
+        self._send_msg('l1')
 
     def off(self):
-        self._send_msg('I0')
+        self._send_msg('l0')
 
     def get_power_range(self):
         pass
@@ -94,10 +100,8 @@ class CoboltLaser(Base, SimpleLaserInterface):
     def _send_msg(self, message):
         ret_val = 0
         try:
-            if message[-1] == '?':
-                ret_val = self.cobolt.query(message)
-            else:
-                self.cobolt.write(message)
+            self.cobolt.write(message)
+            ret_val = self.cobolt.read().strip()
         except:
             self.log.exception('Error sending the message.')
             ret_val = -1
