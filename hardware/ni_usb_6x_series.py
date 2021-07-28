@@ -104,7 +104,7 @@ class NationalInstrumentsUSB6000x(Base):
                 start,
                 self._RWTimeout,
                 daq.DAQmx_Val_GroupByChannel,
-                np.array([[voltage]], dtype = np.float64),
+                voltage,
                 daq.byref(self._AONWritten),
                 None
             )
