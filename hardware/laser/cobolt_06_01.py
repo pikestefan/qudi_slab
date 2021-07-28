@@ -7,6 +7,7 @@ from interface.simple_laser_interface import ShutterState
 import re
 import visa
 import PyDAQmx as daq
+import numpy as np
 
 class CoboltLaser(Base, ExtCtrlLaserInterface):
 
@@ -18,7 +19,7 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
     #Requires full address of the output, e.g. /dev(numberhere)/ao0
     _NI_analog_channel = ConfigOption('ao_output_channel', missing='error')
     _NI_voltage_range = ConfigOption('ao_voltage_range', [0, 10], missing='info')
-    _RW_timeout = ConfigOption('daq_read_write_timeout', default=10)
+    _RWTimeout = ConfigOption('daq_read_write_timeout', default=10)
 
     def on_activate(self):
         self._laser_ao_task = None
@@ -29,10 +30,11 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
             self.log.exception('Could not open given COM port.')
 
         self.laser_initialize()
+        self._start_analog_output()
         self.set_up_laser_ao_channel()
 
     def on_deactivate(self):
-        self.set_control_mode(ControlMode.POWER)
+        #self.set_control_mode(ControlMode.POWER)
         self.cobolt.close()
 
         self._stop_analog_output()
@@ -64,8 +66,7 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
         self._send_msg(f'p {power*1e-3}')
 
     def set_power_extctrl(self, voltage):
-        voltage = np.array([voltage])
-        self._write_ao(self, voltage, start=True)
+        self._write_ao(np.array([[voltage]]), start=True)
 
     def get_power_setpoint(self):
         sp = self._send_msg('p?')
@@ -194,7 +195,7 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
     def set_up_laser_ao_channel(self):
         retval = 0
         try:
-            daq.DAQmxSetSampTimingType(self._scanner_ao_task, daq.DAQmx_Val_OnDemand)
+            daq.DAQmxSetSampTimingType(self._laser_ao_task, daq.DAQmx_Val_OnDemand)
         except:
             self.log.exception('Error while setting up the channel')
             retval = -1
@@ -202,7 +203,7 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
 
     def _reset_hardware(self):
         retval = 0
-        chan_list = [self._laser_ao_channel]
+        chan_list = [self._NI_analog_channel]
         deviceList = []
 
         for channel in chan_list:
