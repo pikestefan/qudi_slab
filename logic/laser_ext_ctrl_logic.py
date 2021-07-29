@@ -10,23 +10,27 @@ from interface.simple_laser_interface import ControlMode, ShutterState, LaserSta
 
 class LaserExtCtrlLogic(GenericLogic):
 
-    laser = Connector(interface='external_control_laser_interface')
+    laser = Connector(interface='ExtCtrlLaserInterface')
     option_placeholder = ConfigOption('option_placeholder', 0)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
-
+        """
         self.log.debug('The following configuration was found.')
 
         # checking for the right configuration
         for key in config.keys():
             self.log.info('{0}: {1}'.format(key, config[key]))
-
+        """
         self.threadlock = Mutex()
 
     def on_activate(self):
         self._laser = self.laser()
 
-    @QtCore.Slot(float)
+
+    def on_deactivate(self):
+        pass
+
     def set_power(self, power):
+        print("Got called")
         self._laser.set_power_extctrl(power)

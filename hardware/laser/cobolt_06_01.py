@@ -14,6 +14,7 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
     _com_port = ConfigOption('com_port', missing='error')
     _enable_am = ConfigOption('analog_mod_enabled', True, missing='info')
     _enable_dm = ConfigOption('digital_mod_enabled', True, missing='info')
+    _pw2volt = ConfigOption('power_to_volt_coefficient', 1, missing='info')
     _laser_com_timeout = ConfigOption('laser_com_timeout', default=10)
 
     #Requires full address of the output, e.g. /dev(numberhere)/ao0
@@ -27,7 +28,7 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
             self.cobolt = visa.ResourceManager().open_resource(self._com_port)
             self.cobolt.timeout = self._laser_com_timeout
         except:
-            self.log.exception('Could not open given COM port.')
+            self.log.error('Could not open given COM port.')
 
         self.laser_initialize()
         self._start_analog_output()
@@ -65,7 +66,8 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
         """
         self._send_msg(f'p {power*1e-3}')
 
-    def set_power_extctrl(self, voltage):
+    def set_power_extctrl(self, power):
+        voltage = self._pw2volt*power
         self._write_ao(np.array([[voltage]]), start=True)
 
     def get_power_setpoint(self):

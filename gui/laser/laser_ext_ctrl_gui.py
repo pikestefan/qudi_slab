@@ -16,25 +16,39 @@ class LaserCtrlMainWindow(QtWidgets.QMainWindow):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.setWindowTitle('Test')
-        slider_widget = QtWidgets.QSlider()
-        slider_widget.minimum = 0
-        slider_widget.maximum = 1
-        self.setCentralWidget(slider_widget)
+        self.slider_widget = QtWidgets.QSlider()
+        self.slider_widget.setOrientation(QtCore.Qt.Horizontal)
+        self.slider_widget.minimum = 0
+        self.slider_widget.setMaximum(1000)
+        self.setCentralWidget(self.slider_widget)
+
+        self.action_close = QtWidgets.QAction('Close Window')
 
         self.action_close.triggered.connect(self.close)
 
 
 class LaserCtrlGUI(GUIBase):
-    laser_ctrl_logic = Connector(interface='laser_ext_ctrl_logic')
+    laserctrllogic = Connector(interface='LaserExtCtrlLogic')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
     def on_activate(self):
-        self._laser_ctrl_logic = self.laser_ctrl_logic()
+        self._laserctrllogic = self.laserctrllogic()
         self._lw = LaserCtrlMainWindow()
 
-        self._lw.slider_widget.sliderReleased.connect()
+        self._lw.slider_widget.valueChanged.connect(self.test)
 
-    def test(self):
-        print("Slider moved")
+    def on_deactivate(self):
+        print("Fucking off")
+
+    @QtCore.Slot(int)
+    def test(self, value):
+        voltage = value/self._lw.slider_widget.maximum()
+        self._laserctrllogic.set_power(voltage)
+
+
+    def show(self):
+        self._lw.show()
+        self._lw.activateWindow()
+        self._lw.raise_()
