@@ -27,10 +27,11 @@ class LaserExtCtrlLogic(GenericLogic):
     def on_activate(self):
         self._laser = self.laser()
 
-
     def on_deactivate(self):
         pass
 
-    def set_power(self, power):
-        print("Got called")
-        self._laser.set_power_extctrl(power)
+    def get_power_atsource(self):
+        return self._laser.get_power()
+
+    def set_ext_ctrl_power(self, power_percentage):
+        self._laser.set_power_extctrl(power_percentage)
