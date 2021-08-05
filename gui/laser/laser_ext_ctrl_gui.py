@@ -51,7 +51,7 @@ class LaserCtrlGUI(GUIBase):
 
     def get_power_atsource(self):
         power = self._laserctrllogic.get_power_atsource()
-        self._lw.actual_pw.setText("{:.2f}".format(power))
+        self._lw.actual_pw.setText("{:.2f} mW".format(power))
 
     def show(self):
         self._lw.show()

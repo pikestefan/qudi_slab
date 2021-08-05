@@ -25,7 +25,7 @@
      <rect>
       <x>60</x>
       <y>20</y>
-      <width>91</width>
+      <width>111</width>
       <height>61</height>
      </rect>
     </property>
@@ -46,28 +46,17 @@
         <enum>QLayout::SetFixedSize</enum>
        </property>
        <item>
-        <widget class="QTextEdit" name="actual_pw">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
+        <widget class="QLabel" name="actual_pw">
+         <property name="font">
+          <font>
+           <pointsize>12</pointsize>
+          </font>
          </property>
-         <property name="maximumSize">
-          <size>
-           <width>50</width>
-           <height>30</height>
-          </size>
+         <property name="text">
+          <string>0.0 mW</string>
          </property>
          <property name="textInteractionFlags">
           <set>Qt::NoTextInteraction</set>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QLabel" name="label_2">
-         <property name="text">
-          <string>mW</string>
          </property>
         </widget>
        </item>
@@ -104,7 +93,7 @@
      </item>
     </layout>
    </widget>
-   <widget class="PlotWidget" name="plotPlaceholder" native="true">
+   <widget class="PlotWidget" name="plotPlaceholder">
     <property name="geometry">
      <rect>
       <x>280</x>
@@ -120,7 +109,7 @@
  <customwidgets>
   <customwidget>
    <class>PlotWidget</class>
-   <extends>QWidget</extends>
+   <extends>QGraphicsView</extends>
    <header>pyqtgraph</header>
    <container>1</container>
   </customwidget>
