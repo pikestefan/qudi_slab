@@ -12,20 +12,18 @@ from qtpy import QtWidgets
 from qtpy import uic
 
 class LaserCtrlMainWindow(QtWidgets.QMainWindow):
+    """ The main window for the ODMR measurement GUI.
+    """
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setWindowTitle('Test')
-        self.slider_widget = QtWidgets.QSlider()
-        self.slider_widget.setOrientation(QtCore.Qt.Horizontal)
-        self.slider_widget.minimum = 0
-        self.slider_widget.setMaximum(1000)
-        self.setCentralWidget(self.slider_widget)
+    def __init__(self):
+        # Get the path to the *.ui file
+        this_dir = os.path.dirname(__file__)
+        ui_file = os.path.join(this_dir, 'ui_laser_ext_ctrl.ui')
 
-        self.action_close = QtWidgets.QAction('Close Window')
-
-        self.action_close.triggered.connect(self.close)
-
+        # Load it
+        super(LaserCtrlMainWindow, self).__init__()
+        uic.loadUi(ui_file, self)
+        self.show()
 
 class LaserCtrlGUI(GUIBase):
     laserctrllogic = Connector(interface='LaserExtCtrlLogic')
@@ -37,16 +35,23 @@ class LaserCtrlGUI(GUIBase):
         self._laserctrllogic = self.laserctrllogic()
         self._lw = LaserCtrlMainWindow()
 
-        self._lw.slider_widget.valueChanged.connect(self.test)
+        self._lw.slider_widget.valueChanged.connect(self.change_extctrl_power)
+        self._lw.slider_widget.sliderReleased.connect(self.get_power_atsource)
+
+        self.get_power_atsource()
+        self.show()
 
     def on_deactivate(self):
         print("Fucking off")
 
     @QtCore.Slot(int)
-    def test(self, value):
-        voltage = value/self._lw.slider_widget.maximum()
-        self._laserctrllogic.set_power(voltage)
+    def change_extctrl_power(self, value):
+        power_percentage = value/self._lw.slider_widget.maximum()
+        self._laserctrllogic.set_ext_ctrl_power(power_percentage)
 
+    def get_power_atsource(self):
+        power = self._laserctrllogic.get_power_atsource()
+        self._lw.actual_pw.setText("{:.2f}".format(power))
 
     def show(self):
         self._lw.show()
