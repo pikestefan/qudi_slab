@@ -1,6 +1,7 @@
 from core.module import Base
 from core.configoption import ConfigOption
 from interface.external_control_laser_interface import ExtCtrlLaserInterface
+from interface.simple_laser_interface import SimpleLaserInterface
 from interface.external_control_laser_interface import ControlMode
 from interface.simple_laser_interface import ShutterState
 
@@ -48,8 +49,11 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
         self._reset_hardware()
 
     def get_power(self):
+        """
+        Returns the power at the source in mW
+        """
         actual_power = self._send_msg('pa?')
-        return float(actual_power)
+        return float(actual_power)*1e3
 
     def laser_initialize(self, am_on=True, dm_on=True):
         try:
@@ -66,8 +70,8 @@ class CoboltLaser(Base, ExtCtrlLaserInterface):
         """
         self._send_msg(f'p {power*1e-3}')
 
-    def set_power_extctrl(self, power):
-        voltage = self._pw2volt*power
+    def set_power_extctrl(self, power_percentage):
+        voltage = self._NI_voltage_range[0] + power_percentage * (self._NI_voltage_range[1]-self._NI_voltage_range[0])
         self._write_ao(np.array([[voltage]]), start=True)
 
     def get_power_setpoint(self):
