@@ -203,8 +203,9 @@ class MicrowaveSRSSG(Base, MicrowaveInterface):
 
         # disable modulation:
         self._write('MODL 0')
+
         # and the subtype (analog,)
-        self._write('STYP 0')
+        #self._write('STYP 0')       #this command does not exist for our srs sg386!
 
         if frequency is not None:
             error = self.set_frequency(frequency)
@@ -256,6 +257,7 @@ class MicrowaveSRSSG(Base, MicrowaveInterface):
             for index, entry in enumerate(frequency):
                 self._write('LSTP {0:d},{1:e},N,N,N,{2:f},N,N,N,N,N,N,N,N,N,N'
                             ''.format(index, entry, power))
+                #print(self._ask('LSTP? '+str(index)))
 
             # the commands contains 15 entries, which are related to the
             # following commands (in brackets the explanation), if parameter is
@@ -400,6 +402,7 @@ class MicrowaveSRSSG(Base, MicrowaveInterface):
 
         self.log.warning('No external trigger channel can be set in this '
                          'hardware. Method will be skipped.')
+
         return pol, timing
 
     def trigger(self):
@@ -415,7 +418,6 @@ class MicrowaveSRSSG(Base, MicrowaveInterface):
         self._write('*TRG')
         # Check whether all pending operation are successful and finished:
         self._ask('*OPC?')
-
         time.sleep(self._FREQ_SWITCH_SPEED)     # that is the switching speed
         return
 

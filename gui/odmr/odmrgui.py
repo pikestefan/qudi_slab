@@ -449,6 +449,7 @@ class ODMRGui(GUIBase):
         self._mw.action_resume_odmr.triggered.disconnect()
         self._mw.action_Save.triggered.disconnect()
         self._mw.action_toggle_cw.triggered.disconnect()
+        self._mw.action_toggle_cw.triggered.disconnect()
         self._mw.action_RestoreDefault.triggered.disconnect()
         self._mw.do_fit_PushButton.clicked.disconnect()
         self._mw.cw_frequency_DoubleSpinBox.editingFinished.disconnect()
@@ -818,6 +819,9 @@ class ODMRGui(GUIBase):
     def update_plots(self, odmr_data_x, odmr_data_y, odmr_matrix):
         """ Refresh the plot widgets with new data. """
         # Update mean signal plot
+        #print(odmr_data_x)
+        #print("and")
+        #print(odmr_data_y)
         self.odmr_image.setData(odmr_data_x, odmr_data_y[self.display_channel])
         # Update raw data matrix plot
         cb_range = self.get_matrix_cb_range()

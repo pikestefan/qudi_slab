@@ -32,7 +32,7 @@ from interface.odmr_counter_interface import ODMRCounterInterface
 from interface.confocal_scanner_interface import ConfocalScannerInterface
 
 
-class NationalInstrumentsXSeries(Base, ConfocalScannerInterface, ODMRCounterInterface):
+class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCounterInterface):
     """ A National Instruments device that can count and control microvave generators.
 
     !!!!!! NI USB 63XX, NI PCIe 63XX and NI PXIe 63XX DEVICES ONLY !!!!!!
@@ -48,37 +48,38 @@ class NationalInstrumentsXSeries(Base, ConfocalScannerInterface, ODMRCounterInte
         photon_sources:
             - '/Dev1/PFI8'
         #    - '/Dev1/PFI9'
-        clock_channel: '/Dev1/Ctr0'
-        default_clock_frequency: 100 # optional, in Hz
+        counter_clock: '100kHzTimebase'
         counter_channels:
             - '/Dev1/Ctr1'
         counter_ai_channels:
             - '/Dev1/AI0'
         counter_voltage_range: [-10, 10]
-        default_scanner_clock_frequency: 100 # optional, in Hz
-        scanner_clock_channel: '/Dev1/Ctr2'
-        pixel_clock_channel: '/Dev1/PFI6'
-        scanner_ao_channels:
+        sample_scanner_ao_channels:
             - '/Dev1/AO0'
             - '/Dev1/AO1'
+        tip_scanner_ao_channels:
             - '/Dev1/AO2'
             - '/Dev1/AO3'
-        scanner_ai_channels:
+        sample_scanner_ai_channels:
             - '/Dev1/AI1'
-        scanner_counter_channels:
-            - '/Dev1/Ctr3'
-        scanner_voltage_ranges:
-            - [-10, 10]
-            - [-10, 10]
-            - [-10, 10]
-            - [-10, 10]
-        scanner_position_ranges:
-            - [0e-6, 200e-6]
-            - [0e-6, 200e-6]
-            - [-100e-6, 100e-6]
-            - [-10, 10]
-
-        odmr_trigger_channel: '/Dev1/PFI7'
+        sample_scanner_counter_channels:
+            - '/Dev1/Ctr1'
+        tip_scanner_ai_channels:
+            - '/Dev1/AI2'
+        tip_scanner_counter_channels:
+            - '/Dev1/Ctr2
+        sample_scanner_voltage_ranges:
+            - [0, 10]
+            - [0, 10]
+        tip_scanner_voltage_ranges:
+            - [0, 10]
+            - [0, 10]
+        sample_scanner_position_ranges:
+            - [0e-6, 40e-6]
+            - [0e-6, 40e-6]
+        tip_scanner_position_ranges:
+            - [0e-6, 40e-6]
+            - [0e-6, 40e-6]
 
         gate_in_channel: '/Dev1/PFI9'
         default_samples_number: 50
@@ -91,27 +92,25 @@ class NationalInstrumentsXSeries(Base, ConfocalScannerInterface, ODMRCounterInte
     # config options
     _photon_sources = ConfigOption('photon_sources', list(), missing='warn')
 
-    # slow counter
-    _clock_channel = ConfigOption('clock_channel', missing='error')
-    _default_clock_frequency = ConfigOption('default_clock_frequency', 100, missing='info')
+    # Photon counting settings
+    _counter_clock = ConfigOption('counter_clock', 100e3, missing='info')
     _counter_channels = ConfigOption('counter_channels', missing='error')
     _counter_ai_channels = ConfigOption('counter_ai_channels', list(), missing='info')
     _counter_voltage_range = ConfigOption('counter_voltage_range', [-10, 10], missing='info')
 
-    # confocal scanner
-    _default_scanner_clock_frequency = ConfigOption('default_scanner_clock_frequency', 100, missing='info')
-    _scanner_clock_channel = ConfigOption('scanner_clock_channel', missing='warn')
-    _pixel_clock_channel = ConfigOption('pixel_clock_channel', None)
-    _scanner_ao_channels = ConfigOption('scanner_ao_channels', missing='error')
-    _scanner_ai_channels = ConfigOption('scanner_ai_channels', list(), missing='info')
-    _scanner_counter_channels = ConfigOption('scanner_counter_channels', list(), missing='warn')
-    _scanner_voltage_ranges = ConfigOption('scanner_voltage_ranges', missing='error')
-    _scanner_position_ranges = ConfigOption('scanner_position_ranges', missing='error')
+    # Sample scanner
+    _sample_scanner_ao_channels = ConfigOption('sample_scanner_ao_channels', missing='error')
+    _sample_scanner_ai_channels = ConfigOption('sample_scanner_ai_channels', list(), missing='info')
+    _sample_scanner_counter_channels = ConfigOption('sample_scanner_counter_channels', list(), missing='warn')
+    _sample_scanner_voltage_ranges = ConfigOption('sample_scanner_voltage_ranges', missing='error')
+    _sample_scanner_position_ranges = ConfigOption('sample_scanner_position_ranges', missing='error')
 
-    # odmr
-    _odmr_trigger_channel = ConfigOption('odmr_trigger_channel', missing='error')
-    _odmr_trigger_line = ConfigOption('odmr_trigger_line', 'Dev1/port0/line0', missing='warn')
-    _odmr_switch_line = ConfigOption('odmr_switch_line', 'Dev1/port0/line1', missing='warn')
+    # Tip scanner
+    _tip_scanner_ao_channels = ConfigOption('tip_scanner_ao_channels', missing='error')
+    _tip_scanner_ai_channels = ConfigOption('tip_scanner_ai_channels', list(), missing='info')
+    _tip_scanner_counter_channels = ConfigOption('tip_scanner_counter_channels', list(), missing='warn')
+    _tip_scanner_voltage_ranges = ConfigOption('tip_scanner_voltage_ranges', missing='error')
+    _tip_scanner_position_ranges = ConfigOption('tip_scanner_position_ranges', missing='error')
 
     _gate_in_channel = ConfigOption('gate_in_channel', missing='error')
     # number of readout samples, mainly used for gated counter
@@ -122,6 +121,7 @@ class NationalInstrumentsXSeries(Base, ConfocalScannerInterface, ODMRCounterInte
     _RWTimeout = ConfigOption('read_write_timeout', default=10)
     _counting_edge_rising = ConfigOption('counting_edge_rising', default=True)
 
+    #TODO: got here with the edits to the module
     def on_activate(self):
         """ Starts up the NI Card at activation.
         """

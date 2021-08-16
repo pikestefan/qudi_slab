@@ -87,6 +87,7 @@ class ODMRLogic(GenericLogic):
         """
         Initialisation performed during activation of the module.
         """
+
         # Get connectors
         self._mw_device = self.microwave1()
         self._fit_logic = self.fitlogic()
@@ -141,6 +142,7 @@ class ODMRLogic(GenericLogic):
 
         # Connect signals
         self.sigNextLine.connect(self._scan_odmr_line, QtCore.Qt.QueuedConnection)
+
         return
 
     def on_deactivate(self):
@@ -214,24 +216,17 @@ class ODMRLogic(GenericLogic):
             freqs = np.arange(mw_start, mw_stop + mw_step, mw_step)
             final_freq_list.extend(freqs)
             self.frequency_lists.append(freqs)
-
-        if type(self.final_freq_list) == list:
+        if type(final_freq_list) == list:
             self.final_freq_list = np.array(final_freq_list)
-
         self.odmr_plot_x = np.array(self.final_freq_list)
         self.odmr_plot_y = np.zeros([len(self.get_odmr_channels()), self.odmr_plot_x.size])
-
         self.odmr_plot_xy = np.zeros(
             [self.number_of_lines, len(self.get_odmr_channels()), self.odmr_plot_x.size])
-
         range_to_fit = self.range_to_fit
-
         self.odmr_fit_x = np.arange(self.mw_starts[range_to_fit],
                                     self.mw_stops[range_to_fit] + self.mw_steps[range_to_fit],
                                     self.mw_steps[range_to_fit])
-
         self.odmr_fit_y = np.zeros(self.odmr_fit_x.size)
-
         self.sigOdmrPlotsUpdated.emit(self.odmr_plot_x, self.odmr_plot_y, self.odmr_plot_xy)
         current_fit = self.fc.current_fit
         self.sigOdmrFitUpdated.emit(self.odmr_fit_x, self.odmr_fit_y, {}, current_fit)
@@ -251,6 +246,7 @@ class ODMRLogic(GenericLogic):
 
         if self.module_state() != 'locked':
             self.mw_trigger_pol, triggertime = self._mw_device.set_ext_trigger(trigger_pol, 1 / frequency)
+
         else:
             self.log.warning('set_trigger failed. Logic is locked.')
 
@@ -402,11 +398,14 @@ class ODMRLogic(GenericLogic):
             constraints = self.get_hw_constraints()
             frequency_to_set = constraints.frequency_in_range(frequency)
             power_to_set = constraints.power_in_range(power)
+
             self.cw_mw_frequency, self.cw_mw_power, dummy = self._mw_device.set_cw(frequency_to_set,
                                                                                    power_to_set)
+
         else:
             self.log.warning('set_cw_frequency failed. Logic is either locked or input value is '
                              'no integer or float.')
+
 
         param_dict = {'cw_mw_frequency': self.cw_mw_frequency, 'cw_mw_power': self.cw_mw_power}
         self.sigParameterUpdated.emit(param_dict)
@@ -632,6 +631,7 @@ class ODMRLogic(GenericLogic):
 
         @return int: error code (0:OK, -1:error)
         """
+
         with self.threadlock:
             if self.module_state() == 'locked':
                 self.log.error('Can not start ODMR scan. Logic is already locked.')
@@ -661,8 +661,8 @@ class ODMRLogic(GenericLogic):
                 self._stop_odmr_counter()
                 self.module_state.unlock()
                 return -1
-
             self._initialize_odmr_plots()
+
             # initialize raw_data array
             estimated_number_of_lines = self.run_time * self.clock_frequency / self.odmr_plot_x.size
             estimated_number_of_lines = int(1.5 * estimated_number_of_lines)  # Safety
@@ -738,6 +738,7 @@ class ODMRLogic(GenericLogic):
 
         (from mw_start to mw_stop in steps of mw_step)
         """
+
         with self.threadlock:
             # If the odmr measurement is not running do nothing
             if self.module_state() != 'locked':
@@ -761,7 +762,6 @@ class ODMRLogic(GenericLogic):
 
             # Acquire count data
             error, new_counts = self._odmr_counter.count_odmr(length=self.odmr_plot_x.size)
-
             if error:
                 self.stopRequested = True
                 self.sigNextLine.emit()

@@ -74,7 +74,7 @@ class LaserLogic(GenericLogic):
         self.start_query_loop()
 
     def on_deactivate(self):
-        """ Deactivate modeule.
+        """ Deactivate module.
         """
         self.stop_query_loop()
         for i in range(5):

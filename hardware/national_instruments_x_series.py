@@ -2213,4 +2213,10 @@ class NationalInstrumentsXSeries(Base, SlowCounterInterface, ConfocalScannerInte
             daq.DAQmxClearTask(self.digital_out_task)
             return 0
 
+    # ======================== PD read out ==========================
+
+    def get_pd_voltage(self):
+        voltage =
+        return voltage
+
 
