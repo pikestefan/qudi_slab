@@ -37,4 +37,4 @@ class LaserExtCtrlLogic(GenericLogic):
         self._laser.set_power_extctrl(power_percentage)
 
     def get_power_atpd(self):
-
+        pass
