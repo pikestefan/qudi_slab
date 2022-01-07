@@ -417,16 +417,18 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
                 retval = -1
         return retval
 
-    def get_scanner_axes(self):
+    def get_scanner_axes(self, scanner = 's'):
         """ Scanner axes depends on how many channels tha analog output task has.
         """
-        if self._scanner_ao_task is None:
+
+        task = self._sample_scanner_ao_task if scanner == 's' else self._tip_scanner_ao_task
+        if task is None:
             self.log.error('Cannot get channel number, analog output task does not exist.')
             return []
 
         n_channels = daq.uInt32()
-        daq.DAQmxGetTaskNumChans(self._scanner_ao_task, n_channels)
-        possible_channels = ['x', 'y', 'z', 'a']
+        daq.DAQmxGetTaskNumChans(task, n_channels)
+        possible_channels = ['x', 'y']
 
         return possible_channels[0:int(n_channels.value)]
 
@@ -436,14 +438,14 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
         ch.extend(self._scanner_ai_channels)
         return ch
 
-    def get_position_range(self):
+    def get_position_range(self, ):
         """ Returns the physical range of the scanner.
 
         @return float [4][2]: array of 4 ranges with an array containing lower
                               and upper limit. The unit of the scan range is
                               meters.
         """
-        return self._scanner_position_ranges
+        return self._position_ranges
 
     def set_position_range(self, myrange=None):
         """ Sets the physical range of the scanner.
@@ -596,19 +598,22 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
 
         @return int: error code (0:OK, -1:error)
         """
+
         if self._sample_scanner_ao_task or self._tip_scanner_ao_task is None:
             return -1
+
+        temp_ao_tasks = [self._sample_scanner_ao_task, self._tip_scanner_ao_task]
         retval = 0
         try:
             # stop the analog output task
-            daq.DAQmxStopTask(self._sample_scanner_ao_task)
-            daq.DAQmxStopTask(self._tip_scanner_ao_task)
+            for task in temp_ao_tasks:
+                daq.DAQmxStopTask(task)
         except:
             self.log.exception('Error stopping analog outputs.')
             retval = -1
         try:
-            daq.DAQmxSetSampTimingType(self._sample_scanner_ao_task, daq.DAQmx_Val_OnDemand)
-            daq.DAQmxSetSampTimingType(self._tip_scanner_ao_task, daq.DAQmx_Val_OnDemand)
+            for task in temp_ao_tasks:
+                daq.DAQmxSetSampTimingType(task, daq.DAQmx_Val_OnDemand)
         except:
             self.log.exception('Error changing analog outputs mode.')
             retval = -1
@@ -633,146 +638,7 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
             self.log.exception('Error writing the analog output to the channels.')
         return AONwritten.value
 
-    def set_up_scanner_clock(self, clock_frequency=None, clock_channel=None):
-        """ Configures the hardware clock of the NiDAQ card to give the timing.
-
-        @param float clock_frequency: if defined, this sets the frequency of
-                                      the clock
-        @param string clock_channel: if defined, this is the physical channel
-                                     of the clock
-
-        @return int: error code (0:OK, -1:error)
-        """
-        # The clock for the scanner is created on the same principle as it is
-        # for the counter. Just to keep consistency, this function is a wrapper
-        # around the set_up_clock.
-        return self.set_up_clock(
-            clock_frequency=clock_frequency,
-            clock_channel=clock_channel,
-            scanner=True)
-
-    def set_up_scanner(self,
-                       counter_channels=None,
-                       sources=None,
-                       clock_channel=None,
-                       scanner_ao_channels=None):
-        """ Configures the actual scanner with a given clock.
-
-        The scanner works pretty much like the counter. Here you connect a
-        created clock with a counting task. That can be seen as a gated
-        counting, where the counts where sampled by the underlying clock.
-
-        @param list(str) counter_channels: this is the physical channel of the counter
-        @param list(str) sources:  this is the physical channel where the photons are to count from
-        @param string clock_channel: optional, if defined, this specifies the clock for the counter
-        @param list(str) scanner_ao_channels: optional, if defined, this specifies
-                                           the analog output channels
-
-        @return int: error code (0:OK, -1:error)
-        """
-        retval = 0
-        if self._scanner_clock_daq_task is None and clock_channel is None:
-            self.log.error('No clock running, call set_up_clock before starting the counter.')
-            return -1
-
-        my_counter_channels = counter_channels if counter_channels else self._scanner_counter_channels
-        my_photon_sources = sources if sources else self._photon_sources
-        self._my_scanner_clock_channel = clock_channel if clock_channel else self._scanner_clock_channel
-
-        if scanner_ao_channels is not None:
-            self._scanner_ao_channels = scanner_ao_channels
-            retval = self._start_analog_output()
-
-        if len(my_photon_sources) < len(my_counter_channels):
-            self.log.error('You have given {0} sources but {1} counting channels.'
-                           'Please give an equal or greater number of sources.'
-                           ''.format(len(my_photon_sources), len(my_counter_channels)))
-            return -1
-
-        try:
-            # Set the Sample Timing Type. Task timing to use a sampling clock:
-            # specify how the Data of the selected task is collected, i.e. set it
-            # now to be sampled on demand for the analog output, i.e. when
-            # demanded by software.
-            daq.DAQmxSetSampTimingType(self._scanner_ao_task, daq.DAQmx_Val_OnDemand)
-
-            for i, ch in enumerate(my_counter_channels):
-                # create handle for task, this task will do the photon counting for the
-                # scanner.
-                task = daq.TaskHandle()
-
-                # actually create the scanner counting task
-                daq.DAQmxCreateTask('ScannerCounter{0}'.format(i), daq.byref(task))
-
-                # Create a Counter Input which samples with Semi Perides the Channel.
-                # set up semi period width measurement in photon ticks, i.e. the width
-                # of each pulse (high and low) generated by pulse_out_task is measured
-                # in photon ticks.
-                #   (this task creates a channel to measure the time between state
-                #    transitions of a digital signal and adds the channel to the task
-                #    you choose)
-                daq.DAQmxCreateCISemiPeriodChan(
-                    # The task to which to add the channels
-                    task,
-                    # use this counter channel
-                    ch,
-                    # name to assign to it
-                    'Scanner Counter Channel {0}'.format(i),
-                    # expected minimum value
-                    0,
-                    # Expected maximum count value
-                    self._max_counts / self._scanner_clock_frequency,
-                    # units of width measurement, here Timebase photon ticks
-                    daq.DAQmx_Val_Ticks,
-                    '')
-
-                # Set the Counter Input to a Semi Period input Terminal.
-                # Connect the pulses from the scanner clock to the scanner counter
-                daq.DAQmxSetCISemiPeriodTerm(
-                    # The task to which to add the counter channel.
-                    task,
-                    # use this counter channel
-                    ch,
-                    # assign a Terminal Name
-                    self._my_scanner_clock_channel + 'InternalOutput')
-
-                # Set a CounterInput Control Timebase Source.
-                # Specify the terminal of the timebase which is used for the counter:
-                # Define the source of ticks for the counter as self._photon_source for
-                # the Scanner Task.
-                daq.DAQmxSetCICtrTimebaseSrc(
-                    # define to which task to# connect this function
-                    task,
-                    # counter channel to output the# counting results
-                    ch,
-                    # which channel to count
-                    my_photon_sources[i])
-                self._scanner_counter_daq_tasks.append(task)
-
-            # Scanner analog input task
-            if self._scanner_ai_channels:
-                atask = daq.TaskHandle()
-
-                daq.DAQmxCreateTask('ScanAnalogIn', daq.byref(atask))
-
-                daq.DAQmxCreateAIVoltageChan(
-                    atask,
-                    ', '.join(self._scanner_ai_channels),
-                    'Scan Analog In',
-                    daq.DAQmx_Val_RSE,
-                    self._counter_voltage_range[0],
-                    self._counter_voltage_range[1],
-                    daq.DAQmx_Val_Volts,
-                    ''
-                )
-                self._scanner_analog_daq_task = atask
-        except:
-            self.log.exception('Error while setting up scanner.')
-            retval = -1
-
-        return retval
-
-    def scanner_set_position(self, x=None, y=None, z=None, a=None):
+    def scanner_set_position(self, x=None, y=None):
         """ Move stage to x, y, z, a (where a is the fourth channel).
 
         @param float x: position in x-direction (in axis unit)
@@ -798,18 +664,6 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
                 self.log.error('You want to set y out of range: {0:f}.'.format(y))
                 return -1
             self._current_position[1] = np.float(y)
-
-        if z is not None:
-            if not(self._scanner_position_ranges[2][0] <= z <= self._scanner_position_ranges[2][1]):
-                self.log.error('You want to set z out of range: {0:f}.'.format(z))
-                return -1
-            self._current_position[2] = np.float(z)
-
-        if a is not None:
-            if not(self._scanner_position_ranges[3][0] <= a <= self._scanner_position_ranges[3][1]):
-                self.log.error('You want to set a out of range: {0:f}.'.format(a))
-                return -1
-            self._current_position[3] = np.float(a)
 
         # the position has to be a vstack
         my_position = np.vstack(self._current_position)
