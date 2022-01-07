@@ -44,30 +44,30 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
     Example config for copy-paste:
 
     nicard_6343:
-        module.Class: 'national_instruments_x_series.NationalInstrumentsXSeries'
+        module.Class: 'national_instruments_px_scan.NationalInstrumentsXSeriesPxScan'
         photon_sources:
-            - '/Dev1/PFI8'
-        #    - '/Dev1/PFI9'
+            - /Dev1/PFI8
+        #    - /Dev1/PFI9
         counter_clock: '100kHzTimebase'
         counter_channels:
-            - '/Dev1/Ctr1'
+            - /Dev1/Ctr1
         counter_ai_channels:
-            - '/Dev1/AI0'
+            - /Dev1/AI0
         counter_voltage_range: [-10, 10]
         sample_scanner_ao_channels:
-            - '/Dev1/AO0'
-            - '/Dev1/AO1'
+            - /Dev1/AO0
+            - /Dev1/AO1
         tip_scanner_ao_channels:
-            - '/Dev1/AO2'
-            - '/Dev1/AO3'
+            - /Dev1/AO2
+            - /Dev1/AO3
         sample_scanner_ai_channels:
-            - '/Dev1/AI1'
+            - /Dev1/AI1
         sample_scanner_counter_channels:
-            - '/Dev1/Ctr1'
+            - /Dev1/Ctr1
         tip_scanner_ai_channels:
-            - '/Dev1/AI2'
+            - /Dev1/AI2
         tip_scanner_counter_channels:
-            - '/Dev1/Ctr2
+            - /Dev1/Ctr2
         sample_scanner_voltage_ranges:
             - [0, 10]
             - [0, 10]
@@ -127,7 +127,7 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
         self._tip_scanner_counter_daq_tasks = list()
         self._sample_scanner_counter_daq_tasks = list()
 
-        self._photon_sources
+        self._photon_sources = self._photon_sources if self._photon_sources is not None else list()
 
 
         # handle all the parameters given by the config
@@ -225,7 +225,7 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
                     )
 
                 daq.DAQmxCfgSampClkTiming(task,
-                                          counter_clock,
+                                          my_clock_channel,
                                           self._counter_clock_frequency,
                                           daq.DAQmx_Val_Rising,
                                           daq.DAQmx_Val_FiniteSamps,
@@ -388,7 +388,6 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
         """
         retval = 0
         chanlist = [
-            self._odmr_trigger_channel,
             self._clock_channel,
             self._scanner_clock_channel,
             self._gate_in_channel
@@ -566,7 +565,7 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
                     '')
 
             daq.DAQmxCreateTask('TipScannerAO', daq.byref(self._tip_scanner_ao_task))
-            for n, chan in enumerate(self._sample_scanner_ao_channels):
+            for n, chan in enumerate(self._tip_scanner_ao_channels):
                 # Assign and configure the created task to an analog output voltage channel.
                 daq.DAQmxCreateAOVoltageChan(
                     # The AO voltage operation function is assigned to this task.
