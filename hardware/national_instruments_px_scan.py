@@ -29,10 +29,10 @@ from core.module import Base
 from core.configoption import ConfigOption
 from interface.slow_counter_interface import CountingMode
 from interface.odmr_counter_interface import ODMRCounterInterface
-from interface.confocal_scanner_interface import ConfocalScannerInterface
+from interface.px_scanner_interface import PixelScannerInterface
 
 
-class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCounterInterface):
+class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterInterface):
     """ A National Instruments device that can count and control microvave generators.
 
     !!!!!! NI USB 63XX, NI PCIe 63XX and NI PXIe 63XX DEVICES ONLY !!!!!!
@@ -417,21 +417,6 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
                 retval = -1
         return retval
 
-    def get_scanner_axes(self, scanner = 's'):
-        """ Scanner axes depends on how many channels tha analog output task has.
-        """
-
-        task = self._sample_scanner_ao_task if scanner == 's' else self._tip_scanner_ao_task
-        if task is None:
-            self.log.error('Cannot get channel number, analog output task does not exist.')
-            return []
-
-        n_channels = daq.uInt32()
-        daq.DAQmxGetTaskNumChans(task, n_channels)
-        possible_channels = ['x', 'y']
-
-        return possible_channels[0:int(n_channels.value)]
-
     def get_scanner_count_channels(self):
         """ Return list of counter channels """
         ch = self._scanner_counter_channels[:]
@@ -445,7 +430,7 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
                               and upper limit. The unit of the scan range is
                               meters.
         """
-        return self._position_ranges
+        return self._scanner_position_ranges
 
     def set_position_range(self, myrange=None):
         """ Sets the physical range of the scanner.
@@ -457,7 +442,7 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
         @return int: error code (0:OK, -1:error)
         """
         if myrange is None:
-            myrange = [[0, 1e-6], [0, 1e-6], [0, 1e-6], [0, 1e-6]]
+            myrange = self._tip_scanner_position_ranges + self._sample_scanner_position_ranges
 
         if not isinstance(myrange, (frozenset, list, set, tuple, np.ndarray, )):
             self.log.error('Given range is no array type.')
@@ -490,15 +475,15 @@ class NationalInstrumentsXSeriesPxScan(Base, ConfocalScannerInterface, ODMRCount
 
         @return int: error code (0:OK, -1:error)
         """
-        n_ch = len(self.get_scanner_axes())
+        chan_num = len(self._sample_scanner_ao_channels) + len(self._tip_scanner_ao_channels)
         if myrange is None:
-            myrange = [[-10., 10.], [-10., 10.], [-10., 10.], [-10., 10.]][0:n_ch]
+            myrange = self._tip_scanner_voltage_ranges + self._sample_scanner_voltage_ranges
 
         if not isinstance(myrange, (frozenset, list, set, tuple, np.ndarray)):
             self.log.error('Given range is no array type.')
             return -1
 
-        if len(myrange) != n_ch:
+        if len(myrange) != chan_num:
             self.log.error(
                 'Given range should have dimension 2, but has {0:d} instead.'
                 ''.format(len(myrange)))
