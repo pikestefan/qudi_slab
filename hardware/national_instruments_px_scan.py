@@ -501,15 +501,15 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         """
         if myrange is None:
             myrange = dict()
-            myrange[self._stack_names[0]] = self._sample_scanner_position_ranges_ranges
-            myrange[self._stack_names[1]] = self._tip_scanner_position_ranges_ranges
+            myrange[self._stack_names[0]] = self._sample_scanner_position_ranges
+            myrange[self._stack_names[1]] = self._tip_scanner_position_ranges
 
         if not isinstance(myrange, dict):
             self.log.error('Given input is not a dictionary.')
             return -1
 
         for name, stack_range in myrange.items():
-            if not isinstance(range, (np.ndarray, list)):
+            if not isinstance(stack_range, (np.ndarray, list)):
                 self.log.error(f"The {name} range is not an array.")
 
         for name, stack_range in myrange.items():
@@ -543,7 +543,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
             return -1
 
         for name, stack_range in myrange.items():
-            if not isinstance(range, (np.ndarray, list)):
+            if not isinstance(stack_range, (np.ndarray, list)):
                 self.log.error(f"The {name} range is not an array.")
 
         for name, stack_range in myrange.items():
@@ -584,7 +584,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         return ch
 
     def get_pixel_counts(self):
-        pass
+        self._counter_daq_tasks()
 
     def write_voltage(self, ao_task, voltages=[], autostart=True):
         AONwritten = daq.int32()

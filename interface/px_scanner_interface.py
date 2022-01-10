@@ -116,19 +116,6 @@ class PixelScannerInterface(metaclass=InterfaceMetaclass):
         pass
 
     @abstract_interface_method
-    def scan_line(self, line_path=None, pixel_clock=False):
-        """ Scans a line and returns the counts on that line.
-
-        @param float[k][n] line_path: array k of n-part tuples defining the pixel positions
-        @param bool pixel_clock: whether we need to output a pixel clock for this line
-
-        TODO: Give a detail explanation of pixel_clock argument, how it is used in practice and why it is necessary.
-
-        @return float[k][m]: the photon counts per second for k pixels with m channels
-        """
-        pass
-
-    @abstract_interface_method
     def close_scanner(self):
         """ Closes the scanner and cleans up afterwards.
 
@@ -147,4 +134,13 @@ class PixelScannerInterface(metaclass=InterfaceMetaclass):
         TODO: Give a detail explanation how it is used in practice and why it is necessary.
         """
         pass
+
+    @abstract_interface_method
+    def get_pixel_counts(self):
+
+        pass
+
+
+
+
 
