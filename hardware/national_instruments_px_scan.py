@@ -584,7 +584,8 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         return ch
 
     def get_pixel_counts(self):
-        self._counter_daq_tasks()
+        for i, task in enumerate(self._scanner_counter_daq_tasks):
+            daq.DAQmxStartTask(task)
 
     def write_voltage(self, ao_task, voltages=[], autostart=True):
         AONwritten = daq.int32()
