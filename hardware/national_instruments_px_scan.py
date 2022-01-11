@@ -583,9 +583,26 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         #ch.extend(self._scanner_ai_channels)
         return ch
 
-    def get_pixel_counts(self):
+    def
+
+    def read_pixel(self, samples=1):
         for i, task in enumerate(self._scanner_counter_daq_tasks):
             daq.DAQmxStartTask(task)
+
+        if self._sample_scanner_ai_channels:
+            daq.DAQmxStartTask(self._counter_analog_daq_task)
+
+        self. = np.empty((len(self._sample_scanner_counter_channels),
+                                samples), dtype=np.uint32)
+
+        for i, task in enumerate(self._scanner_counter_daq_tasks):
+            daq.DAQmxReadCounter32(
+                task,
+                samples,
+                self._RWTimeout,
+                self.count
+            )
+
 
     def write_voltage(self, ao_task, voltages=[], autostart=True):
         AONwritten = daq.int32()
