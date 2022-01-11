@@ -136,7 +136,7 @@ class PixelScannerInterface(metaclass=InterfaceMetaclass):
         pass
 
     @abstract_interface_method
-    def get_pixel_counts(self):
+    def read_pixel(self):
 
         pass
 
