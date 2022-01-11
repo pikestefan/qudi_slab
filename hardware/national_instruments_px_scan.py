@@ -247,14 +247,14 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                 # Counter analog input task
                 # TODO: for now I read only the analog channels associated
                 #  with the sample stack. Update this to include the tip stack.
-                if len(self._counter_ai_channels) > 0:
+                if len(self._sample_scanner_ai_channels) > 0:
                     atask = daq.TaskHandle()
 
                     daq.DAQmxCreateTask('CounterAnalogIn', daq.byref(atask))
 
                     daq.DAQmxCreateAIVoltageChan(
                         atask,
-                        ', '.join(self._counter_ai_channels),
+                        ', '.join(self._sample_scanner_ai_channels),
                         'Counter Analog In',
                         daq.DAQmx_Val_RSE,
                         self._counter_voltage_range[0],
@@ -266,7 +266,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                     daq.DAQmxCfgSampClkTiming(
                         atask,
                         my_clock_channel,
-                        self._clock_frequency,
+                        self._counter_clock_frequency,
                         daq.DAQmx_Val_Rising,
                         daq.DAQmx_Val_FiniteSamps,
                         samples_to_acquire
@@ -277,19 +277,6 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
             self.log.exception('Error while setting up counting task.')
             return -1
 
-        try:
-            for i, task in enumerate(self._counter_daq_tasks):
-                # Actually start the preconfigured counter task
-                daq.DAQmxStartTask(task)
-            if len(self._counter_ai_channels) > 0:
-                daq.DAQmxStartTask(self._counter_analog_daq_task)
-        except:
-            self.log.exception('Error while starting Counter')
-            try:
-                self.close_counter()
-            except:
-                self.log.exception('Could not close counter after error')
-            return -1
         return 0
 
     def get_counter_channels(self):
@@ -583,25 +570,57 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         #ch.extend(self._scanner_ai_channels)
         return ch
 
-    def
-
     def read_pixel(self, samples=1):
-        for i, task in enumerate(self._scanner_counter_daq_tasks):
+        for i, task in enumerate(self._counter_daq_tasks):
             daq.DAQmxStartTask(task)
 
         if self._sample_scanner_ai_channels:
             daq.DAQmxStartTask(self._counter_analog_daq_task)
 
-        self. = np.empty((len(self._sample_scanner_counter_channels),
-                                samples), dtype=np.uint32)
+        count_matrix = np.full((len(self._sample_scanner_counter_channels),
+                                samples), 222, dtype=np.uint32)
 
-        for i, task in enumerate(self._scanner_counter_daq_tasks):
-            daq.DAQmxReadCounter32(
-                task,
-                samples,
-                self._RWTimeout,
-                self.count
-            )
+        read_samples = daq.int32()
+        try:
+            for i, task in enumerate(self._counter_daq_tasks):
+                daq.DAQmxReadCounterU32(
+                    task,
+                    samples,
+                    self._RWTimeout,
+                    count_matrix[i],
+                    samples,
+                    daq.byref(read_samples),
+                    None
+                )
+
+                daq.DAQmxStopTask(task)
+        except:
+            self.log.exception("Failed reading counter samples")
+
+        if len(self._sample_scanner_ai_channels) > 0:
+            try:
+                analog_data = np.full(
+                    (len(self._sample_scanner_ai_channels), samples),
+                    111, dtype=np.float64)
+
+                analog_read_samples = daq.int32()
+
+                daq.DAQmxReadAnalogF64(
+                    self._counter_analog_daq_task,
+                    samples,
+                    self._RWTimeout,
+                    daq.DAQmx_Val_GroupByChannel,
+                    analog_data,
+                    len(self._sample_scanner_ai_channels) * samples,
+                    daq.byref(analog_read_samples),
+                    None
+                )
+
+                daq.DAQmxStopTask(self._counter_analog_daq_task)
+            except:
+                self.log.exception("Failed reading analog samples.")
+
+        return count_matrix.mean(), analog_data.mean()
 
 
     def write_voltage(self, ao_task, voltages=[], autostart=True):
