@@ -59,30 +59,6 @@ class PixelScannerInterface(metaclass=InterfaceMetaclass):
         pass
 
     @abstract_interface_method
-    def set_position_range(self, myrange=None):
-        """ Sets the physical range of the scanner.
-
-        Deprecated : This range should not be accessible by logic. TODO: Discuss and remove from interface ?
-
-        @param float [N][2] myrange: array of N ranges with an array containing lower and upper limit
-
-        @return int: error code (0:OK, -1:error)
-        """
-        pass
-
-    @abstract_interface_method
-    def set_voltage_range(self, myrange=None):
-        """ Sets the voltage range of the NI Card.
-
-        Deprecated : This range should not be accessible by logic. TODO: Discuss and remove from interface ?
-
-        @param float [2] myrange: array containing lower and upper limit
-
-        @return int: error code (0:OK, -1:error)
-        """
-        pass
-
-    @abstract_interface_method
     def get_scanner_count_channels(self):
         """ Returns the list of channels that are recorded while scanning an image.
 
