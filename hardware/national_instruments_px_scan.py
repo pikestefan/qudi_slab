@@ -87,6 +87,10 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
     """
 
+    #TODO: tidy up all the parameters: sample and tip scanner properties should be all put in a dictionary for ease
+    # of access in the functions. the variables _sample_scanner_... and _tip_scanner_... should be assigned to it
+    # at in the on_activate method.
+
     # config options
     _photon_sources = ConfigOption('photon_sources', list(), missing='warn')
 
@@ -94,6 +98,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
     _counter_clock = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
     _counter_clock_frequency = ConfigOption('counter_clock_frequency', 100e3, missing='info')
     _counter_channels = ConfigOption('counter_channels', missing='error')
+    _counter_ai_channels = ConfigOption('counter_ai_channels', list(), missing='info')
     _counter_voltage_range = ConfigOption('counter_voltage_range', [-10, 10], missing='info')
 
     # Sample scanner
@@ -105,6 +110,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
     # Tip scanner
     _tip_scanner_ao_channels = ConfigOption('tip_scanner_ao_channels', missing='error')
+    _tip_scanner_ai_channels = ConfigOption('tip_scanner_ai_channels', list(), missing='info')
     _tip_scanner_counter_channels = ConfigOption('tip_scanner_counter_channels', list(), missing='warn')
     _tip_scanner_voltage_ranges = ConfigOption('tip_scanner_voltage_ranges', missing='error')
     _tip_scanner_position_ranges = ConfigOption('tip_scanner_position_ranges', missing='error')
@@ -115,26 +121,40 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
     # timeout for the Read or/and write process in s
     _RWTimeout = ConfigOption('read_write_timeout', default=10)
 
-    _stack_names = ConfigOption('Stack names', default = ['sample', 'tip'])
+    _sample_stack_name = ConfigOption('Sample stack name', default='sample')
+    _tip_stack_name = ConfigOption('Tip stack names', default='tip')
 
-    #TODO: got here with the edits to the module
     def on_activate(self):
         """ Starts up the NI Card at activation.
         """
+        self._stack_names = [self._sample_stack_name, self._tip_stack_name]
+
+        #Regroup the initial parameters for the scanner into dictionaries for ease of access
+        self._scanner_ao_channels = dict(zip(self._stack_names,
+                                             [self._sample_scanner_ao_channels,
+                                              self._tip_scanner_ao_channels]))
+        self._scanner_ai_channels = dict(zip(self._stack_names,
+                                             [self._sample_scanner_ai_channels,
+                                              self._tip_scanner_ai_channels]))
+        self._scanner_counter_channels = dict(zip(self._stack_names,
+                                              [self._sample_scanner_counter_channels,
+                                               self._tip_scanner_counter_channels]))
+        self._scanner_voltage_ranges = dict(zip(self._stack_names,
+                                                [self._sample_scanner_voltage_ranges,
+                                                 self._tip_scanner_voltage_ranges]))
+
+        self._scanner_position_ranges = dict(zip(self._stack_names,
+                                                 [self._sample_scanner_position_ranges,
+                                                  self._tip_scanner_position_ranges]))
+
         # the tasks used on that hardware device:
         self._counter_daq_tasks = list()
 
-        self._sample_scanner_ao_task = None
-        self._tip_scanner_ao_task = None
+        self._scanner_ao_tasks = dict().fromkeys(self._stack_names, None)
 
-        self._tip_scanner_counter_daq_tasks = list()
-        self._sample_scanner_counter_daq_tasks = list()
+        self._scanner_counter_daq_tasks = dict().fromkeys(self._stack_names, list())
 
         self._photon_sources = self._photon_sources if self._photon_sources is not None else list()
-
-
-        # handle all the parameters given by the config
-        #self._current_position = np.zeros(len(self._scanner_ao_channels))
 
         if len(self._sample_scanner_ao_channels) < len(self._sample_scanner_voltage_ranges):
             self.log.error(
@@ -168,21 +188,21 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         self._stop_analog_outputs()
         # clear the task
         try:
-            daq.DAQmxClearTask(self._sample_scanner_ao_task)
-            daq.DAQmxClearTask(self._tip_scanner_ao_task)
-            self._sample_scanner_ao_task = None
-            self._tip_scanner_ao_task = None
+            for stack_name, scanner_ao_task in self._scanner_ao_tasks.items():
+                daq.DAQmxClearTask(scanner_ao_task)
+                self._scanner_ao_tasks[stack_name] = None
         except:
             self.log.exception('Could not clear AO Out Task.')
 
         #FIXME: uncomment the reset_hardware when all the programming is set nicely
         #self.reset_hardware()
 
-    def prepare_clock(self,
-                      counter_channels=None,
-                      sources=None,
-                      counter_clock=None,
-                      samples_to_acquire=None):
+    def prepare_counters(self,
+                         counter_channels=None,
+                         counter_ai_channels=None,
+                         sources=None,
+                         counter_clock=None,
+                         samples_to_acquire=None):
         """ Configures the actual counter with a given clock.
 
         @param list(str) counter_channels: optional, physical channel of the counter
@@ -198,6 +218,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         """
 
         my_counter_channels = counter_channels if counter_channels else self._counter_channels
+        my_counter_ai_channels = counter_ai_channels if counter_ai_channels else self._counter_ai_channels
         my_photon_sources = sources if sources else self._photon_sources
         my_clock_channel = counter_clock if counter_clock else self._counter_clock
 
@@ -245,16 +266,14 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                 self._counter_daq_tasks.append(task)
 
                 # Counter analog input task
-                # TODO: for now I read only the analog channels associated
-                #  with the sample stack. Update this to include the tip stack.
-                if len(self._sample_scanner_ai_channels) > 0:
+                if len(my_counter_ai_channels) > 0:
                     atask = daq.TaskHandle()
 
                     daq.DAQmxCreateTask('CounterAnalogIn', daq.byref(atask))
 
                     daq.DAQmxCreateAIVoltageChan(
                         atask,
-                        ', '.join(self._sample_scanner_ai_channels),
+                        ', '.join(my_counter_ai_channels),
                         'Counter Analog In',
                         daq.DAQmx_Val_RSE,
                         self._counter_voltage_range[0],
@@ -271,7 +290,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                         daq.DAQmx_Val_FiniteSamps,
                         samples_to_acquire
                     )
-                    self._counter_analog_daq_task = atask
+                    self._counter_ai_daq_task = atask
 
         except:
             self.log.exception('Error while setting up counting task.')
@@ -279,18 +298,9 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
         return 0
 
-    def get_counter_channels(self):
-        """ Returns the list of counter channel names.
-
-        @return tuple(str): channel names
-
-        Most methods calling this might just care about the number of channels, though.
-        """
-        ch = self._counter_channels[:]
-        ch.extend(self._counter_ai_channels)
-        return ch
-
-    def close_counter(self, scanner=False):
+    def close_counters(self, scanner=False):
+        #FIXME: the ai scanner and the counter ai are still a bit messed up, tidy up the syntax for proper creation
+        # and aborting of the tasks.
         """ Closes the counter or scanner and cleans up afterwards.
 
         @param bool scanner: specifies if the counter- or scanner- function
@@ -325,49 +335,29 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                     error = -1
             self._counter_daq_tasks = []
 
-            if len(self._counter_ai_channels) > 0:
+            if len(self._sample_scanner_ai_channels) > 0:
                 try:
                     # stop the counter task
-                    daq.DAQmxStopTask(self._counter_analog_daq_task)
+                    daq.DAQmxStopTask(self._counter_ai_daq_task)
                     # after stopping delete all the configuration of the counter
-                    daq.DAQmxClearTask(self._counter_analog_daq_task)
+                    daq.DAQmxClearTask(self._counter_ai_daq_task)
                     # set the task handle to None as a safety
                 except:
                     self.log.exception('Could not close counter analog channels.')
                     error = -1
-                self._counter_analog_daq_task = None
+                self._counter_ai_daq_task = None
         return error
 
-    def close_clock(self, scanner=False):
-        """ Closes the clock and cleans up afterwards.
+    def get_counter_channels(self):
+        """ Returns the list of counter channel names.
 
-        @param bool scanner: specifies if the counter- or scanner- function
-                             should be used to close the device.
-                                True = scanner
-                                False = counter
+        @return tuple(str): channel names
 
-        @return int: error code (0:OK, -1:error)
+        Most methods calling this might just care about the number of channels, though.
         """
-        if scanner:
-            my_task = self._scanner_clock_daq_task
-        else:
-            my_task = self._clock_daq_task
-        try:
-            # Stop the clock task:
-            daq.DAQmxStopTask(my_task)
-
-            # After stopping delete all the configuration of the clock:
-            daq.DAQmxClearTask(my_task)
-
-            # Set the task handle to None as a safety
-            if scanner:
-                self._scanner_clock_daq_task = None
-            else:
-                self._clock_daq_task = None
-        except:
-            self.log.exception('Could not close clock.')
-            return -1
-        return 0
+        ch = self._counter_channels[:]
+        ch.extend(self._counter_ai_channels)
+        return ch
 
     # ================ ConfocalScannerInterface Commands =======================
     def _start_analog_outputs(self):
@@ -377,74 +367,46 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         """
         try:
             # If an analog task is already running, kill that one first
-            if self._sample_scanner_ao_task is not None:
-                # stop the analog output task
-                daq.DAQmxStopTask(self._sample_scanner_ao_task)
+            for stack_name, stack_scanner_ao_task in self._scanner_ao_tasks.items():
+                if stack_scanner_ao_task is not None:
+                    # stop the analog output task
+                    daq.DAQmxStopTask(stack_scanner_ao_task)
 
-                # delete the configuration of the analog output
-                daq.DAQmxClearTask(self._sample_scanner_ao_task)
+                    # delete the configuration of the analog output
+                    daq.DAQmxClearTask(stack_scanner_ao_task)
 
-                # set the task handle to None as a safety
-                self._sample_scanner_ao_task = None
-
-            # If an analog task is already running, kill that one first
-            if self._tip_scanner_ao_task is not None:
-                # stop the analog output task
-                daq.DAQmxStopTask(self._tip_scanner_ao_task)
-
-                # delete the configuration of the analog output
-                daq.DAQmxClearTask(self._tip_scanner_ao_task)
-
-                # set the task handle to None as a safety
-                self._tip_scanner_ao_task = None
+                    # set the task handle to None as a safety
+                    self._scanner_ao_tasks[stack_name] = None
 
             # initialize ao channels / task for scanner, should always be active.
             # Define at first the type of the variable as a Task:
-            self._sample_scanner_ao_task = daq.TaskHandle()
-            self._tip_scanner_ao_task = daq.TaskHandle()
+            for stack_name in self._scanner_ao_tasks:
+                self._scanner_ao_tasks[stack_name] = daq.TaskHandle()
 
             # create the actual analog output task on the hardware device. Via
             # byref you pass the pointer of the object to the TaskCreation function:
-            daq.DAQmxCreateTask('SampleScannerAO', daq.byref(self._sample_scanner_ao_task))
-            for n, chan in enumerate(self._sample_scanner_ao_channels):
-                # Assign and configure the created task to an analog output voltage channel.
-                daq.DAQmxCreateAOVoltageChan(
-                    # The AO voltage operation function is assigned to this task.
-                    self._sample_scanner_ao_task,
-                    # use (all) scanner ao_channels for the output
-                    chan,
-                    # assign a name for that channel
-                    'Sample Scanner AO Channel {0}'.format(n),
-                    # minimum possible voltage
-                    self._sample_scanner_voltage_ranges[n][0],
-                    # maximum possible voltage
-                    self._sample_scanner_voltage_ranges[n][1],
-                    # units is Volt
-                    daq.DAQmx_Val_Volts,
-                    # empty for future use
-                    '')
+            for stack_name, scanner_ao_task in self._scanner_ao_tasks.items():
+                daq.DAQmxCreateTask('{:s}ScannerAO'.format(stack_name.capitalize()),
+                                    daq.byref(scanner_ao_task))
+                for n, chan in enumerate(self._scanner_ao_channels[stack_name]):
+                    # Assign and configure the created task to an analog output voltage channel.
+                    daq.DAQmxCreateAOVoltageChan(
+                        # The AO voltage operation function is assigned to this task.
+                        scanner_ao_task,
+                        # use (all) scanner ao_channels for the output
+                        chan,
+                        # assign a name for that channel
+                        'Sample Scanner AO Channel {0}'.format(n),
+                        # minimum possible voltage
+                        self._scanner_voltage_ranges[stack_name][n][0],
+                        # maximum possible voltage
+                        self._scanner_voltage_ranges[stack_name][n][1],
+                        # units is Volt
+                        daq.DAQmx_Val_Volts,
+                        # empty for future use
+                        '')
 
-            daq.DAQmxCreateTask('TipScannerAO', daq.byref(self._tip_scanner_ao_task))
-            for n, chan in enumerate(self._tip_scanner_ao_channels):
-                # Assign and configure the created task to an analog output voltage channel.
-                daq.DAQmxCreateAOVoltageChan(
-                    # The AO voltage operation function is assigned to this task.
-                    self._tip_scanner_ao_task,
-                    # use (all) scanner ao_channels for the output
-                    chan,
-                    # assign a name for that channel
-                    'Tip Scanner AO Channel {0}'.format(n),
-                    # minimum possible voltage
-                    self._tip_scanner_voltage_ranges[n][0],
-                    # maximum possible voltage
-                    self._tip_scanner_voltage_ranges[n][1],
-                    # units is Volt
-                    daq.DAQmx_Val_Volts,
-                    # empty for future use
-                    '')
-
-            daq.DAQmxSetSampTimingType(self._sample_scanner_ao_task, daq.DAQmx_Val_OnDemand)
-            daq.DAQmxSetSampTimingType(self._tip_scanner_ao_task, daq.DAQmx_Val_OnDemand)
+                daq.DAQmxSetSampTimingType(scanner_ao_task, daq.DAQmx_Val_OnDemand)
 
         except:
             self.log.exception('Error starting analog output task.')
@@ -456,95 +418,24 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
         @return int: error code (0:OK, -1:error)
         """
-
-        if self._sample_scanner_ao_task or self._tip_scanner_ao_task is None:
-            return -1
-
-        temp_ao_tasks = [self._sample_scanner_ao_task, self._tip_scanner_ao_task]
+        for scanner_ao_task in self._scanner_ao_tasks.values():
+            if scanner_ao_task is None:
+                return -1
         retval = 0
         try:
             # stop the analog output task
-            for task in temp_ao_tasks:
-                daq.DAQmxStopTask(task)
+            for scanner_ao_task in self._scanner_ao_tasks.values():
+                daq.DAQmxStopTask(scanner_ao_task)
         except:
             self.log.exception('Error stopping analog outputs.')
             retval = -1
         try:
-            for task in temp_ao_tasks:
-                daq.DAQmxSetSampTimingType(task, daq.DAQmx_Val_OnDemand)
+            for scanner_ao_task in self._scanner_ao_tasks.values():
+                daq.DAQmxSetSampTimingType(scanner_ao_task, daq.DAQmx_Val_OnDemand)
         except:
             self.log.exception('Error changing analog outputs mode.')
             retval = -1
         return retval
-
-    def set_position_range(self, myrange=None):
-        """ Sets the physical range of the scanner.
-
-        @param float [4][2] myrange: array of 4 ranges with an array containing
-                                     lower and upper limit. The unit of the
-                                     scan range is meters.
-
-        @return int: error code (0:OK, -1:error)
-        """
-        if myrange is None:
-            myrange = dict()
-            myrange[self._stack_names[0]] = self._sample_scanner_position_ranges
-            myrange[self._stack_names[1]] = self._tip_scanner_position_ranges
-
-        if not isinstance(myrange, dict):
-            self.log.error('Given input is not a dictionary.')
-            return -1
-
-        for name, stack_range in myrange.items():
-            if not isinstance(stack_range, (np.ndarray, list)):
-                self.log.error(f"The {name} range is not an array.")
-
-        for name, stack_range in myrange.items():
-            if len(stack_range) < 2:
-                self.log.error(f"The {name} range should contain 2 elements.")
-
-        for name, stack_range in myrange.items():
-            for r in stack_range:
-                if r[0] > r[1]:
-                    self.log.error('Given range limit of {:s} stack {0:d} has the wrong order.'.format(name, r))
-                    return -1
-
-        self._scanner_position_ranges = myrange
-        return 0
-
-    def set_voltage_range(self, myrange=None):
-        """ Sets the voltage range of the NI Card.
-
-        @param float [n][2] myrange: array containing lower and upper limit
-
-        @return int: error code (0:OK, -1:error)
-        """
-
-        if myrange is None:
-            myrange = dict()
-            myrange[self._stack_names[0]] = self._sample_scanner_voltage_ranges
-            myrange[self._stack_names[1]] = self._tip_scanner_voltage_ranges
-
-        if not isinstance(myrange, dict):
-            self.log.error('Given input is not a dictionary.')
-            return -1
-
-        for name, stack_range in myrange.items():
-            if not isinstance(stack_range, (np.ndarray, list)):
-                self.log.error(f"The {name} range is not an array.")
-
-        for name, stack_range in myrange.items():
-            if len(stack_range) < 2:
-                self.log.error(f"The {name} range should contain 2 elements.")
-
-        for name, stack_range in myrange.items():
-            for r in stack_range:
-                if r[0] > r[1]:
-                    self.log.error('Given range limit of {:s} stack {0:d} has the wrong order.'.format(name, r))
-                    return -1
-
-        self._scanner_voltage_ranges = myrange
-        return 0
 
     def get_scanner_position(self):
         """ Get the current position of the scanner hardware.
@@ -553,16 +444,25 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         """
         return self._current_position.tolist()
 
-    def get_position_range(self, stack='sample'):
+    def get_position_range(self, stack=None):
         """ Returns the physical range of the scanner.
 
         @return float [4][2]: array of 4 ranges with an array containing lower
                               and upper limit. The unit of the scan range is
                               meters.
         """
-        if stack not in self._stack_names:
-            self.log.error('Requested stack is not listed.')
+
         return self._scanner_position_ranges[stack]
+
+    def get_voltage_range(self, stack=None):
+        """ Returns the physical range of the scanner.
+
+        @return float [4][2]: array of 4 ranges with an array containing lower
+                              and upper limit. The unit of the scan range is
+                              meters.
+        """
+
+        return self._scanner_voltage_ranges[stack]
 
     def get_scanner_count_channels(self):
         """ Return list of counter channels """
@@ -575,7 +475,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
             daq.DAQmxStartTask(task)
 
         if self._sample_scanner_ai_channels:
-            daq.DAQmxStartTask(self._counter_analog_daq_task)
+            daq.DAQmxStartTask(self._counter_ai_daq_task)
 
         count_matrix = np.full((len(self._sample_scanner_counter_channels),
                                 samples), 222, dtype=np.uint32)
@@ -606,7 +506,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                 analog_read_samples = daq.int32()
 
                 daq.DAQmxReadAnalogF64(
-                    self._counter_analog_daq_task,
+                    self._counter_ai_daq_task,
                     samples,
                     self._RWTimeout,
                     daq.DAQmx_Val_GroupByChannel,
@@ -616,7 +516,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                     None
                 )
 
-                daq.DAQmxStopTask(self._counter_analog_daq_task)
+                daq.DAQmxStopTask(self._counter_ai_daq_task)
             except:
                 self.log.exception("Failed reading analog samples.")
 
@@ -642,28 +542,24 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
             self.log.exception('Error writing the analog output to the channels.')
         return AONwritten.value
 
-    def scanner_set_position(self, x=None, y=None, stack='sample'):
-        """ Move stage to x, y, z, a (where a is the fourth channel).
+    def scanner_set_position(self, x=None, y=None, stack=None):
+        """ Move stage to x, y.
 
         @param float x: position in x-direction (in axis unit)
         @param float y: position in y-direction (in axis unit)
-        @param float z: position in z-direction (in axis unit)
-        @param float a: position in a-direction (in axis unit)
 
         @return int: error code (0:OK, -1:error)
         """
 
-        if stack not in self._stack_names:
-            self.log.error('Requested stack is not in the name list.')
+        if stack is None:
+            self.log.error('The scanning stack has not been specified.')
+            return -1
 
         if self.module_state() == 'locked':
             self.log.error('Another scan is already running, close it first.')
             return -1
 
-        if stack == self._stack_names[0]:
-            scanning_task = self._sample_scanner_ao_task
-        else:
-            scanning_task = self._tip_scanner_ao_task
+        scanning_task = self._scanner_ao_tasks[stack]
 
         scanner_position_range = self._scanner_position_ranges[stack]
 
@@ -692,20 +588,20 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
             return -1
         return 0
 
-    def close_scanner(self):
-        """ Closes the scanner and cleans up afterwards.
+    def close_scanner(self, stack=None):
+        """ Closes the scanners and cleans up afterwards.
 
         @return int: error code (0:OK, -1:error)
         """
-        a = self._stop_analog_output()
+        a = self._stop_analog_outputs()
 
         b = 0
-        if self._scanner_ai_channels:
+        if self._scanner_ai_channels[stack]:
             try:
                 # stop the counter task
-                daq.DAQmxStopTask(self._scanner_analog_daq_task)
+                daq.DAQmxStopTask(self._counter_ai_daq_task)
                 # after stopping delete all the configuration of the counter
-                daq.DAQmxClearTask(self._scanner_analog_daq_task)
+                daq.DAQmxClearTask(self._counter_ai_daq_task)
                 # set the task handle to None as a safety
                 self._scanner_analog_daq_task = None
             except:
@@ -759,39 +655,38 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                 retval = -1
         return retval
 
-    def _scanner_position_to_volt(self, positions=None):
-        """ Converts a set of position pixels to acutal voltages.
+    def _scanner_position_to_volt(self, positions=None, stack=None):
+        """ Converts a set of position pixels to actual voltages.
 
-        @param float[][n] positions: array of n-part tuples defining the pixels
+        @param np.ndarray positions: array with (n, 2) shape, first column corresponding to x and second one to y.
+        @param string stack: the stack name
 
         @return float[][n]: array of n-part tuples of corresponing voltages
-
-        The positions is typically a matrix like
-            [[x_values], [y_values], [z_values], [a_values]]
-            but x, xy, xyz and xyza are allowed formats.
         """
 
-        if not isinstance(positions, (frozenset, list, set, tuple, np.ndarray, )):
-            self.log.error('Given position list is no array type.')
+        if not isinstance(positions, np.ndarray):
+            self.log.error('Given positions are not and nd array.')
             return np.array([np.NaN])
 
-        vlist = []
-        for i, position in enumerate(positions):
-            vlist.append(
-                (self._scanner_voltage_ranges[i][1] - self._scanner_voltage_ranges[i][0])
-                / (self._scanner_position_ranges[i][1] - self._scanner_position_ranges[i][0])
-                * (position - self._scanner_position_ranges[i][0])
-                + self._scanner_voltage_ranges[i][0]
-            )
-        volts = np.vstack(vlist)
+        if stack is None:
+            self.log.error('Please specify a stack to work with.')
 
-        for i, v in enumerate(volts):
-            if v.min() < self._scanner_voltage_ranges[i][0] or v.max() > self._scanner_voltage_ranges[i][1]:
-                self.log.error(
-                    'Voltages ({0}, {1}) exceed the limit, the positions have to '
-                    'be adjusted to stay in the given range.'.format(v.min(), v.max()))
-                return np.array([np.NaN])
-        return volts
+        scanner_voltage_ranges = np.array(self._scanner_voltage_ranges[stack])
+        scanner_position_ranges = np.array(self._scanner_position_ranges[stack])
+
+        post2volt_coeff = np.diff(scanner_voltage_ranges, axis=1) / np.diff(scanner_position_ranges, axis=1)
+
+        volts = post2volt_coeff.T * positions + scanner_voltage_ranges[:, 0].T
+
+        if (np.any(np.logical_or(volts[:, 0] < scanner_voltage_ranges[0, 0],
+                                 volts[:, 0] > scanner_voltage_ranges[0, 1]))
+                or
+            np.any(np.logical_or(volts[:, 1] < scanner_voltage_ranges[1, 0],
+                                 volts[:, 1] > scanner_voltage_ranges[1, 1]))):
+            self.log.error('Some of the requested positions are out of the voltage bounds.')
+            return np.array([np.nan])
+
+        return volts.astype(np.float64)
 
     # ================ End ConfocalScannerInterface Commands ===================
 
