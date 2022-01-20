@@ -87,10 +87,6 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
     """
 
-    #TODO: tidy up all the parameters: sample and tip scanner properties should be all put in a dictionary for ease
-    # of access in the functions. the variables _sample_scanner_... and _tip_scanner_... should be assigned to it
-    # at in the on_activate method.
-
     # config options
     _photon_sources = ConfigOption('photon_sources', list(), missing='warn')
 
@@ -149,10 +145,9 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
         # the tasks used on that hardware device:
         self._counter_daq_tasks = list()
+        self._counter_ai_daq_task = list()
 
         self._scanner_ao_tasks = dict().fromkeys(self._stack_names, None)
-
-        self._scanner_counter_daq_tasks = dict().fromkeys(self._stack_names, list())
 
         self._photon_sources = self._photon_sources if self._photon_sources is not None else list()
 
@@ -194,8 +189,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         except:
             self.log.exception('Could not clear AO Out Task.')
 
-        #FIXME: uncomment the reset_hardware when all the programming is set nicely
-        #self.reset_hardware()
+        self.reset_hardware()
 
     def prepare_counters(self,
                          counter_channels=None,
@@ -290,7 +284,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                         daq.DAQmx_Val_FiniteSamps,
                         samples_to_acquire
                     )
-                    self._counter_ai_daq_task = atask
+                    self._counter_ai_daq_task.append(atask)
 
         except:
             self.log.exception('Error while setting up counting task.')
@@ -298,10 +292,8 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
         return 0
 
-    def close_counters(self, scanner=False):
-        #FIXME: the ai scanner and the counter ai are still a bit messed up, tidy up the syntax for proper creation
-        # and aborting of the tasks.
-        """ Closes the counter or scanner and cleans up afterwards.
+    def close_counters(self):
+        """
 
         @param bool scanner: specifies if the counter- or scanner- function
                              will be excecuted to close the device.
@@ -311,41 +303,30 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         @return int: error code (0:OK, -1:error)
         """
         error = 0
-        if scanner:
-            for i, task in enumerate(self._scanner_counter_daq_tasks):
-                try:
-                    # stop the counter task
-                    daq.DAQmxStopTask(task)
-                    # after stopping delete all the configuration of the counter
-                    daq.DAQmxClearTask(task)
-                except:
-                    self.log.exception('Could not close scanner counter.')
-                    error = -1
-            self._scanner_counter_daq_tasks = []
-        else:
-            for i, task in enumerate(self._counter_daq_tasks):
-                try:
-                    # stop the counter task
-                    daq.DAQmxStopTask(task)
-                    # after stopping delete all the configuration of the counter
-                    daq.DAQmxClearTask(task)
-                    # set the task handle to None as a safety
-                except:
-                    self.log.exception('Could not close counter.')
-                    error = -1
-            self._counter_daq_tasks = []
 
-            if len(self._sample_scanner_ai_channels) > 0:
-                try:
-                    # stop the counter task
-                    daq.DAQmxStopTask(self._counter_ai_daq_task)
-                    # after stopping delete all the configuration of the counter
-                    daq.DAQmxClearTask(self._counter_ai_daq_task)
-                    # set the task handle to None as a safety
-                except:
-                    self.log.exception('Could not close counter analog channels.')
-                    error = -1
-                self._counter_ai_daq_task = None
+        for i, task in enumerate(self._counter_daq_tasks):
+            try:
+                # stop the counter task
+                daq.DAQmxStopTask(task)
+                # after stopping delete all the configuration of the counter
+                daq.DAQmxClearTask(task)
+                # set the task handle to None as a safety
+            except:
+                self.log.exception('Could not close counter.')
+                error = -1
+        self._counter_daq_tasks = []
+
+        if len(self._sample_scanner_ai_channels) > 0:
+            try:
+                # stop the counter task
+                daq.DAQmxStopTask(self._counter_ai_daq_task)
+                # after stopping delete all the configuration of the counter
+                daq.DAQmxClearTask(self._counter_ai_daq_task)
+                # set the task handle to None as a safety
+            except:
+                self.log.exception('Could not close counter analog channels.')
+                error = -1
+            self._counter_ai_daq_task = None
         return error
 
     def get_counter_channels(self):
@@ -628,7 +609,6 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         chanlist = [
             self._clock_channel,
             self._scanner_clock_channel,
-            self._gate_in_channel
             ]
         chanlist.extend(self._scanner_ao_channels)
         chanlist.extend(self._photon_sources)
