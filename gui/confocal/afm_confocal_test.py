@@ -49,7 +49,7 @@ class ConfocalMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
-        ui_file = os.path.join(this_dir, 'ui_afm_cfm.ui')
+        ui_file = os.path.join(this_dir, 'ui_afm_cfm_v2.ui')
         self._doubleclicked = False
 
         # Load it
@@ -70,7 +70,7 @@ class ConfocalTestGui(GUIBase):
     """
 
     # declare connectors
-    confocallogic1 = Connector(interface='ConfocalLogic')
+    #confocallogic1 = Connector(interface='ConfocalLogic')
 
     default_meter_prefix = ConfigOption('default_meter_prefix', None)  # assume the unit prefix of position spinbox
 
@@ -88,7 +88,7 @@ class ConfocalTestGui(GUIBase):
         """
 
         # Getting an access to all connectors:
-        self._scanning_logic = self.confocallogic1()
+        #self._scanning_logic = self.confocallogic1()
 
         self._hardware_state = True
 
@@ -133,3 +133,9 @@ class ConfocalTestGui(GUIBase):
         self._mw.show()
         self._mw.activateWindow()
         self._mw.raise_()
+
+if __name__ == '__main__':
+    import sys
+    app = QtWidgets.QApplication(sys.argv)
+    window = ConfocalMainWindow()
+    app.exec_()
