@@ -40,7 +40,7 @@ from qtpy import QtWidgets
 from qtpy import uic
 
 
-class ConfocalMainWindow(QtWidgets.QMainWindow):
+class SnvmWindow(QtWidgets.QMainWindow):
     """ Create the Mainwindow based on the corresponding *.ui file. """
 
     sigPressKeyBoard = QtCore.Signal(QtCore.QEvent)
@@ -49,11 +49,11 @@ class ConfocalMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
-        ui_file = os.path.join(this_dir, 'ui_afm_cfm_v2.ui')
+        ui_file = os.path.join(this_dir, 'ui_afm_cfm_v3.ui')
         self._doubleclicked = False
 
         # Load it
-        super(ConfocalMainWindow, self).__init__()
+        super(SnvmWindow, self).__init__()
         uic.loadUi(ui_file, self)
         self.show()
 
@@ -65,12 +65,12 @@ class ConfocalMainWindow(QtWidgets.QMainWindow):
         self._doubleclicked = True
         self.sigDoubleClick.emit()
 
-class ConfocalTestGui(GUIBase):
+class SnvmGui(GUIBase):
     """ Main Confocal Class for xy and depth scans.
     """
 
     # declare connectors
-    #confocallogic1 = Connector(interface='ConfocalLogic')
+    snvm_logic = Connector(interface='SnvmLogic')
 
     default_meter_prefix = ConfigOption('default_meter_prefix', None)  # assume the unit prefix of position spinbox
 
@@ -101,7 +101,7 @@ class ConfocalTestGui(GUIBase):
         *.ui file and configures the event handling between the modules.
         Moreover it sets default values.
         """
-        self._mw = ConfocalMainWindow()
+        self._mw = SnvmWindow()
 
         # All our gui elements are dockable, and so there should be no "central" widget.
         self._mw.centralwidget.hide()
@@ -133,9 +133,3 @@ class ConfocalTestGui(GUIBase):
         self._mw.show()
         self._mw.activateWindow()
         self._mw.raise_()
-
-if __name__ == '__main__':
-    import sys
-    app = QtWidgets.QApplication(sys.argv)
-    window = ConfocalMainWindow()
-    app.exec_()
