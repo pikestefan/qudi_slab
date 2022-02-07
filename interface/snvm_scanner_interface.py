@@ -24,7 +24,7 @@ from core.interface import abstract_interface_method
 from core.meta import InterfaceMetaclass
 
 
-class PixelScannerInterface(metaclass=InterfaceMetaclass):
+class SnvmScannerInterface(metaclass=InterfaceMetaclass):
     """ This is the Interface class to define the controls for a scanner device
 
     A scanner device is a hardware that can move on up to 4 multiple axis with repeatability in position and measure
@@ -50,12 +50,20 @@ class PixelScannerInterface(metaclass=InterfaceMetaclass):
         pass
 
     @abstract_interface_method
-    def get_position_range(self):
+    def get_position_range(self, stack=None):
         """ Returns the physical range of the scanner.
 
         @return float [N][2]: array of N ranges with an array containing lower and upper limit, preferably in SI unit.
 
         """
+        pass
+
+    @abstract_interface_method
+    def get_voltage_range(self, stack=None):
+        pass
+
+    @abstract_interface_method
+    def get_counter_clock_frequency(self):
         pass
 
     @abstract_interface_method
@@ -88,6 +96,13 @@ class PixelScannerInterface(metaclass=InterfaceMetaclass):
         """ Get the current position of the scanner hardware.
 
         @return tuple(float): current position as a tuple. Ex : (x, y, z, a).
+        """
+        pass
+
+    @abstract_interface_method
+    def get_stack_names(self):
+        """
+        Returns the two stack names
         """
         pass
 
