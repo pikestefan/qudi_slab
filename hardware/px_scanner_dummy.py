@@ -29,10 +29,10 @@ from core.module import Base
 from core.configoption import ConfigOption
 from interface.slow_counter_interface import CountingMode
 from interface.odmr_counter_interface import ODMRCounterInterface
-from interface.px_scanner_interface import PixelScannerInterface
+from interface.snvm_scanner_interface import SnvmScannerInterface
 
 
-class SnvmDummy(Base, PixelScannerInterface):
+class SnvmDummy(Base, SnvmScannerInterface):
 
     def on_activate(self):
         pass
