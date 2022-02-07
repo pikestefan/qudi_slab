@@ -29,10 +29,10 @@ from core.module import Base
 from core.configoption import ConfigOption
 from interface.slow_counter_interface import CountingMode
 from interface.odmr_counter_interface import ODMRCounterInterface
-from interface.px_scanner_interface import PixelScannerInterface
+from interface.snvm_scanner_interface import SnvmScannerInterface
 
 
-class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterInterface):
+class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterInterface):
     """ A National Instruments device that can count and control microvave generators.
 
     !!!!!! NI USB 63XX, NI PCIe 63XX and NI PXIe 63XX DEVICES ONLY !!!!!!
@@ -212,9 +212,10 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         """
 
         my_counter_channels = counter_channels if counter_channels else self._counter_channels
-        my_counter_ai_channels = counter_ai_channels if counter_ai_channels else self._counter_ai_channels
         my_photon_sources = sources if sources else self._photon_sources
         my_clock_channel = counter_clock if counter_clock else self._counter_clock
+        #If no AI is specified, then create an empty array (and do not create AI tasks)
+        my_counter_ai_channels = counter_ai_channels if counter_ai_channels else []
 
         if len(my_photon_sources) < len(my_counter_channels):
             self.log.error('You have given {0} sources but {1} counting channels.'
@@ -284,7 +285,9 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                         daq.DAQmx_Val_FiniteSamps,
                         samples_to_acquire
                     )
-                    self._counter_ai_daq_task.append(atask)
+                    self._counter_ai_daq_task = atask
+                else:
+                    self._counter_ai_daq_task = None
 
         except:
             self.log.exception('Error while setting up counting task.')
@@ -337,8 +340,10 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         Most methods calling this might just care about the number of channels, though.
         """
         ch = self._counter_channels[:]
-        ch.extend(self._counter_ai_channels)
         return ch
+
+    def get_ai_counter_channels(self, stack_name=None):
+        return self._scanner_ai_channels[stack_name]
 
     # ================ ConfocalScannerInterface Commands =======================
     def _start_analog_outputs(self):
@@ -418,6 +423,9 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
             retval = -1
         return retval
 
+    def get_counter_clock_frequency(self):
+        return self._counter_clock_frequency
+
     def get_scanner_position(self):
         """ Get the current position of the scanner hardware.
 
@@ -445,6 +453,12 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
         return self._scanner_voltage_ranges[stack]
 
+    def get_stack_names(self):
+        """
+        Return the names of the stacks, ordered as sample, tip.
+        """
+        return self._sample_stack_name, self._tip_stack_name
+
     def get_scanner_count_channels(self):
         """ Return list of counter channels """
         ch = self._scanner_counter_channels[:]
@@ -455,11 +469,13 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
         for i, task in enumerate(self._counter_daq_tasks):
             daq.DAQmxStartTask(task)
 
-        if self._sample_scanner_ai_channels:
+        if self._counter_ai_daq_task:
             daq.DAQmxStartTask(self._counter_ai_daq_task)
 
         count_matrix = np.full((len(self._sample_scanner_counter_channels),
                                 samples), 222, dtype=np.uint32)
+
+        final_counts = np.full(samples, 222)
 
         read_samples = daq.int32()
         try:
@@ -473,11 +489,13 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
                     daq.byref(read_samples),
                     None
                 )
-
+                final_counts[i] = count_matrix[i, -1]
                 daq.DAQmxStopTask(task)
         except:
             self.log.exception("Failed reading counter samples")
 
+        # FIXME: this part is incorrect: check the ai_channels are the correct ones. Also, the readout needs to be a for
+        #  loop, and the data should be stored in each row of the analog_data container.
         if len(self._sample_scanner_ai_channels) > 0:
             try:
                 analog_data = np.full(
@@ -501,7 +519,11 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
             except:
                 self.log.exception("Failed reading analog samples.")
 
-        return count_matrix.mean(), analog_data.mean()
+            analog_data = analog_data.mean(axis=0)
+        else:
+            analog_data = None
+
+        return final_counts, analog_data
 
 
     def write_voltage(self, ao_task, voltages=[], autostart=True):
@@ -523,7 +545,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
             self.log.exception('Error writing the analog output to the channels.')
         return AONwritten.value
 
-    def scanner_set_position(self, x=None, y=None, stack=None):
+    def scanner_set_position(self, xypair=None, stack=None):
         """ Move stage to x, y.
 
         @param float x: position in x-direction (in axis unit)
@@ -531,7 +553,7 @@ class NationalInstrumentsXSeriesPxScan(Base, PixelScannerInterface, ODMRCounterI
 
         @return int: error code (0:OK, -1:error)
         """
-
+        x, y = xypair
         if stack is None:
             self.log.error('The scanning stack has not been specified.')
             return -1
