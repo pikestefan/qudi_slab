@@ -24,6 +24,7 @@ import numpy as np
 import os
 import pyqtgraph as pg
 import time
+from math import ceil
 
 from core.connector import Connector
 from core.configoption import ConfigOption
@@ -70,9 +71,12 @@ class SnvmGui(GUIBase):
     """
 
     # declare connectors
-    snvm_logic = Connector(interface='SnvmLogic')
+    #snvm_logic = Connector(interface='SnvmLogic')
 
     default_meter_prefix = ConfigOption('default_meter_prefix', None)  # assume the unit prefix of position spinbox
+    # FIXME: for now I fix the multipliers, put is as an option, and updated the labels accordingly in the GUI
+    startstopFreq_multiplier = 1e9
+    stepFreq_multiplier = 1e6
 
     # signals
     sigStartOptimizer = QtCore.Signal(list, str)
@@ -88,10 +92,8 @@ class SnvmGui(GUIBase):
         """
 
         # Getting an access to all connectors:
-        #self._scanning_logic = self.confocallogic1()
-
+        #self._scanning_logic = self.snvm_logic()
         self._hardware_state = True
-
         self.initMainUI()      # initialize the main GUI
 
     def initMainUI(self):
@@ -101,21 +103,39 @@ class SnvmGui(GUIBase):
         *.ui file and configures the event handling between the modules.
         Moreover it sets default values.
         """
-        self._mw = SnvmWindow()
+        self._mainwindow = SnvmWindow()
 
         # All our gui elements are dockable, and so there should be no "central" widget.
-        self._mw.centralwidget.hide()
-        self._mw.setDockNestingEnabled(True)
+        self._mainwindow.centralwidget.hide()
+        self._mainwindow.setDockNestingEnabled(True)
 
-        # always use first channel on startup, can be changed afterwards
-        self.xy_channel = 0
-        self.depth_channel = 0
-        self.opt_channel = 0
 
-        ###################################################################
-        #               Configuring the dock widgets                      #
-        ###################################################################
-        # All our gui elements are dockable, and so there should be no "central" widget.
+        self.colormap = ColorScaleInferno()
+        self.sample_cb = ColorBar(self.colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
+
+        self._mainwindow.afmCbarView.addItem(self.sample_cb)
+        ##############
+        # Connect the buttons to their signals
+        ##############
+        #self._mainwindow.action_snvmscan.triggered.connect()
+
+        ########
+        # AFM scanning settings
+        ########
+
+
+        #######
+        # ODMR scanning settings
+        ######
+        #TODO: maybe make the freq resolution of the GUI a settable value
+        self._mainwindow.mwStart.setDecimals(6)
+        self._mainwindow.mwEnd.setDecimals(6)
+        self._mainwindow.mwStep.setDecimals(6)
+
+        #Connect the signals
+        self._mainwindow.mwStart.valueChanged.connect(self.accept_set_frequency_ranges)
+        self._mainwindow.mwEnd.valueChanged.connect(self.accept_set_frequency_ranges)
+        self._mainwindow.mwStep.valueChanged.connect(self.accept_set_frequency_ranges)
 
         self.show()
 
@@ -124,12 +144,34 @@ class SnvmGui(GUIBase):
 
         @return int: error code (0:OK, -1:error)
         """
-        self._mw.close()
+        self._mainwindow.close()
         return 0
 
     def show(self):
         """Make main window visible and put it above all other windows. """
         # Show the Main Confocal GUI:
-        self._mw.show()
-        self._mw.activateWindow()
-        self._mw.raise_()
+        self._mainwindow.show()
+        self._mainwindow.activateWindow()
+        self._mainwindow.raise_()
+
+
+    def accept_set_frequency_ranges(self):
+        pass
+    #     """
+    #     Function that checks that the range is start freq + step * multiple. If it's not, update the stop frequency.
+    #     """
+    #     stopfreq, startfreq = self._mainwindow.mwEnd.value(), self._mainwindow.mwStart.value()
+    #     freq_step = self._mainwindow.mwStep.value()
+    #
+    #     coeff_for_step = self.stepFreq_multiplier / self.startstopFreq_multiplier
+    #
+    #     freq_diff = stopfreq - startfreq
+    #     freq_step = freq_step * coeff_for_step
+    #     if not (freq_diff % freq_step) == 0:
+    #         multiple = round(freq_diff / freq_step)
+    #         stop_freq = startfreq + multiple * freq_step
+    #         self._mainwindow.mwEnd.setValue(stop_freq)
+    #
+    #     self._scanning_logic.start_freq = startfreq * self.startstopFreq_multiplier
+    #     self._scanning_logic.stop_freq = stop_freq * self.startstopFreq_multiplier
+    #     self._scanning_logic.freq_resolution = freq_step * self.stepFreq_multiplier
