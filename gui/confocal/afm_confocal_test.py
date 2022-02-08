@@ -71,7 +71,7 @@ class SnvmGui(GUIBase):
     """
 
     # declare connectors
-    #snvm_logic = Connector(interface='SnvmLogic')
+    snvm_logic = Connector(interface='SnvmLogic')
 
     default_meter_prefix = ConfigOption('default_meter_prefix', None)  # assume the unit prefix of position spinbox
     # FIXME: for now I fix the multipliers, put is as an option, and updated the labels accordingly in the GUI
@@ -92,7 +92,7 @@ class SnvmGui(GUIBase):
         """
 
         # Getting an access to all connectors:
-        #self._scanning_logic = self.snvm_logic()
+        self._scanning_logic = self.snvm_logic()
         self._hardware_state = True
         self.initMainUI()      # initialize the main GUI
 
@@ -115,27 +115,47 @@ class SnvmGui(GUIBase):
 
         self._mainwindow.afmCbarView.addItem(self.sample_cb)
         ##############
-        # Connect the buttons to their signals
+        # Connect the actions to their slots
         ##############
-        #self._mainwindow.action_snvmscan.triggered.connect()
+        self._mainwindow.actionStart_snvmscan.triggered.connect(self.start_scanning)
+        self._mainwindow.actionStart_conf_scan.triggered.connect(self.start_scanning)
+        self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning)
 
         ########
         # AFM scanning settings
         ########
-
+        #Put all the settings in a dictionary, for ease of access
+        self._afm_widgets = dict()
+        self._afm_widgets[self._mainwindow.xResolution.objectName()] = self._mainwindow.xResolution
+        self._afm_widgets[self._mainwindow.yResolution.objectName()] = self._mainwindow.yResolution
+        self._afm_widgets[self._mainwindow.xMinRange.objectName()] = self._mainwindow.xMinRange
+        self._afm_widgets[self._mainwindow.xMaxRange.objectName()] = self._mainwindow.xMaxRange
+        self._afm_widgets[self._mainwindow.yMinRange.objectName()] = self._mainwindow.yMinRange
+        self._afm_widgets[self._mainwindow.yMaxRange.objectName()] = self._mainwindow.yMaxRange
+        self._afm_widgets[self._mainwindow.fwpxTime.objectName()] = self._mainwindow.fwpxTime
+        self._afm_widgets[self._mainwindow.bwPxTime.objectName()] = self._mainwindow.bwPxTime
+        self._afm_widgets[self._mainwindow.storeRetrace.objectName()] = self._mainwindow.storeRetrace
 
         #######
         # ODMR scanning settings
         ######
-        #TODO: maybe make the freq resolution of the GUI a settable value
+        #Also here, store in a dictionary if the widgets need to be accessed in for loops
+        self._odmr_widgets = dict()
+        self._odmr_widgets[self._mainwindow.mwStart.objectName()] = self._mainwindow.mwStart
+        self._odmr_widgets[self._mainwindow.mwEnd.objectName()] = self._mainwindow.mwEnd
+        self._odmr_widgets[self._mainwindow.mwStep.objectName()] = self._mainwindow.mwStep
+        self._odmr_widgets[self._mainwindow.mwPower.objectName()] = self._mainwindow.mwPower
+        self._odmr_widgets[self._mainwindow.mwAverages.objectName()] = self._mainwindow.mwAverages
+
+        #TODO: maybe turn the freq resolution of the GUI into a settable value
         self._mainwindow.mwStart.setDecimals(6)
         self._mainwindow.mwEnd.setDecimals(6)
         self._mainwindow.mwStep.setDecimals(6)
 
         #Connect the signals
-        self._mainwindow.mwStart.valueChanged.connect(self.accept_set_frequency_ranges)
-        self._mainwindow.mwEnd.valueChanged.connect(self.accept_set_frequency_ranges)
-        self._mainwindow.mwStep.valueChanged.connect(self.accept_set_frequency_ranges)
+        self._odmr_widgets['mwStart'].valueChanged.connect(self.accept_set_frequency_ranges)
+        self._odmr_widgets['mwEnd'].valueChanged.connect(self.accept_set_frequency_ranges)
+        self._odmr_widgets['mwStep'].valueChanged.connect(self.accept_set_frequency_ranges)
 
         self.show()
 
@@ -154,24 +174,70 @@ class SnvmGui(GUIBase):
         self._mainwindow.activateWindow()
         self._mainwindow.raise_()
 
+    def start_scanning(self):
+        self.disable_interactions()
+
+        #Get the scanning settings from the GUI, and set them in the logic
+        #FIXME: find a way to do this more efficiently, without calling each attribute one by one
+        self._scanning_logic.store_retrace = self._afm_widgets['storeRetrace'].value()
+
+        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value(),
+                                                 self._afm_widgets['xMaxRange'].value()]
+        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value(),
+                                                 self._afm_widgets['yMaxRange'].value()]
+        self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
+        self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
+
+
+        start_name = self.sender().objectName()
+        if start_name == 'actionStart_snvmscan':
+            self._scanning_logic.start_snvm_scanning()
+        else:
+            pass
+
+    def stop_scanning(self):
+        self.activate_interactions()
+
+    def disable_interactions(self):
+        self._mainwindow.actionStart_snvmscan.setEnabled(False)
+        self._mainwindow.actionStart_conf_scan.setEnabled(False)
+        self._mainwindow.actionResume_snvmscan.setEnabled(False)
+        self._mainwindow.actionResume_conf_scan.setEnabled(False)
+
+        for setting in self._afm_widgets.values():
+            setting.setEnabled(False)
+        for setting in self._odmr_widgets.values():
+            setting.setEnabled(False)
+
+    def activate_interactions(self):
+        self._mainwindow.actionStart_snvmscan.setEnabled(True)
+        self._mainwindow.actionStart_conf_scan.setEnabled(True)
+        self._mainwindow.actionResume_snvmscan.setEnabled(True)
+        self._mainwindow.actionResume_conf_scan.setEnabled(True)
+
+        for setting in self._afm_widgets.values():
+            setting.setEnabled(True)
+        for setting in self._odmr_widgets.values():
+            setting.setEnabled(True)
+
 
     def accept_set_frequency_ranges(self):
-        pass
-    #     """
-    #     Function that checks that the range is start freq + step * multiple. If it's not, update the stop frequency.
-    #     """
-    #     stopfreq, startfreq = self._mainwindow.mwEnd.value(), self._mainwindow.mwStart.value()
-    #     freq_step = self._mainwindow.mwStep.value()
-    #
-    #     coeff_for_step = self.stepFreq_multiplier / self.startstopFreq_multiplier
-    #
-    #     freq_diff = stopfreq - startfreq
-    #     freq_step = freq_step * coeff_for_step
-    #     if not (freq_diff % freq_step) == 0:
-    #         multiple = round(freq_diff / freq_step)
-    #         stop_freq = startfreq + multiple * freq_step
-    #         self._mainwindow.mwEnd.setValue(stop_freq)
-    #
-    #     self._scanning_logic.start_freq = startfreq * self.startstopFreq_multiplier
-    #     self._scanning_logic.stop_freq = stop_freq * self.startstopFreq_multiplier
-    #     self._scanning_logic.freq_resolution = freq_step * self.stepFreq_multiplier
+        """
+        Function that checks that the range is start freq + step * multiple. If it's not, update the stop frequency.
+        """
+        stopfreq = self._odmr_widgets['mwEnd'].value()
+        startfreq = self._odmr_widgets['mwStart'].value()
+        freq_step = self._odmr_widgets['mwStep'].value()
+
+        coeff_for_step = self.stepFreq_multiplier / self.startstopFreq_multiplier
+
+        freq_diff = stopfreq - startfreq
+        freq_step = freq_step * coeff_for_step
+        if not (freq_diff % freq_step) == 0:
+            multiple = round(freq_diff / freq_step)
+            stop_freq = startfreq + multiple * freq_step
+            self._odmr_widgets['mwEnd'].setValue(stop_freq)
+
+        self._scanning_logic.start_freq = startfreq * self.startstopFreq_multiplier
+        self._scanning_logic.stop_freq = stop_freq * self.startstopFreq_multiplier
+        self._scanning_logic.freq_resolution = freq_step * self.stepFreq_multiplier
