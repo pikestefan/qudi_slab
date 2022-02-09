@@ -77,6 +77,8 @@ class SnvmGui(GUIBase):
     # FIXME: for now I fix the multipliers, put is as an option, and updated the labels accordingly in the GUI
     startstopFreq_multiplier = 1e9
     stepFreq_multiplier = 1e6
+    xy_range_multiplier = 1e-9
+    px_time_multiplier = 1e-3
 
     # signals
     sigStartOptimizer = QtCore.Signal(list, str)
@@ -119,7 +121,7 @@ class SnvmGui(GUIBase):
         ##############
         self._mainwindow.actionStart_snvmscan.triggered.connect(self.start_scanning)
         self._mainwindow.actionStart_conf_scan.triggered.connect(self.start_scanning)
-        self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning)
+        self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
 
         ########
         # AFM scanning settings
@@ -135,6 +137,20 @@ class SnvmGui(GUIBase):
         self._afm_widgets[self._mainwindow.fwpxTime.objectName()] = self._mainwindow.fwpxTime
         self._afm_widgets[self._mainwindow.bwPxTime.objectName()] = self._mainwindow.bwPxTime
         self._afm_widgets[self._mainwindow.storeRetrace.objectName()] = self._mainwindow.storeRetrace
+
+        # TODO: maybe set the maximum and minimum limits of the xmin/xmax and ymin/ymax
+        #  from the maximum ranges allowed.
+
+        #########
+        # TODO: remove these defaults after debugging ended
+        self._afm_widgets['xResolution'].setValue(5)
+        self._afm_widgets['yResolution'].setValue(5)
+        self._afm_widgets['xMaxRange'].setValue(40e2)
+        self._afm_widgets['yMaxRange'].setValue(40e2)
+        self._afm_widgets['fwpxTime'].setValue(10)
+        self._afm_widgets['bwPxTime'].setValue(10)
+        self._afm_widgets['storeRetrace'].setChecked(True)
+        #########
 
         #######
         # ODMR scanning settings
@@ -152,10 +168,21 @@ class SnvmGui(GUIBase):
         self._mainwindow.mwEnd.setDecimals(6)
         self._mainwindow.mwStep.setDecimals(6)
 
+        #########
+        # TODO: remove these defaults after debugging ended
+        self._odmr_widgets['mwStart'].setValue(2.87)
+        self._odmr_widgets['mwEnd'].setValue(2.88)
+        self._odmr_widgets['mwStep'].setValue(1)
+        self._odmr_widgets['mwPower'].setValue(-100)
+        self._odmr_widgets['mwAverages'].setValue(1)
+        #########
+
         #Connect the signals
-        self._odmr_widgets['mwStart'].valueChanged.connect(self.accept_set_frequency_ranges)
-        self._odmr_widgets['mwEnd'].valueChanged.connect(self.accept_set_frequency_ranges)
-        self._odmr_widgets['mwStep'].valueChanged.connect(self.accept_set_frequency_ranges)
+        self._odmr_widgets['mwStart'].valueChanged.connect(self.accept_frequency_ranges)
+        self._odmr_widgets['mwEnd'].valueChanged.connect(self.accept_frequency_ranges)
+        self._odmr_widgets['mwStep'].valueChanged.connect(self.accept_frequency_ranges)
+
+        self._scanning_logic.signal_scan_finished.connect(self.activate_interactions)
 
         self.show()
 
@@ -179,18 +206,21 @@ class SnvmGui(GUIBase):
 
         #Get the scanning settings from the GUI, and set them in the logic
         #FIXME: find a way to do this more efficiently, without calling each attribute one by one
-        self._scanning_logic.store_retrace = self._afm_widgets['storeRetrace'].value()
+        self._scanning_logic.store_retrace = self._afm_widgets['storeRetrace'].checkState()
 
-        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value(),
-                                                 self._afm_widgets['xMaxRange'].value()]
-        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value(),
-                                                 self._afm_widgets['yMaxRange'].value()]
+        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value()*self.xy_range_multiplier,
+                                                 self._afm_widgets['xMaxRange'].value()*self.xy_range_multiplier]
+        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value()*self.xy_range_multiplier,
+                                                 self._afm_widgets['yMaxRange'].value()*self.xy_range_multiplier]
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
 
+        #Set the integration time
+        self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
 
         start_name = self.sender().objectName()
         if start_name == 'actionStart_snvmscan':
+            self.set_odmr_settings()
             self._scanning_logic.start_snvm_scanning()
         else:
             pass
@@ -221,23 +251,35 @@ class SnvmGui(GUIBase):
             setting.setEnabled(True)
 
 
-    def accept_set_frequency_ranges(self):
+    def accept_frequency_ranges(self):
         """
         Function that checks that the range is start freq + step * multiple. If it's not, update the stop frequency.
         """
         stopfreq = self._odmr_widgets['mwEnd'].value()
         startfreq = self._odmr_widgets['mwStart'].value()
-        freq_step = self._odmr_widgets['mwStep'].value()
+        freqstep = self._odmr_widgets['mwStep'].value()
 
         coeff_for_step = self.stepFreq_multiplier / self.startstopFreq_multiplier
 
         freq_diff = stopfreq - startfreq
-        freq_step = freq_step * coeff_for_step
-        if not (freq_diff % freq_step) == 0:
-            multiple = round(freq_diff / freq_step)
-            stop_freq = startfreq + multiple * freq_step
+        freqstep = freqstep * coeff_for_step
+        if not (freq_diff % freqstep) == 0:
+            multiple = round(freq_diff / freqstep)
+            stop_freq = startfreq + multiple * freqstep
             self._odmr_widgets['mwEnd'].setValue(stop_freq)
 
+    def set_odmr_settings(self):
+        stopfreq = self._odmr_widgets['mwEnd'].value()
+        startfreq = self._odmr_widgets['mwStart'].value()
+        freqstep = self._odmr_widgets['mwStep'].value()
+        power = self._odmr_widgets['mwPower'].value()
+        averages = self._odmr_widgets['mwAverages'].value()
+
         self._scanning_logic.start_freq = startfreq * self.startstopFreq_multiplier
-        self._scanning_logic.stop_freq = stop_freq * self.startstopFreq_multiplier
-        self._scanning_logic.freq_resolution = freq_step * self.stepFreq_multiplier
+        self._scanning_logic.stop_freq = stopfreq * self.startstopFreq_multiplier
+        self._scanning_logic.freq_resolution = freqstep * self.stepFreq_multiplier
+        self._scanning_logic.mw_power = power
+        self._scanning_logic.odmr_averages = averages
+
+    def stop_scanning_request(self):
+        self._scanning_logic.stopRequested = True
