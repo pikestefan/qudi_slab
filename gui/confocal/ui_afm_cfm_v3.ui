@@ -28,7 +28,7 @@
      <x>0</x>
      <y>0</y>
      <width>1295</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
   </widget>
@@ -554,6 +554,9 @@
        <property name="keyboardTracking">
         <bool>false</bool>
        </property>
+       <property name="maximum">
+        <double>100.000000000000000</double>
+       </property>
       </widget>
      </item>
      <item row="3" column="7">
@@ -572,6 +575,12 @@
        </property>
        <property name="keyboardTracking">
         <bool>false</bool>
+       </property>
+       <property name="minimum">
+        <double>-2000.000000000000000</double>
+       </property>
+       <property name="maximum">
+        <double>2000.000000000000000</double>
        </property>
       </widget>
      </item>
@@ -592,6 +601,9 @@
        <property name="keyboardTracking">
         <bool>false</bool>
        </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
+       </property>
       </widget>
      </item>
      <item row="2" column="8">
@@ -610,6 +622,9 @@
        </property>
        <property name="keyboardTracking">
         <bool>false</bool>
+       </property>
+       <property name="maximum">
+        <double>100.000000000000000</double>
        </property>
       </widget>
      </item>
@@ -630,6 +645,9 @@
        <property name="keyboardTracking">
         <bool>false</bool>
        </property>
+       <property name="maximum">
+        <double>2000.000000000000000</double>
+       </property>
       </widget>
      </item>
      <item row="4" column="7">
@@ -648,6 +666,9 @@
        </property>
        <property name="keyboardTracking">
         <bool>false</bool>
+       </property>
+       <property name="maximum">
+        <number>5000</number>
        </property>
       </widget>
      </item>
@@ -668,6 +689,9 @@
        <property name="keyboardTracking">
         <bool>false</bool>
        </property>
+       <property name="maximum">
+        <number>5000</number>
+       </property>
       </widget>
      </item>
      <item row="5" column="1">
@@ -687,6 +711,9 @@
        <property name="keyboardTracking">
         <bool>false</bool>
        </property>
+       <property name="maximum">
+        <number>5000</number>
+       </property>
       </widget>
      </item>
      <item row="3" column="1">
@@ -700,6 +727,9 @@
        <property name="keyboardTracking">
         <bool>false</bool>
        </property>
+       <property name="maximum">
+        <number>5000</number>
+       </property>
       </widget>
      </item>
      <item row="2" column="1">
@@ -712,6 +742,9 @@
        </property>
        <property name="keyboardTracking">
         <bool>false</bool>
+       </property>
+       <property name="maximum">
+        <number>5000</number>
        </property>
       </widget>
      </item>
@@ -732,6 +765,9 @@
        <property name="keyboardTracking">
         <bool>false</bool>
        </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
+       </property>
       </widget>
      </item>
      <item row="3" column="2">
@@ -751,6 +787,9 @@
        <property name="keyboardTracking">
         <bool>false</bool>
        </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
+       </property>
       </widget>
      </item>
      <item row="2" column="3">
@@ -763,6 +802,9 @@
        </property>
        <property name="keyboardTracking">
         <bool>false</bool>
+       </property>
+       <property name="maximum">
+        <double>100000.000000000000000</double>
        </property>
       </widget>
      </item>
