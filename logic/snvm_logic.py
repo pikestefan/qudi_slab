@@ -16,21 +16,21 @@ class SnvmLogic(GenericLogic):
 
     doublescanner = Connector(interface='SnvmScannerInterface')
     odmrscanner = Connector(interface='MicrowaveInterface')
-    savelogic = Connector(interface='SaveLogic')
 
     # signals
-    signal_start_snvm = QtCore.Signal(str)
-    signal_continue_snvm = QtCore.Signal(str)
-    signal_start_confocal = QtCore.Signal(str)
-    signal_continue_confocal = QtCore.Signal(str)
+    signal_start_snvm = QtCore.Signal()
+    signal_continue_snvm = QtCore.Signal()
+    signal_start_confocal = QtCore.Signal()
+    signal_continue_confocal = QtCore.Signal()
 
-    signal_stop_scan = QtCore.Signal(str)
+    signal_stop_scan = QtCore.Signal()
 
     signal_xy_image_updated = QtCore.Signal()
-    signal_change_position = QtCore.Signal(str)
+    signal_change_position = QtCore.Signal()
     signal_position_changed = QtCore.Signal()
     signal_freq_px_acquired = QtCore.Signal()
     signal_xy_px_acquired = QtCore.Signal()
+    signal_scan_finished = QtCore.Signal()
 
 
     def __init__(self, config, **kwargs):
@@ -42,7 +42,6 @@ class SnvmLogic(GenericLogic):
     def on_activate(self):
         self._scanning_device = self.doublescanner()
         self._odmrscanner = self.odmrscanner()
-        self._savelogic = self.savelogic()
 
         #TODO: figure out a smart way of storing all these data in another class
         #####
@@ -75,7 +74,7 @@ class SnvmLogic(GenericLogic):
 
         #Integration time per pixel
         self.px_time = 0
-        self.odmr_averages = 0
+        self._photon_samples = 0
 
         #These are the indices which will be used to scan through the arrays of the frequencies and position pairs
         self._x_scanning_index = 0
@@ -95,6 +94,7 @@ class SnvmLogic(GenericLogic):
         self.stop_freq = 0
         self.freq_resolution = 0
         self.mw_power = -100
+        self.odmr_averages = 0
 
         #Initalize the attributes that will be the scan data containers
         self._x_scanning_axis = None
@@ -111,7 +111,10 @@ class SnvmLogic(GenericLogic):
         self._svnm_active = False
 
         #Now connect all the signals
-
+        self.signal_continue_snvm.connect(self.continue_snvm_scanning, QtCore.Qt.QueuedConnection)
+        self.signal_stop_scan.connect(self.stop_scanning, QtCore.Qt.QueuedConnection)
+        self.signal_xy_px_acquired.connect(self.move_to_xy_pixel, QtCore.Qt.QueuedConnection)
+        self.signal_freq_px_acquired.connect(self.move_to_freq_pixel, QtCore.Qt.QueuedConnection)
 
     def on_deactivate(self):
         pass
@@ -126,14 +129,14 @@ class SnvmLogic(GenericLogic):
         y_axis = np.linspace(self.scanning_y_range[0], self.scanning_y_range[1], self.scanning_y_resolution)
 
         #Now generate the matrices to store the data
-        xy_scan_matrix = np.full(np.nan, (len(x_axis), len(y_axis)))
+        xy_scan_matrix = np.full((len(x_axis), len(y_axis)), np.nan)
         # FIXME: for now the stack scanner is the one that's assumed to have the ESR sequence. Maybe consider a flexible
         #  way of doing this
         if self._svnm_active:
             step_number = round((self.stop_freq - self.start_freq) / self.freq_resolution)
             freq_axis = np.linspace(self.start_freq, self.stop_freq, step_number)
 
-            snvm_matrix = np.tile(xy_scan_matrix, len(freq_axis))
+            snvm_matrix = np.repeat(xy_scan_matrix[:, :, np.newaxis], len(freq_axis), axis=-1)
             temp_freq_matrix = np.zeros((self.odmr_averages, len(freq_axis)))
         else:
             snvm_matrix = np.tile(xy_scan_matrix, 1)
@@ -166,14 +169,14 @@ class SnvmLogic(GenericLogic):
         curr_x_minrange, curr_x_maxrange = self.x_maxrange[self._active_stack]
         curr_y_minrange, curr_y_maxrange = self.y_maxrange[self._active_stack]
         # TODO: emit a signal when the clipping happens, and update the GUI limits accordingly
-        if not ((curr_x_minrange < self.scanning_x_range[0] < curr_x_maxrange) or
-                (curr_x_minrange < self.scanning_x_range[1]) < curr_x_maxrange):
-            self.scanning_x_range = np.clip(self.x_maxrange, curr_x_minrange, curr_x_maxrange)
+        if not ((curr_x_minrange <= self.scanning_x_range[0] <= curr_x_maxrange) or
+           not (curr_x_minrange <= self.scanning_x_range[1] <= curr_x_maxrange)):
+            self.scanning_x_range = np.clip(self.scanning_x_range, curr_x_minrange, curr_x_maxrange)
             self.log.warning("x scanning range limits are out of bounds, clipped back to the maximum values.")
 
-        if not ((curr_y_minrange < self.scanning_y_range[0] < curr_y_maxrange) or
-                (curr_y_minrange < self.scanning_y_range[1]) < curr_y_maxrange):
-            self.scanning_y_range = np.clip(self.y_maxrange, curr_y_minrange, curr_y_maxrange)
+        if not ((curr_y_minrange <= self.scanning_y_range[0] <= curr_y_maxrange) or
+           not (curr_y_minrange <= self.scanning_y_range[1] <= curr_y_maxrange)):
+            self.scanning_y_range = np.clip(self.scanning_y_range, curr_y_minrange, curr_y_maxrange)
             self.log.warning("y scanning range limits are out of bounds, clipped back to the maximum values.")
         return 0
 
@@ -183,22 +186,23 @@ class SnvmLogic(GenericLogic):
         """
 
         self._scanning_device.module_state.lock()
-        samples = self.pxtime_to_samples()
+        self._photon_samples= self.pxtime_to_samples()
         if self._svnm_active:
-            analog_channels = self._scanning_device.get_ai_channels(stack_name=self._active_stack)
+            analog_channels = self._scanning_device.get_ai_counter_channels(stack_name=self._active_stack)
         else:
             analog_channels = None
-        self._scanning_device.prepare_counters(samples_to_acquire=samples,
+        self._scanning_device.prepare_counters(samples_to_acquire=self._photon_samples,
                                                counter_ai_channels=analog_channels)
 
         if self._svnm_active:
             self._odmrscanner.module_state.lock()
             try:
-                self._odmrscanner.set_list(frequency=self.freq_axis, power=self.mw_power)
+                pass
+                #self._odmrscanner.set_list(frequency=self.freq_axis, power=self.mw_power)
             except:
                 self.log.error("Failed loading the frequency axis into the ODMR scanner. Aborted execution.")
-                self._scanning_device.module_state.unlock()
-                self._odmrscanner.module_state.unlock()
+                #self._scanning_device.module_state.unlock()
+                #self._odmrscanner.module_state.unlock()
 
     def start_snvm_scanning(self):
         self.module_state.lock()
@@ -226,11 +230,8 @@ class SnvmLogic(GenericLogic):
             if self._odmr_rep_index < self.odmr_averages:
                 counts, ainput = self.acquire_pixel()
                 self._temp_freq_matrix[self._odmr_rep_index, self._freq_scanning_index] = counts
-                self._freq_scanning_index += 1
-                if self._freq_scanning_index == self._freq_axis_length:
-                    self._odmr_rep_index += 1
-                    self._freq_scanning_index = 0
                 self.signal_freq_px_acquired.emit()
+
             #Else, the OMDR acquisition for the pixel has finished. Store the data and ask for the next pixel. If also the
             #Scanning is done, tell that the scanning has finished.
             else:
@@ -251,10 +252,10 @@ class SnvmLogic(GenericLogic):
             self.signal_xy_px_acquired.emit()
 
     def pxtime_to_samples(self):
-        return round(self.px_time / self._scanning_device.get_counter_clock_frequency())
+        return round(self.px_time * self._scanning_device.get_counter_clock_frequency())
 
     def acquire_pixel(self):
-        data = self._scanning_device.read_pixel(self.pxtime_to_samples())
+        data = self._scanning_device.read_pixel(self._photon_samples)
         return data
 
     def move_to_xy_pixel(self):
@@ -269,7 +270,7 @@ class SnvmLogic(GenericLogic):
             self._x_index_step = 1
             self._x_scanning_index += self._x_index_step
             self._y_scanning_index += 1
-            if self._y_scanning_index == len(self._y_scanning_axis)-1:
+            if self._y_scanning_index == len(self._y_scanning_axis):
                 self.stopRequested = True
 
         if not self.stopRequested:
@@ -285,14 +286,24 @@ class SnvmLogic(GenericLogic):
         else:
             self.signal_stop_scan.emit()
 
+    def move_to_freq_pixel(self):
+        self._freq_scanning_index += 1
+        if self._freq_scanning_index == self._freq_axis_length:
+            self._odmr_rep_index += 1
+            self._freq_scanning_index = 0
+        self._odmrscanner.set_frequency(self.freq_axis[self._freq_scanning_index])
+        self.signal_continue_snvm.emit()
+
     def stop_scanning(self):
         if self.stopRequested:
             with self.threadlock:
                 self._scanning_device.close_counters()
                 self.stopRequested = False
-                self._scanning_device.stop_xy_scanner()
+                self.stop_xy_scanner()
                 if self._svnm_active:
                     self.stop_freq_scanner()
+                self.module_state.unlock()
+            self.signal_scan_finished.emit()
 
     def stop_xy_scanner(self):
         """Closing the scanner device.
@@ -313,7 +324,7 @@ class SnvmLogic(GenericLogic):
     def stop_freq_scanner(self):
         self._odmrscanner.off()
         try:
-            self._odmrscanner.unlock()
+            self._odmrscanner.module_state.unlock()
         except Exception as e:
             self.log.exception('Could not unlock scanning device.')
 
