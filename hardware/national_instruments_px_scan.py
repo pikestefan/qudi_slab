@@ -176,6 +176,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
         if self._start_analog_outputs() < 0:
             self.log.error('Failed to start analog output.')
             raise Exception('Failed to start NI Card module due to analog output failure.')
+        self._current_position = [0,0]
 
     def on_deactivate(self):
         """ Shut down the NI card.
@@ -215,7 +216,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
         my_photon_sources = sources if sources else self._photon_sources
         my_clock_channel = counter_clock if counter_clock else self._counter_clock
         #If no AI is specified, then create an empty array (and do not create AI tasks)
-        my_counter_ai_channels = counter_ai_channels if counter_ai_channels else []
+        my_counter_ai_channels = counter_ai_channels# if counter_ai_channels else []
+        self._counter_ai_channels = my_counter_ai_channels
 
         if len(my_photon_sources) < len(my_counter_channels):
             self.log.error('You have given {0} sources but {1} counting channels.'
@@ -319,17 +321,16 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
                 error = -1
         self._counter_daq_tasks = []
 
-        if len(self._sample_scanner_ai_channels) > 0:
+        if len(self._counter_ai_channels) > 0:
             try:
                 # stop the counter task
                 daq.DAQmxStopTask(self._counter_ai_daq_task)
-                # after stopping delete all the configuration of the counter
                 daq.DAQmxClearTask(self._counter_ai_daq_task)
-                # set the task handle to None as a safety
             except:
                 self.log.exception('Could not close counter analog channels.')
                 error = -1
             self._counter_ai_daq_task = None
+            self._counter_ai_channels = []
         return error
 
     def get_counter_channels(self):
@@ -475,7 +476,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
         count_matrix = np.full((len(self._sample_scanner_counter_channels),
                                 samples), 222, dtype=np.uint32)
 
-        final_counts = np.full(samples, 222)
+        final_counts = np.full(len(self._counter_daq_tasks), 222)
 
         read_samples = daq.int32()
         try:
@@ -496,10 +497,10 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
 
         # FIXME: this part is incorrect: check the ai_channels are the correct ones. Also, the readout needs to be a for
         #  loop, and the data should be stored in each row of the analog_data container.
-        if len(self._sample_scanner_ai_channels) > 0:
+        if self._counter_ai_daq_task is not None:
             try:
                 analog_data = np.full(
-                    (len(self._sample_scanner_ai_channels), samples),
+                    (len(self._counter_ai_channels), samples),
                     111, dtype=np.float64)
 
                 analog_read_samples = daq.int32()
@@ -510,7 +511,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
                     self._RWTimeout,
                     daq.DAQmx_Val_GroupByChannel,
                     analog_data,
-                    len(self._sample_scanner_ai_channels) * samples,
+                    len(self._counter_ai_channels) * samples,
                     daq.byref(analog_read_samples),
                     None
                 )
@@ -558,9 +559,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
             self.log.error('The scanning stack has not been specified.')
             return -1
 
-        if self.module_state() == 'locked':
-            self.log.error('Another scan is already running, close it first.')
-            return -1
+        # if self.module_state() == 'locked':
+        #     self.log.error('Another scan is already running, close it first.')
+        #     return -1
 
         scanning_task = self._scanner_ao_tasks[stack]
 
@@ -570,22 +571,21 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
             if not (scanner_position_range[0][0] <= x <= scanner_position_range[0][1]):
                 self.log.error('You want to set x out of range: {0:f}.'.format(x))
                 return -1
-            self._current_position[0] = np.float(x)
+            #self._current_position[0] = np.float(x)
 
         if y is not None:
             if not (scanner_position_range[1][0] <= y <= scanner_position_range[1][1]):
                 self.log.error('You want to set y out of range: {0:f}.'.format(y))
                 return -1
-            self._current_position[1] = np.float(y)
+            #self._current_position[1] = np.float(y)
 
-        # the position has to be a vstack
-        my_position = np.vstack(self._current_position)
-
+        my_position = np.array(xypair)
         # then directly write the position to the hardware
+        voltages = self._scanner_position_to_volt(my_position[np.newaxis, :], stack=stack)
         try:
             self.write_voltage(
                 scanning_task,
-                voltages=self._scanner_position_to_volt(my_position),
+                voltages=voltages,
                 autostart=True)
         except:
             return -1
@@ -622,16 +622,14 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
         return self.close_clock(scanner=True)
 
     def reset_hardware(self):
+        #FIXME: the resetting is still not working properly.
         """ Resets the NI hardware, so the connection is lost and other
             programs can access it.
 
         @return int: error code (0:OK, -1:error)
         """
         retval = 0
-        chanlist = [
-            self._clock_channel,
-            self._scanner_clock_channel,
-            ]
+        chanlist = []
         chanlist.extend(self._scanner_ao_channels)
         chanlist.extend(self._photon_sources)
         chanlist.extend(self._counter_channels)
