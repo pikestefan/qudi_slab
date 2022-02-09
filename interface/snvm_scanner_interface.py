@@ -127,8 +127,7 @@ class SnvmScannerInterface(metaclass=InterfaceMetaclass):
         pass
 
     @abstract_interface_method
-    def read_pixel(self):
-
+    def read_pixel(self, samples=None):
         pass
 
 
