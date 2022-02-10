@@ -263,7 +263,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
                 self._counter_daq_tasks.append(task)
 
                 # Counter analog input task
-                if len(my_counter_ai_channels) > 0:
+                if my_counter_ai_channels is not None and len(my_counter_ai_channels) > 0:
                     atask = daq.TaskHandle()
 
                     daq.DAQmxCreateTask('CounterAnalogIn', daq.byref(atask))
@@ -321,7 +321,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
                 error = -1
         self._counter_daq_tasks = []
 
-        if len(self._counter_ai_channels) > 0:
+        if self._counter_ai_channels is not None and len(self._counter_ai_channels) > 0:
             try:
                 # stop the counter task
                 daq.DAQmxStopTask(self._counter_ai_daq_task)
@@ -663,7 +663,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
 
         @return float[][n]: array of n-part tuples of corresponing voltages
         """
-
         if not isinstance(positions, np.ndarray):
             self.log.error('Given positions are not and nd array.')
             return np.array([np.NaN])
@@ -675,7 +674,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
         scanner_position_ranges = np.array(self._scanner_position_ranges[stack])
 
         post2volt_coeff = np.diff(scanner_voltage_ranges, axis=1) / np.diff(scanner_position_ranges, axis=1)
-
         volts = post2volt_coeff.T * positions + scanner_voltage_ranges[:, 0].T
 
         if (np.any(np.logical_or(volts[:, 0] < scanner_voltage_ranges[0, 0],
@@ -685,7 +683,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
                                  volts[:, 1] > scanner_voltage_ranges[1, 1]))):
             self.log.error('Some of the requested positions are out of the voltage bounds.')
             return np.array([np.nan])
-
         return volts.astype(np.float64)
 
     # ================ End ConfocalScannerInterface Commands ===================
