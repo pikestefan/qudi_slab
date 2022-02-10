@@ -83,7 +83,20 @@
      <item row="1" column="0">
       <layout class="QHBoxLayout" name="horizontalLayout">
        <item>
-        <widget class="QDoubleSpinBox" name="doubleSpinBox"/>
+        <widget class="DoubleSpinBoxArrowSignal" name="frequencySliceSelector">
+         <property name="layoutDirection">
+          <enum>Qt::LeftToRight</enum>
+         </property>
+         <property name="readOnly">
+          <bool>false</bool>
+         </property>
+         <property name="buttonSymbols">
+          <enum>QAbstractSpinBox::UpDownArrows</enum>
+         </property>
+         <property name="decimals">
+          <number>4</number>
+         </property>
+        </widget>
        </item>
        <item>
         <spacer name="horizontalSpacer_3">
@@ -861,6 +874,25 @@
    <addaction name="separator"/>
    <addaction name="actionStop_scan"/>
   </widget>
+  <widget class="QDockWidget" name="odmrDock">
+   <property name="windowTitle">
+    <string>ODMR view</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>2</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents_5">
+    <layout class="QGridLayout" name="gridLayout_4">
+     <item row="0" column="0">
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0">
+        <widget class="ScanPlotWidget" name="graphicsView"/>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </widget>
+  </widget>
   <action name="actionStart_snvmscan">
    <property name="checkable">
     <bool>false</bool>
@@ -914,7 +946,12 @@
   <customwidget>
    <class>ScanPlotWidget</class>
    <extends>QGraphicsView</extends>
-   <header>qtwidgets.scan_plotwidget.h</header>
+   <header location="global">qtwidgets.scan_plotwidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>DoubleSpinBoxArrowSignal</class>
+   <extends>QDoubleSpinBox</extends>
+   <header>qtwidgets.doublespinbox_arrowsignal.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

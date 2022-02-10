@@ -50,7 +50,7 @@ class SnvmWindow(QtWidgets.QMainWindow):
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
-        ui_file = os.path.join(this_dir, 'ui_afm_cfm_v3.ui')
+        ui_file = os.path.join(this_dir, 'ui_snvm_gui.ui')
         self._doubleclicked = False
 
         # Load it
@@ -111,11 +111,24 @@ class SnvmGui(GUIBase):
         self._mainwindow.centralwidget.hide()
         self._mainwindow.setDockNestingEnabled(True)
 
-
         self.colormap = ColorScaleInferno()
         self.sample_cb = ColorBar(self.colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
 
+        #FIXME: remove the placeholder
+        placeholder = np.zeros((10,10))
+        self.snvm_image = pg.ImageItem()
+        self.snvm_image.setImage(placeholder)
+        #ScanImageItem(image=placeholder, axisOrder='row-major')
+        self._mainwindow.multiFreqPlotView.addItem(self.snvm_image)
+
         self._mainwindow.afmCbarView.addItem(self.sample_cb)
+
+
+        #Quick settings for the spinbox to view the frequency slices
+        self._mainwindow.frequencySliceSelector.lineEdit().setReadOnly(True)
+
+        self._viewIndex = 0 #Variable used to scroll through the SNVM images.Gets updated when clicking the frequency selector
+
         ##############
         # Connect the actions to their slots
         ##############
@@ -183,6 +196,8 @@ class SnvmGui(GUIBase):
         self._odmr_widgets['mwStep'].valueChanged.connect(self.accept_frequency_ranges)
 
         self._scanning_logic.signal_scan_finished.connect(self.activate_interactions)
+        self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_snvm_images)
+        self._mainwindow.frequencySliceSelector.stepClicked.connect(self.frequency_selector_clicked)
 
         self.show()
 
@@ -206,7 +221,7 @@ class SnvmGui(GUIBase):
 
         #Get the scanning settings from the GUI, and set them in the logic
         #FIXME: find a way to do this more efficiently, without calling each attribute one by one
-        self._scanning_logic.store_retrace = self._afm_widgets['storeRetrace'].checkState()
+        self._scanning_logic.store_retrace = True if self._afm_widgets['storeRetrace'].checkState()==2 else False
 
         self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value()*self.xy_range_multiplier,
                                                  self._afm_widgets['xMaxRange'].value()*self.xy_range_multiplier]
@@ -221,9 +236,19 @@ class SnvmGui(GUIBase):
         start_name = self.sender().objectName()
         if start_name == 'actionStart_snvmscan':
             self.set_odmr_settings()
+
+            #Here put the settings for the  spin box.
+            self._mainwindow.frequencySliceSelector.setMinimum(self._odmr_widgets['mwStart'].value())
+            self._mainwindow.frequencySliceSelector.setMaximum(self._odmr_widgets['mwEnd'].value())
+            step_val_ghz = self._odmr_widgets['mwStep'].value() * self.stepFreq_multiplier / self.startstopFreq_multiplier
+            self._mainwindow.frequencySliceSelector.setSingleStep(step_val_ghz)
+            self._viewIndex = 0
+            self._mainwindow.frequencySliceSelector.setValue(self._odmr_widgets['mwStart'].value())
+
             self._scanning_logic.start_snvm_scanning()
+
         else:
-            pass
+            self._scanning_logic.start_confocal_scanning()
 
     def stop_scanning(self):
         self.activate_interactions()
@@ -283,3 +308,22 @@ class SnvmGui(GUIBase):
 
     def stop_scanning_request(self):
         self._scanning_logic.stopRequested = True
+
+    def refresh_snvm_images(self):
+        curr_image = self._scanning_logic.snvm_matrix[:, :, self._viewIndex]
+        minmax = [curr_image.min(), curr_image.max()]
+        self.snvm_image.setImage(curr_image)
+
+    def refresh_odmr_plot(self):
+        pass
+
+    def refresh_confocal_image(self):
+        pass
+
+    def frequency_selector_clicked(self, freq_val):
+        difference = ( (freq_val - self._odmr_widgets["mwStart"].value()) *
+                       self.startstopFreq_multiplier / self.stepFreq_multiplier )
+        index = round( difference / self._odmr_widgets['mwStep'].value() )
+
+        self._viewIndex = index
+        self.refresh_snvm_images()
