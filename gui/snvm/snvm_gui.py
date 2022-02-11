@@ -32,7 +32,7 @@ from core.statusvariable import StatusVar
 from qtwidgets.scan_plotwidget import ScanImageItem
 from gui.guibase import GUIBase
 from gui.guiutils import ColorBar
-from gui.colordefs import ColorScaleInferno
+from gui.colordefs import ColorScaleInferno, BlackAndWhite
 from gui.colordefs import QudiPalettePale as palette
 from gui.fitsettings import FitParametersWidget
 from qtpy import QtCore
@@ -111,18 +111,30 @@ class SnvmGui(GUIBase):
         self._mainwindow.centralwidget.hide()
         self._mainwindow.setDockNestingEnabled(True)
 
-        self.colormap = ColorScaleInferno()
-        self.sample_cb = ColorBar(self.colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
+        self.photon_colormap = ColorScaleInferno()
+        self.afm_cmap = BlackAndWhite()
+
 
         #FIXME: remove the placeholder
+        #Set up the SNVM image and colorbar
         placeholder = np.zeros((10,10))
-        self.snvm_image = pg.ImageItem()
-        self.snvm_image.setImage(placeholder)
-        #ScanImageItem(image=placeholder, axisOrder='row-major')
+        self.snvm_image = ScanImageItem(image=placeholder)
+        self.snvm_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.multiFreqPlotView.addItem(self.snvm_image)
+        snvm_im_vb = self.get_image_viewbox(self.snvm_image)
+        snvm_im_vb.setAspectLocked(True)
 
-        self._mainwindow.afmCbarView.addItem(self.sample_cb)
+        self.multifreq_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
+        self._mainwindow.multiFreqCbarView.addItem(self.multifreq_cb)
 
+        #Set up the AFM image and colorbar
+        self.afm_image = ScanImageItem(image=placeholder)
+        self._mainwindow.afmPlotView.addItem(self.afm_image)
+        snvm_im_vb = self.get_image_viewbox(self.afm_image)
+        snvm_im_vb.setAspectLocked(True)
+
+        self.afm_cb = ColorBar(self.afm_cmap.cmap_normed, width=100, cb_min=0, cb_max=1)
+        self._mainwindow.afmCbarView.addItem(self.afm_cb)
 
         #Quick settings for the spinbox to view the frequency slices
         self._mainwindow.frequencySliceSelector.lineEdit().setReadOnly(True)
@@ -196,7 +208,8 @@ class SnvmGui(GUIBase):
         self._odmr_widgets['mwStep'].valueChanged.connect(self.accept_frequency_ranges)
 
         self._scanning_logic.signal_scan_finished.connect(self.activate_interactions)
-        self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_snvm_images)
+        self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_snvm_image)
+        self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_afm_image)
         self._mainwindow.frequencySliceSelector.stepClicked.connect(self.frequency_selector_clicked)
 
         self.show()
@@ -309,10 +322,15 @@ class SnvmGui(GUIBase):
     def stop_scanning_request(self):
         self._scanning_logic.stopRequested = True
 
-    def refresh_snvm_images(self):
+    def refresh_snvm_image(self):
         curr_image = self._scanning_logic.snvm_matrix[:, :, self._viewIndex]
         minmax = [curr_image.min(), curr_image.max()]
         self.snvm_image.setImage(curr_image)
+
+    def refresh_afm_image(self):
+        curr_image = self._scanning_logic.xy_scan_matrix
+        minmax = [curr_image.min(), curr_image.max()]
+        self.afm_image.setImage(curr_image)
 
     def refresh_odmr_plot(self):
         pass
@@ -326,4 +344,8 @@ class SnvmGui(GUIBase):
         index = round( difference / self._odmr_widgets['mwStep'].value() )
 
         self._viewIndex = index
-        self.refresh_snvm_images()
+        self.refresh_snvm_image()
+
+    def get_image_viewbox(self, imageitem):
+        vb = imageitem.getViewBox()
+        return vb
