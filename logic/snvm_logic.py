@@ -99,6 +99,7 @@ class SnvmLogic(GenericLogic):
         self._y_scanning_axis = None
         self.xy_scan_matrix = None
         self.snvm_matrix = None
+        self._temp_afm_matrix = None #Matrix used to store the AFM values while scanning the ODMR.
         self._temp_freq_matrix = None #This matrix is used to store the ODMR traces to be averaged.
         self.xy_scan_matrix_retrace = None
         self.snvm_matrix_retrace = None
@@ -128,15 +129,16 @@ class SnvmLogic(GenericLogic):
         y_axis = np.linspace(self.scanning_y_range[0], self.scanning_y_range[1], self.scanning_y_resolution)
 
         #Now generate the matrices to store the data
-        xy_scan_matrix = np.full((len(x_axis), len(y_axis)), np.nan)
+        xy_scan_matrix = np.full((len(x_axis), len(y_axis)), 0.)
         # FIXME: for now the stack scanner is the one that's assumed to have the ESR sequence. Maybe consider a flexible
         #  way of doing this
         if self._snvm_active:
-            step_number = round((self.stop_freq - self.start_freq) / self.freq_resolution)
+            step_number = 1 + round((self.stop_freq - self.start_freq) / self.freq_resolution)
             freq_axis = np.linspace(self.start_freq, self.stop_freq, step_number)
 
             snvm_matrix = np.repeat(xy_scan_matrix[:, :, np.newaxis], len(freq_axis), axis=-1)
             temp_freq_matrix = np.zeros((self.odmr_averages, len(freq_axis)))
+            temp_afm_matrix = np.copy(temp_freq_matrix)
         else:
             snvm_matrix = np.tile(xy_scan_matrix, 1)
             freq_axis = None
@@ -154,6 +156,7 @@ class SnvmLogic(GenericLogic):
         self.xy_scan_matrix = xy_scan_matrix
         self.snvm_matrix = snvm_matrix
         self._temp_freq_matrix = temp_freq_matrix
+        self._temp_afm_matrix = temp_afm_matrix
         self.xy_scan_matrix_retrace = xy_scan_matrix_retrace
         self.snvm_matrix_retrace = snvm_matrix_retrace
         self.freq_axis = freq_axis
@@ -244,6 +247,7 @@ class SnvmLogic(GenericLogic):
             if self._odmr_rep_index < self.odmr_averages:
                 counts, ainput = self.acquire_pixel()
                 self._temp_freq_matrix[self._odmr_rep_index, self._freq_scanning_index] = counts
+                self._temp_afm_matrix[self._odmr_rep_index, self._freq_scanning_index] = ainput.mean()
                 self.signal_freq_px_acquired.emit()
 
             #Else, the OMDR acquisition for the pixel has finished. Store the data and ask for the next pixel. If also the
@@ -256,7 +260,8 @@ class SnvmLogic(GenericLogic):
                     self.xy_scan_matrix_retrace[self._x_scanning_index, self._y_scanning_index] = np.nan
                 else:
                     self.snvm_matrix[self._x_scanning_index, self._y_scanning_index, :] = odmr_average_array
-                    self.xy_scan_matrix[self._x_scanning_index, self._y_scanning_index] = np.nan
+                    self.xy_scan_matrix[self._x_scanning_index, self._y_scanning_index] = self._temp_afm_matrix.mean()
+
                 #The ODMR sequence has finished. Update the indices accordingly
                 self._x_scanning_index += self._x_index_step
                 self._odmr_rep_index = 0
@@ -274,6 +279,7 @@ class SnvmLogic(GenericLogic):
                 self.xy_scan_matrix_retrace[self._x_scanning_index, self._y_scanning_index] = counts
             else:
                 self.xy_scan_matrix[self._x_scanning_index, self._y_scanning_index] = counts
+        self.self.signal_xy_image_updated.emit()
         self._x_scanning_index += self._x_index_step
         self.signal_xy_px_acquired.emit()
 
