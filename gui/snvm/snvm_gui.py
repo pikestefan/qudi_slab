@@ -136,6 +136,12 @@ class SnvmGui(GUIBase):
         self.afm_cb = ColorBar(self.afm_cmap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.afmCbarView.addItem(self.afm_cb)
 
+        #Set up the ODMR plot
+        self.curr_odmr_trace = pg.PlotDataItem(skipFiniteCheck=False, connect='finite', pen=pg.mkPen(color='w'))
+        self.average_odmr_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
+        self._mainwindow.odmrPlotWidget.addItem(self.curr_odmr_trace)
+        self._mainwindow.odmrPlotWidget.addItem(self.average_odmr_trace)
+
         #Quick settings for the spinbox to view the frequency slices
         self._mainwindow.frequencySliceSelector.lineEdit().setReadOnly(True)
 
@@ -208,6 +214,7 @@ class SnvmGui(GUIBase):
         self._odmr_widgets['mwStep'].valueChanged.connect(self.accept_frequency_ranges)
 
         self._scanning_logic.signal_scan_finished.connect(self.activate_interactions)
+        self._scanning_logic.signal_freq_px_acquired.connect(self.refresh_odmr_plot)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_snvm_image)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_afm_image)
         self._mainwindow.frequencySliceSelector.stepClicked.connect(self.frequency_selector_clicked)
@@ -332,8 +339,13 @@ class SnvmGui(GUIBase):
         minmax = [curr_image.min(), curr_image.max()]
         self.afm_image.setImage(curr_image)
 
-    def refresh_odmr_plot(self):
-        pass
+    def refresh_odmr_plot(self, odmr_rep_index):
+        curr_freq_matrix = self._scanning_logic.temp_freq_matrix[odmr_rep_index]
+        self.curr_odmr_trace.setData(self._scanning_logic.freq_axis, curr_freq_matrix)
+        if odmr_rep_index > 0:
+            self.average_odmr_trace.setData(self._scanning_logic.freq_axis, self._scanning_logic.average_odmr_trace)
+        else:
+            self.average_odmr_trace.clear()
 
     def refresh_confocal_image(self):
         pass

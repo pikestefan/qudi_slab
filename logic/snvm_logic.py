@@ -26,7 +26,7 @@ class SnvmLogic(GenericLogic):
 
     signal_snvm_image_updated = QtCore.Signal()
     signal_xy_image_updated = QtCore.Signal()
-    signal_freq_px_acquired = QtCore.Signal()
+    signal_freq_px_acquired = QtCore.Signal(int) #Emits the row of the temporary data matrix to store the odmr data
     signal_xy_px_acquired = QtCore.Signal()
     signal_scan_finished = QtCore.Signal()
 
@@ -85,6 +85,8 @@ class SnvmLogic(GenericLogic):
 
         self.store_retrace = False
 
+        self.invalid =np.nan #Number corresponding to invalid data points.
+
         ####
         # Set up the ODMR scanner parameters
         ####
@@ -100,12 +102,13 @@ class SnvmLogic(GenericLogic):
         self.xy_scan_matrix = None
         self.snvm_matrix = None
         self._temp_afm_matrix = None #Matrix used to store the AFM values while scanning the ODMR.
-        self._temp_freq_matrix = None #This matrix is used to store the ODMR traces to be averaged.
+        self.temp_freq_matrix = None #This matrix is used to store the ODMR traces to be averaged.
         self.xy_scan_matrix_retrace = None
         self.snvm_matrix_retrace = None
         self.freq_axis = None
         self._xy_matrix_width = None # This variable is used only to keep the code clean and reduce the calls to np.shape
         self._freq_axis_length = None #Same here
+        self.average_odmr_trace = None
 
         self._snvm_active = False
 
@@ -135,14 +138,15 @@ class SnvmLogic(GenericLogic):
         if self._snvm_active:
             step_number = 1 + round((self.stop_freq - self.start_freq) / self.freq_resolution)
             freq_axis = np.linspace(self.start_freq, self.stop_freq, step_number)
-
             snvm_matrix = np.repeat(xy_scan_matrix[:, :, np.newaxis], len(freq_axis), axis=-1)
-            temp_freq_matrix = np.zeros((self.odmr_averages, len(freq_axis)))
+            temp_freq_matrix = np.full((self.odmr_averages, len(freq_axis)), self.invalid)
             temp_afm_matrix = np.copy(temp_freq_matrix)
+            average_odmr_trace = np.zeros((temp_freq_matrix.shape[1],))
         else:
             snvm_matrix = np.tile(xy_scan_matrix, 1)
             freq_axis = None
             temp_freq_matrix = None
+            average_odmr_trace = None
 
         if self.store_retrace:
             xy_scan_matrix_retrace = np.copy(xy_scan_matrix)
@@ -155,8 +159,9 @@ class SnvmLogic(GenericLogic):
         self._y_scanning_axis = y_axis
         self.xy_scan_matrix = xy_scan_matrix
         self.snvm_matrix = snvm_matrix
-        self._temp_freq_matrix = temp_freq_matrix
+        self.temp_freq_matrix = temp_freq_matrix
         self._temp_afm_matrix = temp_afm_matrix
+        self.average_odmr_trace = average_odmr_trace
         self.xy_scan_matrix_retrace = xy_scan_matrix_retrace
         self.snvm_matrix_retrace = snvm_matrix_retrace
         self.freq_axis = freq_axis
@@ -246,14 +251,17 @@ class SnvmLogic(GenericLogic):
             #If the index of the ODMR is less than the averages, keep acquiring
             if self._odmr_rep_index < self.odmr_averages:
                 counts, ainput = self.acquire_pixel()
-                self._temp_freq_matrix[self._odmr_rep_index, self._freq_scanning_index] = counts
+                self.temp_freq_matrix[self._odmr_rep_index, self._freq_scanning_index] = counts
                 self._temp_afm_matrix[self._odmr_rep_index, self._freq_scanning_index] = ainput.mean()
-                self.signal_freq_px_acquired.emit()
+
+                if self._odmr_rep_index > 0:
+                    self.average_odmr_trace = np.nanmean(self.temp_freq_matrix, axis=0)
+                self.signal_freq_px_acquired.emit(self._odmr_rep_index)
 
             #Else, the OMDR acquisition for the pixel has finished. Store the data and ask for the next pixel. If also the
             #Scanning is done, tell that the scanning has finished.
             else:
-                odmr_average_array = self._temp_freq_matrix.mean(axis=0)
+                odmr_average_array = self.temp_freq_matrix.mean(axis=0)
                 if self._is_retracing and self.store_retrace:
                     self.snvm_matrix_retrace[self._x_scanning_index, self._y_scanning_index, :] = odmr_average_array
                     # FIXME: I am not acquiring and storing properly the analog input, find a way after basic debugging done
@@ -265,6 +273,8 @@ class SnvmLogic(GenericLogic):
                 #The ODMR sequence has finished. Update the indices accordingly
                 self._x_scanning_index += self._x_index_step
                 self._odmr_rep_index = 0
+                self.temp_freq_matrix[:] = self.invalid
+                self.average_odmr_trace[:] = self.invalid
                 self.signal_snvm_image_updated.emit()
                 self.signal_xy_px_acquired.emit()
         else:
