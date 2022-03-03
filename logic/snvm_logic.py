@@ -132,18 +132,19 @@ class SnvmLogic(GenericLogic):
         y_axis = np.linspace(self.scanning_y_range[0], self.scanning_y_range[1], self.scanning_y_resolution)
 
         #Now generate the matrices to store the data
-        xy_scan_matrix = np.full((len(x_axis), len(y_axis)), 0.)
+        xy_scan_matrix = np.zeros((len(x_axis), len(y_axis)), dtype=np.float64)
         # FIXME: for now the stack scanner is the one that's assumed to have the ESR sequence. Maybe consider a flexible
         #  way of doing this
         if self._snvm_active:
             step_number = 1 + round((self.stop_freq - self.start_freq) / self.freq_resolution)
             freq_axis = np.linspace(self.start_freq, self.stop_freq, step_number)
-            snvm_matrix = np.repeat(xy_scan_matrix[:, :, np.newaxis], len(freq_axis), axis=-1)
+            snvm_matrix = np.zeros((xy_scan_matrix.shape[0], xy_scan_matrix.shape[1],
+                                    len(self.freq_axis), self.odmr_averages), dtype=np.float64)
             temp_freq_matrix = np.full((self.odmr_averages, len(freq_axis)), self.invalid)
             temp_afm_matrix = np.copy(temp_freq_matrix)
             average_odmr_trace = np.zeros((temp_freq_matrix.shape[1],))
         else:
-            snvm_matrix = np.tile(xy_scan_matrix, 1)
+            snvm_matrix = np.copy(xy_scan_matrix[:, :, np.newaxis])
             freq_axis = None
             temp_freq_matrix = None
             average_odmr_trace = None
