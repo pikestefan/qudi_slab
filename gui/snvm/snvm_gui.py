@@ -134,11 +134,8 @@ class SnvmGui(GUIBase):
         self.photon_colormap = ColorScaleInferno()
         self.afm_cmap = BlackAndWhite()
 
-
-        #FIXME: remove the placeholder
         #Set up the SNVM image and colorbar
-        placeholder = np.zeros((10,10))
-        self.snvm_image = ScanImageItem(image=placeholder)
+        self.snvm_image = ScanImageItem()
         self.snvm_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.multiFreqPlotView.addItem(self.snvm_image)
         snvm_im_vb = self.get_image_viewbox(self.snvm_image)
@@ -148,13 +145,23 @@ class SnvmGui(GUIBase):
         self._mainwindow.multiFreqCbarView.addItem(self.multifreq_cb)
 
         #Set up the AFM image and colorbar
-        self.afm_image = ScanImageItem(image=placeholder)
+        self.afm_image = ScanImageItem()
         self._mainwindow.afmPlotView.addItem(self.afm_image)
         snvm_im_vb = self.get_image_viewbox(self.afm_image)
         snvm_im_vb.setAspectLocked(True)
 
         self.afm_cb = ColorBar(self.afm_cmap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.afmCbarView.addItem(self.afm_cb)
+
+        # Set up the confocal image and colorbar
+        self.cfc_image = ScanImageItem()
+        self.cfc_image.setLookupTable(self.photon_colormap.lut)
+        self._mainwindow.confocalScannerView.addItem(self.cfc_image)
+        snvm_im_vb = self.get_image_viewbox(self.cfc_image)
+        snvm_im_vb.setAspectLocked(True)
+
+        self.cfc_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
+        self._mainwindow.confocalCbarView.addItem(self.cfc_cb)
 
         #Set up the ODMR plot
         self.curr_odmr_trace = pg.PlotDataItem(skipFiniteCheck=False, connect='finite', pen=pg.mkPen(color='w'))
@@ -237,6 +244,7 @@ class SnvmGui(GUIBase):
         self._scanning_logic.signal_freq_px_acquired.connect(self.refresh_odmr_plot)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_snvm_image)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_afm_image)
+        self._scanning_logic.signal_xy_image_updated.connect(self.refresh_confocal_image)
 
         self._mainwindow.frequencySliceSelector.stepClicked.connect(self.frequency_selector_clicked)
         self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_snvm_image)
@@ -355,9 +363,11 @@ class SnvmGui(GUIBase):
 
     def refresh_snvm_image(self):
         if self._mainwindow.viewtracesample:
-            curr_image = self._scanning_logic.snvm_matrix[:, :, self._viewIndex]
+            curr_image = self._scanning_logic.snvm_matrix.mean(axis=-1)
+            curr_image = curr_image[:, :, self._viewIndex]
         else:
-            curr_image = self._scanning_logic.snvm_matrix_retrace[:, :, self._viewIndex]
+            curr_image = self._scanning_logic.snvm_matrix_retrace.mean(axis=-1)
+            curr_image = curr_image[:, :, self._viewIndex]
         minmax = [curr_image.min(), curr_image.max()]
         self.snvm_image.setImage(curr_image)
 
@@ -378,7 +388,12 @@ class SnvmGui(GUIBase):
             self.average_odmr_trace.clear()
 
     def refresh_confocal_image(self):
-        pass
+        if self._mainwindow.viewtracetip:
+            curr_image = self._scanning_logic.xy_scan_matrix
+        else:
+            curr_image = self._scanning_logic.xy_scan_matrix_retrace
+        minmax = [curr_image.min(), curr_image.max()]
+        self.cfc_image.setImage(curr_image)
 
     def frequency_selector_clicked(self, freq_val):
         difference = ( (freq_val - self._odmr_widgets["mwStart"].value()) *

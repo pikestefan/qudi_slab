@@ -139,7 +139,7 @@ class SnvmLogic(GenericLogic):
             step_number = 1 + round((self.stop_freq - self.start_freq) / self.freq_resolution)
             freq_axis = np.linspace(self.start_freq, self.stop_freq, step_number)
             snvm_matrix = np.zeros((xy_scan_matrix.shape[0], xy_scan_matrix.shape[1],
-                                    len(self.freq_axis), self.odmr_averages), dtype=np.float64)
+                                    len(freq_axis), self.odmr_averages), dtype=np.float64)
             temp_freq_matrix = np.full((self.odmr_averages, len(freq_axis)), self.invalid)
             temp_afm_matrix = np.copy(temp_freq_matrix)
             average_odmr_trace = np.zeros((temp_freq_matrix.shape[1],))
@@ -148,6 +148,7 @@ class SnvmLogic(GenericLogic):
             freq_axis = None
             temp_freq_matrix = None
             average_odmr_trace = None
+            temp_afm_matrix = None
 
         if self.store_retrace:
             xy_scan_matrix_retrace = np.copy(xy_scan_matrix)
@@ -257,18 +258,25 @@ class SnvmLogic(GenericLogic):
 
                 if self._odmr_rep_index > 0:
                     self.average_odmr_trace = np.nanmean(self.temp_freq_matrix, axis=0)
+
+                #TODO: in the GUI, when the user changes between trace and retrace, or changes the frequency slice,
+                # the refresh plotting takes the average, along the last axis of the snvm_matrix. This means that it will
+                # display an extra pixel with lower value, until the move_to_next_pixel is called.
+                if self._is_retracing and self.store_retrace:
+                    self.snvm_matrix_retrace[self._x_scanning_index, self._y_scanning_index,
+                                             self._freq_scanning_index, self._odmr_rep_index] = counts
+                else:
+                    self.snvm_matrix[self._x_scanning_index, self._y_scanning_index,
+                                     self._freq_scanning_index, self._odmr_rep_index] = counts
                 self.signal_freq_px_acquired.emit(self._odmr_rep_index)
 
             #Else, the OMDR acquisition for the pixel has finished. Store the data and ask for the next pixel. If also the
             #Scanning is done, tell that the scanning has finished.
             else:
-                odmr_average_array = self.temp_freq_matrix.mean(axis=0)
                 if self._is_retracing and self.store_retrace:
-                    self.snvm_matrix_retrace[self._x_scanning_index, self._y_scanning_index, :] = odmr_average_array
                     # FIXME: I am not acquiring and storing properly the analog input, find a way after basic debugging done
-                    self.xy_scan_matrix_retrace[self._x_scanning_index, self._y_scanning_index] = np.nan
+                    self.xy_scan_matrix_retrace[self._x_scanning_index, self._y_scanning_index] = self._temp_afm_matrix.mean()
                 else:
-                    self.snvm_matrix[self._x_scanning_index, self._y_scanning_index, :] = odmr_average_array
                     self.xy_scan_matrix[self._x_scanning_index, self._y_scanning_index] = self._temp_afm_matrix.mean()
 
                 #The ODMR sequence has finished. Update the indices accordingly
@@ -290,7 +298,7 @@ class SnvmLogic(GenericLogic):
                 self.xy_scan_matrix_retrace[self._x_scanning_index, self._y_scanning_index] = counts
             else:
                 self.xy_scan_matrix[self._x_scanning_index, self._y_scanning_index] = counts
-        self.self.signal_xy_image_updated.emit()
+        self.signal_xy_image_updated.emit()
         self._x_scanning_index += self._x_index_step
         self.signal_xy_px_acquired.emit()
 
