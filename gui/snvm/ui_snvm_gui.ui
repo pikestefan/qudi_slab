@@ -119,11 +119,7 @@
      <item row="1" column="3">
       <layout class="QHBoxLayout" name="horizontalLayout_2">
        <item>
-        <widget class="QSpinBox" name="sampleTraceViewSpinBox">
-         <property name="readOnly">
-          <bool>true</bool>
-         </property>
-        </widget>
+        <widget class="StringSpinBox" name="sampleTraceViewSpinBox"/>
        </item>
        <item>
         <spacer name="horizontalSpacer_4">
@@ -274,11 +270,7 @@
        <item row="1" column="0">
         <layout class="QHBoxLayout" name="horizontalLayout_6">
          <item>
-          <widget class="QSpinBox" name="tipTraceViewSpinBox">
-           <property name="readOnly">
-            <bool>true</bool>
-           </property>
-          </widget>
+          <widget class="StringSpinBox" name="tipTraceViewSpinBox"/>
          </item>
          <item>
           <spacer name="horizontalSpacer_5">
@@ -946,12 +938,17 @@
   <customwidget>
    <class>ScanPlotWidget</class>
    <extends>QGraphicsView</extends>
-   <header location="global">qtwidgets.scan_plotwidget.h</header>
+   <header>qtwidgets.scan_plotwidget.h</header>
   </customwidget>
   <customwidget>
    <class>DoubleSpinBoxArrowSignal</class>
    <extends>QDoubleSpinBox</extends>
    <header>qtwidgets.doublespinbox_arrowsignal.h</header>
+  </customwidget>
+  <customwidget>
+   <class>StringSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header location="global">qtwidgets.string_spinbox.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

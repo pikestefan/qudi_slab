@@ -56,6 +56,20 @@ class SnvmWindow(QtWidgets.QMainWindow):
         # Load it
         super(SnvmWindow, self).__init__()
         uic.loadUi(ui_file, self)
+
+        #Set the trace/retrace spinboxes names
+        btn_names = ["Trace", "Retrace"]
+        self.sampleTraceViewSpinBox.setStrings(btn_names)
+        self.sampleTraceViewSpinBox.lineEdit().setReadOnly(True)
+        self.tipTraceViewSpinBox.setStrings(btn_names)
+        self.tipTraceViewSpinBox.lineEdit().setReadOnly(True)
+
+        self.viewtracesample = True
+        self.viewtracetip = True
+
+        self.sampleTraceViewSpinBox.valueChanged.connect(self.setSampleTraceRetrace)
+        self.tipTraceViewSpinBox.valueChanged.connect(self.setTipTraceRetrace)
+
         self.show()
 
     def keyPressEvent(self, event):
@@ -65,6 +79,12 @@ class SnvmWindow(QtWidgets.QMainWindow):
     def mouseDoubleClickEvent(self, event):
         self._doubleclicked = True
         self.sigDoubleClick.emit()
+
+    def setSampleTraceRetrace(self, value):
+        self.viewtracesample = False if value == 1 else True
+
+    def setTipTraceRetrace(self, value):
+        self.viewtracetip = False if value == 1 else True
 
 class SnvmGui(GUIBase):
     """ Main Confocal Class for xy and depth scans.
@@ -217,7 +237,11 @@ class SnvmGui(GUIBase):
         self._scanning_logic.signal_freq_px_acquired.connect(self.refresh_odmr_plot)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_snvm_image)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_afm_image)
+
         self._mainwindow.frequencySliceSelector.stepClicked.connect(self.frequency_selector_clicked)
+        self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_snvm_image)
+        self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_afm_image)
+        self._mainwindow.tipTraceViewSpinBox.valueChanged.connect(self.refresh_confocal_image)
 
         self.show()
 
@@ -330,12 +354,18 @@ class SnvmGui(GUIBase):
         self._scanning_logic.stopRequested = True
 
     def refresh_snvm_image(self):
-        curr_image = self._scanning_logic.snvm_matrix[:, :, self._viewIndex]
+        if self._mainwindow.viewtracesample:
+            curr_image = self._scanning_logic.snvm_matrix[:, :, self._viewIndex]
+        else:
+            curr_image = self._scanning_logic.snvm_matrix_retrace[:, :, self._viewIndex]
         minmax = [curr_image.min(), curr_image.max()]
         self.snvm_image.setImage(curr_image)
 
     def refresh_afm_image(self):
-        curr_image = self._scanning_logic.xy_scan_matrix
+        if self._mainwindow.viewtracesample:
+            curr_image = self._scanning_logic.xy_scan_matrix
+        else:
+            curr_image = self._scanning_logic.xy_scan_matrix_retrace
         minmax = [curr_image.min(), curr_image.max()]
         self.afm_image.setImage(curr_image)
 
