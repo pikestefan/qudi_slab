@@ -153,6 +153,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
 
         self._scanner_ao_tasks = dict().fromkeys(self._stack_names, None)
         self._motion_clock_task = None
+        self._motion_clock_frequency = None
 
         self._photon_sources = self._photon_sources if self._photon_sources is not None else list()
 
@@ -338,7 +339,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
             self._counter_ai_channels = []
         return error
 
-    def prepare_motion_clock(self, clock_frequency = None, clock_channel = None):
+    def _prepare_motion_clock(self, clock_frequency=None, clock_channel=None):
 
         if self._motion_clock_task is not None:
             self.log.error("The motion clock is running, close the other task first.")
@@ -346,18 +347,20 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
 
         clock_task = daq.TaskHandle()
         if clock_frequency is None:
-            clock_frequency = self._default_motion_clock_frequency
+            self._motion_clock_frequency = self._default_motion_clock_frequency
+        else:
+            self._motion_clock_frequency = clock_frequency
 
-        if clock_channel is None:
-            clock_channel = self._motion_clock_channel
+        if clock_channel is not None:
+            self._motion_clock_channel = clock_channel
 
         try:
             task_name = 'MotionClockTask'
             daq.DAQmxCreateTask(task_name, daq.byref(clock_task))
 
             daq.DAQmxCreateCOPulseChanFreq(
-                clock_task,
-                clock_channel,
+                self._motion_clock_frequency,
+                self._motion_clock_channel,
                 'Motion clock',
                 daq.DAQmx_Val_Hz,
                 daq.DAQmx_Val_Low,
@@ -366,15 +369,40 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
                 0.5
             )
 
-            daq.DAQmxCfgImplicitTiming(
-                clock_task,
-                daq.DAQmx_Val_ContSamps,
-                1000)
+            daq.DAQmxCfgImplicitTiming(clock_task,daq.DAQmx_Val_ContSamps, 1000)
 
+            self._motion_clock_task = clock_task
         except:
             self.log.exception("Error while setting up the motion clock.")
             return -1
         return 0
+
+    def _set_up_linemotion(self, points = 1000, stack = None):
+        if self._motion_clock_task is None:
+            self.log.error("The motion clock has not been set up yet.")
+            return -1
+
+        if stack == None:
+            self.log.error("You need to specify a stack to set up the line motion.")
+
+        try:
+            daq.DAQmxCfgSampClkTiming(
+                self._scanner_ao_tasks[stack],
+                self._motion_clock_channel + 'InternalOutput',
+                self._motion_clock_frequency,
+                daq.DAQmx_Val_Rising,
+                daq.DAQmx_Val_FiniteSamples,
+                points)
+
+            daq.DAQmxCfgImplicitTiming(
+                self._motion_clock_task,
+                daq.DAQmx_Val_FiniteSamps,
+                points + 1)
+        except:
+            self.log.exception("Error when setting up the line scanner.")
+
+    def move_along_line(self, position_array = None, stack = None):
+        pass
 
     def get_counter_channels(self):
         """ Returns the list of counter channel names.
