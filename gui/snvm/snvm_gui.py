@@ -193,7 +193,7 @@ class SnvmGui(GUIBase):
         self._afm_widgets[self._mainwindow.yMinRange.objectName()] = self._mainwindow.yMinRange
         self._afm_widgets[self._mainwindow.yMaxRange.objectName()] = self._mainwindow.yMaxRange
         self._afm_widgets[self._mainwindow.fwpxTime.objectName()] = self._mainwindow.fwpxTime
-        self._afm_widgets[self._mainwindow.bwPxTime.objectName()] = self._mainwindow.bwPxTime
+        self._afm_widgets[self._mainwindow.bwSpeed.objectName()] = self._mainwindow.bwSpeed
         self._afm_widgets[self._mainwindow.storeRetrace.objectName()] = self._mainwindow.storeRetrace
 
         # TODO: maybe set the maximum and minimum limits of the xmin/xmax and ymin/ymax
@@ -206,7 +206,7 @@ class SnvmGui(GUIBase):
         self._afm_widgets['xMaxRange'].setValue(40e2)
         self._afm_widgets['yMaxRange'].setValue(40e2)
         self._afm_widgets['fwpxTime'].setValue(10)
-        self._afm_widgets['bwPxTime'].setValue(10)
+        self._afm_widgets['bwSpeed'].setValue(10)
         self._afm_widgets['storeRetrace'].setChecked(True)
         #########
 
@@ -236,6 +236,8 @@ class SnvmGui(GUIBase):
         #########
 
         #Connect the signals
+        self._afm_widgets['storeRetrace'].stateChanged.connect(self.deactivate_speed_box)
+
         self._odmr_widgets['mwStart'].valueChanged.connect(self.accept_frequency_ranges)
         self._odmr_widgets['mwEnd'].valueChanged.connect(self.accept_frequency_ranges)
         self._odmr_widgets['mwStep'].valueChanged.connect(self.accept_frequency_ranges)
@@ -281,6 +283,8 @@ class SnvmGui(GUIBase):
                                                  self._afm_widgets['yMaxRange'].value()*self.xy_range_multiplier]
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
+
+        self._scanning_logic.bw_speed = self._afm_widgets['bwSpeed'].value() * 1e-6 #Set it back to m/s, rather than um/s
 
         #Set the integration time
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
@@ -406,3 +410,6 @@ class SnvmGui(GUIBase):
     def get_image_viewbox(self, imageitem):
         vb = imageitem.getViewBox()
         return vb
+
+    def deactivate_speed_box(self, checkbox_state):
+        self._afm_widgets['bwSpeed'].setDisabled(checkbox_state)

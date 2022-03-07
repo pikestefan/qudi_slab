@@ -73,6 +73,8 @@ class SnvmLogic(GenericLogic):
         #Integration time per pixel
         self.px_time = 0
         self._photon_samples = 0
+        self.bw_speed = None
+        self.bw_pixels = 0 #The number is determined by the clock frequency and the bw_speed
 
         #These are the indices which will be used to scan through the arrays of the frequencies and position pairs
         self._x_scanning_index = 0
@@ -202,11 +204,17 @@ class SnvmLogic(GenericLogic):
             analog_channels = None
         self._scanning_device.prepare_counters(samples_to_acquire=self._photon_samples,
                                                counter_ai_channels=analog_channels)
+        if self.store_retrace is False:
+            self._scanning_device.prepare_motion_clock()
+            clk_freq = self._scanning_device.get_motion_clock_frequency()
+            self.bw_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / self.bw_speed) *
+                                 clk_freq)
 
         if self._snvm_active:
             self._odmrscanner.module_state.lock()
             try:
                 pass
+                # FIXME: look into how to operate the srs in list mode
                 #self._odmrscanner.set_list(frequency=self.freq_axis, power=self.mw_power)
             except:
                 self.log.error("Failed loading the frequency axis into the ODMR scanner. Aborted execution.")
@@ -286,9 +294,6 @@ class SnvmLogic(GenericLogic):
                 self.average_odmr_trace[:] = self.invalid
                 self.signal_snvm_image_updated.emit()
                 self.signal_xy_px_acquired.emit()
-        else:
-            self._x_scanning_index += self._x_index_step
-            self.signal_xy_px_acquired.emit()
 
     def continue_confocal_scanning(self):
         acquire_data = False if (self.store_retrace is False) and (self._is_retracing is True) else True
@@ -325,10 +330,20 @@ class SnvmLogic(GenericLogic):
                 self.stopRequested = True
 
         if not self.stopRequested:
+            if self._is_retracing and not self.store_retrace:
+                print(self.bw_pixels)
+                retrace_line = np.linspace(self._x_scanning_axis.max(), self._x_scanning_axis.min(), self.bw_pixels)
+                retrace_line = np.vstack((retrace_line, np.full(retrace_line.shape, self._y_scanning_axis[self._y_scanning_index])))
+                self._scanning_device.move_along_line(position_array = retrace_line, stack = self._active_stack)
+                self._x_scanning_index = 0
+                self._y_scanning_index += 1
+                self._is_retracing = False
+                self._x_index_step = 1
+
             new_x_pos = self._x_scanning_axis[self._x_scanning_index]
             new_y_pos = self._y_scanning_axis[self._y_scanning_index]
-
             self._scanning_device.scanner_set_position([new_x_pos, new_y_pos], stack=self._active_stack)
+
             if self._snvm_active:
                 self.signal_continue_snvm.emit()
             else:
@@ -355,6 +370,8 @@ class SnvmLogic(GenericLogic):
                 self.stop_xy_scanner()
                 if self._snvm_active:
                     self.stop_freq_scanner()
+                if not self.store_retrace:
+                    self._scanning_device.clear_motion_clock()
                 self.module_state.unlock()
             self.signal_scan_finished.emit()
 

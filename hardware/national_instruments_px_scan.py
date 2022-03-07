@@ -536,6 +536,13 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     def get_counter_clock_frequency(self):
         return self._counter_clock_frequency
 
+    def get_motion_clock_frequency(self):
+        if self._motion_clock_task is not None:
+            return self._motion_clock_frequency
+        else:
+            self.log.error("The motion clock task has not been set up, so the clock frequency is undefined.")
+            return -1
+
     def get_scanner_position(self):
         """ Get the current position of the scanner hardware.
 
