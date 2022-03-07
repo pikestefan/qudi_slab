@@ -32,7 +32,7 @@ from interface.odmr_counter_interface import ODMRCounterInterface
 from interface.snvm_scanner_interface import SnvmScannerInterface
 
 
-class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterInterface):
+class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     """ A National Instruments device that can count and control microvave generators.
 
     !!!!!! NI USB 63XX, NI PCIe 63XX and NI PXIe 63XX DEVICES ONLY !!!!!!
@@ -339,7 +339,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
             self._counter_ai_channels = []
         return error
 
-    def _prepare_motion_clock(self, clock_frequency=None, clock_channel=None):
+    def prepare_motion_clock(self, clock_frequency=None, clock_channel=None):
 
         if self._motion_clock_task is not None:
             self.log.error("The motion clock is running, close the other task first.")
@@ -359,17 +359,15 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
             daq.DAQmxCreateTask(task_name, daq.byref(clock_task))
 
             daq.DAQmxCreateCOPulseChanFreq(
-                self._motion_clock_frequency,
+                clock_task,
                 self._motion_clock_channel,
                 'Motion clock',
                 daq.DAQmx_Val_Hz,
                 daq.DAQmx_Val_Low,
                 0,
-                clock_frequency,
+                self._motion_clock_frequency,
                 0.5
             )
-
-            daq.DAQmxCfgImplicitTiming(clock_task,daq.DAQmx_Val_ContSamps, 1000)
 
             self._motion_clock_task = clock_task
         except:
@@ -377,7 +375,19 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
             return -1
         return 0
 
-    def _set_up_linemotion(self, points = 1000, stack = None):
+    def clear_motion_clock(self):
+        try:
+            daq.DAQmxStopTask(self._motion_clock_task)
+
+            daq.DAQmxClearTask(self._motion_clock_task)
+
+            self._motion_clock_task = None
+        except:
+            self.log.exception('Could not close clock.')
+            return -1
+        return 0
+
+    def set_up_linemotion(self, points=1000, stack = None):
         if self._motion_clock_task is None:
             self.log.error("The motion clock has not been set up yet.")
             return -1
@@ -386,12 +396,13 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
             self.log.error("You need to specify a stack to set up the line motion.")
 
         try:
+
             daq.DAQmxCfgSampClkTiming(
                 self._scanner_ao_tasks[stack],
                 self._motion_clock_channel + 'InternalOutput',
                 self._motion_clock_frequency,
                 daq.DAQmx_Val_Rising,
-                daq.DAQmx_Val_FiniteSamples,
+                daq.DAQmx_Val_FiniteSamps,
                 points)
 
             daq.DAQmxCfgImplicitTiming(
@@ -401,8 +412,35 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
         except:
             self.log.exception("Error when setting up the line scanner.")
 
-    def move_along_line(self, position_array = None, stack = None):
-        pass
+    def move_along_line(self, position_array=None, stack=None):
+        """
+        Position array needs to have shape (2, n)
+        """
+
+        motion_task = self._scanner_ao_tasks[stack]
+        daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_SampClk)
+        self.set_up_linemotion(points=position_array.shape[1], stack=stack)
+
+        voltages = self._scanner_position_to_volt(position_array, stack)
+        self.write_voltage(motion_task, voltages=voltages, autostart=False)
+        daq.DAQmxStartTask(motion_task)
+        daq.DAQmxStartTask(self._motion_clock_task)
+
+        daq.DAQmxWaitUntilTaskDone(self._motion_clock_task, 2 * self._RWTimeout * position_array.shape[1])
+
+        daq.DAQmxStopTask(motion_task)
+        daq.DAQmxStopTask(self._motion_clock_task)
+
+        daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_OnDemand)
+
+
+    def test_the_motion(self, frfr = 10):
+        stack = self._sample_stack_name
+        positions = np.vstack((np.linspace(0, 20e-6, 10), np.linspace(20e-6, 0, 10)))
+        self.prepare_motion_clock(clock_frequency=frfr)
+        self.move_along_line(positions, stack)
+
+        self.clear_motion_clock()
 
     def get_counter_channels(self):
         """ Returns the list of counter channel names.
@@ -602,11 +640,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
         AONwritten = daq.int32()
         if ao_task is None:
             self.log.exception('Please specify or create an AO task')
-
-        length = len(voltages)
         try:
             daq.DAQmxWriteAnalogF64(ao_task,
-                                    1,
+                                    voltages.shape[1],
                                     autostart,
                                     self._RWTimeout,
                                     daq.DAQmx_Val_GroupByChannel,
@@ -652,7 +688,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
 
         my_position = np.array(xypair)
         # then directly write the position to the hardware
-        voltages = self._scanner_position_to_volt(my_position[np.newaxis, :], stack=stack)
+        voltages = self._scanner_position_to_volt(my_position[:, np.newaxis], stack=stack)
         try:
             self.write_voltage(
                 scanning_task,
@@ -729,7 +765,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
     def _scanner_position_to_volt(self, positions=None, stack=None):
         """ Converts a set of position pixels to actual voltages.
 
-        @param np.ndarray positions: array with (n, 2) shape, first column corresponding to x and second one to y.
+        @param np.ndarray positions: array with (2, n) shape, first column corresponding to x and second one to y.
         @param string stack: the stack name
 
         @return float[][n]: array of n-part tuples of corresponing voltages
@@ -745,13 +781,14 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface, ODMRCounterIn
         scanner_position_ranges = np.array(self._scanner_position_ranges[stack])
 
         post2volt_coeff = np.diff(scanner_voltage_ranges, axis=1) / np.diff(scanner_position_ranges, axis=1)
-        volts = post2volt_coeff.T * positions + scanner_voltage_ranges[:, 0].T
-
-        if (np.any(np.logical_or(volts[:, 0] < scanner_voltage_ranges[0, 0],
-                                 volts[:, 0] > scanner_voltage_ranges[0, 1]))
+        offset = scanner_voltage_ranges[:, 0]
+        offset = offset[:, np.newaxis]
+        volts = post2volt_coeff * positions + offset
+        if (np.any(np.logical_or(volts[0, :] < scanner_voltage_ranges[0, 0],
+                                 volts[0, :] > scanner_voltage_ranges[0, 1]))
                 or
-            np.any(np.logical_or(volts[:, 1] < scanner_voltage_ranges[1, 0],
-                                 volts[:, 1] > scanner_voltage_ranges[1, 1]))):
+            np.any(np.logical_or(volts[1, :] < scanner_voltage_ranges[1, 0],
+                                 volts[1, :] > scanner_voltage_ranges[1, 1]))):
             self.log.error('Some of the requested positions are out of the voltage bounds.')
             return np.array([np.nan])
         return volts.astype(np.float64)
