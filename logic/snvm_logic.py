@@ -331,7 +331,6 @@ class SnvmLogic(GenericLogic):
 
         if not self.stopRequested:
             if self._is_retracing and not self.store_retrace:
-                print(self.bw_pixels)
                 retrace_line = np.linspace(self._x_scanning_axis.max(), self._x_scanning_axis.min(), self.bw_pixels)
                 retrace_line = np.vstack((retrace_line, np.full(retrace_line.shape, self._y_scanning_axis[self._y_scanning_index])))
                 self._scanning_device.move_along_line(position_array = retrace_line, stack = self._active_stack)
