@@ -284,7 +284,7 @@ class SnvmGui(GUIBase):
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
 
-        self._scanning_logic.bw_speed = self._afm_widgets['bwSpeed'].value() * 1e-6 #Set it back to m/s, rather than um/s
+        self._scanning_logic.backward_speed = self._afm_widgets['bwSpeed'].value() * 1e-6 #Set it back to m/s, rather than um/s
 
         #Set the integration time
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier

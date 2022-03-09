@@ -73,8 +73,8 @@ class SnvmLogic(GenericLogic):
         #Integration time per pixel
         self.px_time = 0
         self._photon_samples = 0
-        self.bw_speed = None
-        self.bw_pixels = 0 #The number is determined by the clock frequency and the bw_speed
+        self.backward_speed = None
+        self.backward_pixels = 0 #The number is determined by the clock frequency and the bw_speed
 
         #These are the indices which will be used to scan through the arrays of the frequencies and position pairs
         self._x_scanning_index = 0
@@ -124,7 +124,7 @@ class SnvmLogic(GenericLogic):
     def on_deactivate(self):
         pass
 
-    def prepare_data_matrices(self):
+    def _prepare_data_matrices(self):
 
         #Clip the ranges if they are out of bound
         self.check_xy_ranges()
@@ -207,8 +207,8 @@ class SnvmLogic(GenericLogic):
         if self.store_retrace is False:
             self._scanning_device.prepare_motion_clock()
             clk_freq = self._scanning_device.get_motion_clock_frequency()
-            self.bw_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / self.bw_speed) *
-                                 clk_freq)
+            self.backward_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / self.backward_speed) *
+                                       clk_freq)
 
         if self._snvm_active:
             self._odmrscanner.module_state.lock()
@@ -226,7 +226,7 @@ class SnvmLogic(GenericLogic):
 
         self._active_stack = self._sampleStackName
         self._snvm_active = True
-        self.prepare_data_matrices()
+        self._prepare_data_matrices()
 
         self._initialize_scanning_statuses()
         self.prepare_devices()
@@ -245,7 +245,7 @@ class SnvmLogic(GenericLogic):
 
         self._active_stack = self._tipStackName
         self._snvm_active = False
-        self.prepare_data_matrices()
+        self._prepare_data_matrices()
 
         self._initialize_scanning_statuses()
         self.prepare_devices()
@@ -331,7 +331,7 @@ class SnvmLogic(GenericLogic):
 
         if not self.stopRequested:
             if self._is_retracing and not self.store_retrace:
-                retrace_line = np.linspace(self._x_scanning_axis.max(), self._x_scanning_axis.min(), self.bw_pixels)
+                retrace_line = np.linspace(self._x_scanning_axis.max(), self._x_scanning_axis.min(), self.backward_pixels)
                 retrace_line = np.vstack((retrace_line, np.full(retrace_line.shape, self._y_scanning_axis[self._y_scanning_index])))
                 self._scanning_device.move_along_line(position_array = retrace_line, stack = self._active_stack)
                 self._x_scanning_index = 0
