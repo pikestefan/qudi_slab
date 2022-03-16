@@ -94,7 +94,7 @@ class SnvmGui(GUIBase):
     snvm_logic = Connector(interface='SnvmLogic')
 
     default_meter_prefix = ConfigOption('default_meter_prefix', None)  # assume the unit prefix of position spinbox
-    # FIXME: for now I fix the multipliers, put is as an option, and updated the labels accordingly in the GUI
+    # FIXME: for now I fix the multipliers, put is as an option, and update the labels accordingly in the GUI
     startstopFreq_multiplier = 1e9
     stepFreq_multiplier = 1e6
     xy_range_multiplier = 1e-9
@@ -247,6 +247,8 @@ class SnvmGui(GUIBase):
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_snvm_image)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_afm_image)
         self._scanning_logic.signal_xy_image_updated.connect(self.refresh_confocal_image)
+        self._scanning_logic.signal_snvm_initialized.connect(self.set_snvm_im_range)
+        self._scanning_logic.signal_confocal_initialized.connect(self.set_confocal_im_range)
 
         self._mainwindow.frequencySliceSelector.stepClicked.connect(self.frequency_selector_clicked)
         self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_snvm_image)
@@ -281,10 +283,12 @@ class SnvmGui(GUIBase):
                                                  self._afm_widgets['xMaxRange'].value()*self.xy_range_multiplier]
         self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value()*self.xy_range_multiplier,
                                                  self._afm_widgets['yMaxRange'].value()*self.xy_range_multiplier]
+
+
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
 
-        self._scanning_logic.backward_speed = self._afm_widgets['bwSpeed'].value() * 1e-6 #Set it back to m/s, rather than um/s
+        self._scanning_logic.backward_speed = self._afm_widgets['bwSpeed'].value() * 1e-6 #Set it back to m/s, since it is um/s
 
         #Set the integration time
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
@@ -330,7 +334,6 @@ class SnvmGui(GUIBase):
             setting.setEnabled(True)
         for setting in self._odmr_widgets.values():
             setting.setEnabled(True)
-
 
     def accept_frequency_ranges(self):
         """
@@ -398,6 +401,25 @@ class SnvmGui(GUIBase):
             curr_image = self._scanning_logic.xy_scan_matrix_retrace
         minmax = [curr_image.min(), curr_image.max()]
         self.cfc_image.setImage(curr_image)
+
+    def set_snvm_im_range(self):
+        im_range = self._scanning_logic.get_xy_image_range()
+        xmin, xmax  = im_range[0]
+        ymin, ymax = im_range[1]
+
+        xpxsize, ypxsize = self._scanning_logic.get_xy_step_size()
+
+        for image in [self.snvm_image, self.afm_image]:
+            image.set_image_extent((((xmin-xpxsize/2) / self.xy_range_multiplier, (xmax+xpxsize/2) / self.xy_range_multiplier),
+                                     ((ymin-ypxsize/2) / self.xy_range_multiplier, (ymax+ypxsize/2) / self.xy_range_multiplier)))
+
+    def set_confocal_im_range(self):
+        im_range = self._scanning_logic.get_xy_image_range()
+        xmin, xmax = im_range[0]
+        ymin, ymax = im_range[1]
+
+        self.cfc_image.set_image_extent(((xmin / self.xy_range_multiplier, xmax / self.xy_range_multiplier),
+                                         (ymin / self.xy_range_multiplier, ymax / self.xy_range_multiplier)))
 
     def frequency_selector_clicked(self, freq_val):
         difference = ( (freq_val - self._odmr_widgets["mwStart"].value()) *

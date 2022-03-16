@@ -30,6 +30,9 @@ class SnvmLogic(GenericLogic):
     signal_xy_px_acquired = QtCore.Signal()
     signal_scan_finished = QtCore.Signal()
 
+    signal_snvm_initialized = QtCore.Signal()
+    signal_confocal_initialized = QtCore.Signal()
+
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -231,6 +234,10 @@ class SnvmLogic(GenericLogic):
         self._initialize_scanning_statuses()
         self.prepare_devices()
 
+        self.signal_snvm_image_updated.emit()
+        self.signal_xy_image_updated.emit()
+        self.signal_snvm_initialized.emit()
+
         self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
                                                     self._y_scanning_axis[self._y_scanning_index]],
                                                    stack=self._active_stack)
@@ -249,6 +256,9 @@ class SnvmLogic(GenericLogic):
 
         self._initialize_scanning_statuses()
         self.prepare_devices()
+
+        self.signal_xy_image_updated.emit()
+        self.signal_confocal_initialized.emit()
 
         self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
                                                     self._y_scanning_axis[self._y_scanning_index]],
@@ -398,6 +408,14 @@ class SnvmLogic(GenericLogic):
             self.log.exception('Could not unlock scanning device.')
 
         return 0
+
+    def get_xy_image_range(self):
+        return [[self._x_scanning_axis[0], self._x_scanning_axis[-1]],
+                [self._y_scanning_axis[0], self._y_scanning_axis[-1]]]
+
+    def get_xy_step_size(self):
+        return [self._x_scanning_axis[1]-self._x_scanning_axis[0],
+                self._y_scanning_axis[1]-self._y_scanning_axis[0]]
 
     def _initialize_scanning_statuses(self):
         self._x_scanning_index = 0
