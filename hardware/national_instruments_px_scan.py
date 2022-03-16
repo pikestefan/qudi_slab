@@ -182,7 +182,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         if self._start_analog_outputs() < 0:
             self.log.error('Failed to start analog output.')
             raise Exception('Failed to start NI Card module due to analog output failure.')
-        self._current_position = [0,0]
+
+        self._current_position = dict(zip(self._stack_names, [np.zeros((2,)), np.zeros((2,))]))
 
     def on_deactivate(self):
         """ Shut down the NI card.
@@ -433,6 +434,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_OnDemand)
 
+        self._current_position[stack] = position_array[:, -1]
+
 
     def test_the_motion(self, frfr = 10):
         stack = self._sample_stack_name
@@ -543,12 +546,11 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             self.log.error("The motion clock task has not been set up, so the clock frequency is undefined.")
             return -1
 
-    def get_scanner_position(self):
+    def get_scanner_position(self, stack):
         """ Get the current position of the scanner hardware.
-
-        @return float[]: current position in (x, y, z, a).
         """
-        return self._current_position.tolist()
+        #TODO: one day, this is converted into an actual voltage reading
+        return self._current_position[stack]
 
     def get_position_range(self, stack=None):
         """ Returns the physical range of the scanner.
@@ -685,13 +687,13 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             if not (scanner_position_range[0][0] <= x <= scanner_position_range[0][1]):
                 self.log.error('You want to set x out of range: {0:f}.'.format(x))
                 return -1
-            #self._current_position[0] = np.float(x)
+            self._current_position[stack][0] = np.float(x)
 
         if y is not None:
             if not (scanner_position_range[1][0] <= y <= scanner_position_range[1][1]):
                 self.log.error('You want to set y out of range: {0:f}.'.format(y))
                 return -1
-            #self._current_position[1] = np.float(y)
+            self._current_position[stack][1] = np.float(y)
 
         my_position = np.array(xypair)
         # then directly write the position to the hardware
