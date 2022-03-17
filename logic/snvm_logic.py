@@ -28,7 +28,7 @@ class SnvmLogic(GenericLogic):
     signal_xy_image_updated = QtCore.Signal()
     signal_freq_px_acquired = QtCore.Signal(int) #Emits the row of the temporary data matrix to store the odmr data
     signal_xy_px_acquired = QtCore.Signal()
-    signal_scan_finished = QtCore.Signal()
+    signal_scan_finished = QtCore.Signal(bool) #Emits True if the scan was snvm, False otherwise
 
     signal_snvm_initialized = QtCore.Signal()
     signal_confocal_initialized = QtCore.Signal()
@@ -382,7 +382,7 @@ class SnvmLogic(GenericLogic):
                 if not self.store_retrace:
                     self._scanning_device.clear_motion_clock()
                 self.module_state.unlock()
-            self.signal_scan_finished.emit()
+            self.signal_scan_finished.emit(self._snvm_active)
 
     def stop_xy_scanner(self):
         """Closing the scanner device.
@@ -409,13 +409,16 @@ class SnvmLogic(GenericLogic):
 
         return 0
 
-    def get_xy_image_range(self):
-        return [[self._x_scanning_axis[0], self._x_scanning_axis[-1]],
-                [self._y_scanning_axis[0], self._y_scanning_axis[-1]]]
+    def get_xy_image_range(self, multiplier = 1):
+        """
+        Multiplier is an optional parameter to convert the range to the desired units
+        """
+        return [[self._x_scanning_axis[0]*multiplier, self._x_scanning_axis[-1]*multiplier],
+                [self._y_scanning_axis[0]*multiplier, self._y_scanning_axis[-1]*multiplier]]
 
-    def get_xy_step_size(self):
-        return [self._x_scanning_axis[1]-self._x_scanning_axis[0],
-                self._y_scanning_axis[1]-self._y_scanning_axis[0]]
+    def get_xy_step_size(self, multiplier = 1):
+        return [(self._x_scanning_axis[1]-self._x_scanning_axis[0])*multiplier,
+                (self._y_scanning_axis[1]-self._y_scanning_axis[0])*multiplier]
 
     def _initialize_scanning_statuses(self):
         self._x_scanning_index = 0
