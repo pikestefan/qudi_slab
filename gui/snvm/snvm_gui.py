@@ -133,13 +133,20 @@ class SnvmGui(GUIBase):
 
         self.photon_colormap = ColorScaleInferno()
         self.afm_cmap = BlackAndWhite()
+        self._crosshair_maxrange = None
 
         #Set up the SNVM image and colorbar
         self.snvm_image = ScanImageItem()
         self.snvm_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.multiFreqPlotView.addItem(self.snvm_image)
+        self._mainwindow.multiFreqPlotView.toggle_crosshair(True, movable=True)
+        self._mainwindow.multiFreqPlotView.set_crosshair_size((1,1))
+        self._mainwindow.multiFreqPlotView.sigCrosshairDraggedPosChanged.connect(self.move_afm_crosshair)
+
         snvm_im_vb = self.get_image_viewbox(self.snvm_image)
         snvm_im_vb.setAspectLocked(True)
+        snvm_im_vb.toggle_selection(True)
+        snvm_im_vb.toggle_zoom_by_selection(True)
 
         self.multifreq_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.multiFreqCbarView.addItem(self.multifreq_cb)
@@ -147,8 +154,14 @@ class SnvmGui(GUIBase):
         #Set up the AFM image and colorbar
         self.afm_image = ScanImageItem()
         self._mainwindow.afmPlotView.addItem(self.afm_image)
-        snvm_im_vb = self.get_image_viewbox(self.afm_image)
-        snvm_im_vb.setAspectLocked(True)
+        self._mainwindow.afmPlotView.toggle_crosshair(True, movable=True)
+        self._mainwindow.afmPlotView.set_crosshair_size((1, 1))
+        self._mainwindow.afmPlotView.sigCrosshairDraggedPosChanged.connect(self.move_multifreq_crosshair)
+
+        afm_im_vb = self.get_image_viewbox(self.afm_image)
+        afm_im_vb.setAspectLocked(True)
+        afm_im_vb.toggle_selection(True)
+        afm_im_vb.toggle_zoom_by_selection(True)
 
         self.afm_cb = ColorBar(self.afm_cmap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.afmCbarView.addItem(self.afm_cb)
@@ -157,8 +170,13 @@ class SnvmGui(GUIBase):
         self.cfc_image = ScanImageItem()
         self.cfc_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.confocalScannerView.addItem(self.cfc_image)
-        snvm_im_vb = self.get_image_viewbox(self.cfc_image)
-        snvm_im_vb.setAspectLocked(True)
+        self._mainwindow.confocalScannerView.toggle_crosshair(True, movable=True)
+        self._mainwindow.confocalScannerView.set_crosshair_size((1, 1))
+
+        cfc_im_vb = self.get_image_viewbox(self.cfc_image)
+        cfc_im_vb.setAspectLocked(True)
+        cfc_im_vb.toggle_selection(True)
+        cfc_im_vb.toggle_zoom_by_selection(True)
 
         self.cfc_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.confocalCbarView.addItem(self.cfc_cb)
@@ -180,6 +198,8 @@ class SnvmGui(GUIBase):
         self._mainwindow.actionStart_snvmscan.triggered.connect(self.start_scanning)
         self._mainwindow.actionStart_conf_scan.triggered.connect(self.start_scanning)
         self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
+
+        self._mainwindow.actionStop_scan.setEnabled(False)
 
         ########
         # AFM scanning settings
@@ -293,8 +313,20 @@ class SnvmGui(GUIBase):
         #Set the integration time
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
 
+
         start_name = self.sender().objectName()
         if start_name == 'actionStart_snvmscan':
+
+            #First update the crosshair position
+            crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
+            if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range
+                or crosshair_pos[1]*self.xy_range_multiplier not in self._scanning_logic.scanning_y_range):
+
+                newpos = (self._scanning_logic.scanning_x_range[0]/self.xy_range_multiplier,
+                          self._scanning_logic.scanning_y_range[0]/self.xy_range_multiplier)
+                self._mainwindow.multiFreqPlotView.set_crosshair_pos(newpos)
+                self._mainwindow.afmPlotView.set_crosshair_pos(newpos)
+
             self.set_odmr_settings()
 
             #Here put the settings for the  spin box.
@@ -308,6 +340,13 @@ class SnvmGui(GUIBase):
             self._scanning_logic.start_snvm_scanning()
 
         else:
+            # First update the crosshair position
+            crosshair_pos = self._mainwindow.confocalScannerView.crosshair_position
+            if (crosshair_pos[0] not in self._scanning_logic.scanning_x_range
+                    or crosshair_pos[1] not in self._scanning_logic.scanning_y_range):
+                newpos = self._scanning_logic.scanning_x_range[0], self._scanning_logic.scanning_y_range[0]
+                self._mainwindow.confocalScannerView.set_crosshair_pos(newpos)
+
             self._scanning_logic.start_confocal_scanning()
 
     def stop_scanning(self):
@@ -318,22 +357,36 @@ class SnvmGui(GUIBase):
         self._mainwindow.actionStart_conf_scan.setEnabled(False)
         self._mainwindow.actionResume_snvmscan.setEnabled(False)
         self._mainwindow.actionResume_conf_scan.setEnabled(False)
+        self._mainwindow.actionOptimize.setEnabled(False)
+
+        self._mainwindow.actionStop_scan.setEnabled(True)
 
         for setting in self._afm_widgets.values():
             setting.setEnabled(False)
         for setting in self._odmr_widgets.values():
             setting.setEnabled(False)
 
-    def activate_interactions(self):
+    def activate_interactions(self, was_snvm_scan):
         self._mainwindow.actionStart_snvmscan.setEnabled(True)
         self._mainwindow.actionStart_conf_scan.setEnabled(True)
         self._mainwindow.actionResume_snvmscan.setEnabled(True)
         self._mainwindow.actionResume_conf_scan.setEnabled(True)
+        self._mainwindow.actionOptimize.setEnabled(True)
+
+        self._mainwindow.actionStop_scan.setEnabled(False)
 
         for setting in self._afm_widgets.values():
             setting.setEnabled(True)
         for setting in self._odmr_widgets.values():
             setting.setEnabled(True)
+
+        xrange, yrange = self._scanning_logic.get_xy_image_range(multiplier=1/self.xy_range_multiplier)
+
+        if was_snvm_scan:
+            self._mainwindow.multiFreqPlotView.set_crosshair_range([xrange, yrange])
+            self._mainwindow.afmPlotView.set_crosshair_range([xrange, yrange])
+        else:
+            self._mainwindow.confocalScannerView.set_crosshair_range([xrange, yrange])
 
     def accept_frequency_ranges(self):
         """
@@ -403,23 +456,23 @@ class SnvmGui(GUIBase):
         self.cfc_image.setImage(curr_image)
 
     def set_snvm_im_range(self):
-        im_range = self._scanning_logic.get_xy_image_range()
+        im_range = self._scanning_logic.get_xy_image_range(multiplier=1/self.xy_range_multiplier)
         xmin, xmax  = im_range[0]
         ymin, ymax = im_range[1]
 
-        xpxsize, ypxsize = self._scanning_logic.get_xy_step_size()
+        xpxsize, ypxsize = self._scanning_logic.get_xy_step_size(multiplier=1/self.xy_range_multiplier)
 
         for image in [self.snvm_image, self.afm_image]:
-            image.set_image_extent((((xmin-xpxsize/2) / self.xy_range_multiplier, (xmax+xpxsize/2) / self.xy_range_multiplier),
-                                     ((ymin-ypxsize/2) / self.xy_range_multiplier, (ymax+ypxsize/2) / self.xy_range_multiplier)))
+            image.set_image_extent(((xmin-xpxsize/2, xmax+xpxsize/2), (ymin-ypxsize/2, ymax+ypxsize/2)))
 
     def set_confocal_im_range(self):
-        im_range = self._scanning_logic.get_xy_image_range()
+        im_range = self._scanning_logic.get_xy_image_range(multiplier=1/self.xy_range_multiplier)
         xmin, xmax = im_range[0]
         ymin, ymax = im_range[1]
 
-        self.cfc_image.set_image_extent(((xmin / self.xy_range_multiplier, xmax / self.xy_range_multiplier),
-                                         (ymin / self.xy_range_multiplier, ymax / self.xy_range_multiplier)))
+        xpxsize, ypxsize = self._scanning_logic.get_xy_step_size(multiplier=1/self.xy_range_multiplier)
+
+        self.cfc_image.set_image_extent(((xmin-xpxsize/2, xmax+xpxsize/2), (ymin-ypxsize/2, ymax+ypxsize/2)))
 
     def frequency_selector_clicked(self, freq_val):
         difference = ( (freq_val - self._odmr_widgets["mwStart"].value()) *
@@ -435,3 +488,9 @@ class SnvmGui(GUIBase):
 
     def deactivate_speed_box(self, checkbox_state):
         self._afm_widgets['bwSpeed'].setDisabled(checkbox_state)
+
+    def move_afm_crosshair(self, coordinates):
+        self._mainwindow.afmPlotView.set_crosshair_pos(coordinates)
+
+    def move_multifreq_crosshair(self, coordinates):
+        self._mainwindow.multiFreqPlotView.set_crosshair_pos(coordinates)
