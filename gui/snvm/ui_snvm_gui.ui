@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1317</width>
+    <width>1223</width>
     <height>742</height>
    </rect>
   </property>
@@ -27,7 +27,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1317</width>
+     <width>1223</width>
      <height>21</height>
     </rect>
    </property>
@@ -883,6 +883,8 @@
    <addaction name="actionResume_conf_scan"/>
    <addaction name="separator"/>
    <addaction name="actionStop_scan"/>
+   <addaction name="separator"/>
+   <addaction name="actionOptimize"/>
   </widget>
   <widget class="QDockWidget" name="odmrDock">
    <property name="sizePolicy">
@@ -996,6 +998,15 @@
    </property>
    <property name="text">
     <string>Resume conf. scan</string>
+   </property>
+  </action>
+  <action name="actionOptimize">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/qudiTheme/22x22/optimize-position.png</normaloff>../../artwork/icons/qudiTheme/22x22/optimize-position.png</iconset>
+   </property>
+   <property name="text">
+    <string>Optimize</string>
    </property>
   </action>
  </widget>
