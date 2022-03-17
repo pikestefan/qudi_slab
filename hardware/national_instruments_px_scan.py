@@ -436,15 +436,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         self._current_position[stack] = position_array[:, -1]
 
-
-    def test_the_motion(self, frfr = 10):
-        stack = self._sample_stack_name
-        positions = np.vstack((np.linspace(0, 20e-6, 10), np.linspace(20e-6, 0, 10)))
-        self.prepare_motion_clock(clock_frequency=frfr)
-        self.move_along_line(positions, stack)
-
-        self.clear_motion_clock()
-
     def get_counter_channels(self):
         """ Returns the list of counter channel names.
 
