@@ -93,6 +93,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     #Clock used when moving the scanners from A to B, without acquiring anything along the way
     _motion_clock_channel = ConfigOption('motion_clock_channel', missing='error')
     _default_motion_clock_frequency = ConfigOption('default_motion_clock_frequency', 100, missing='info')
+    _motion_speed = ConfigOption('motion_speed', 1, missing='info') #Unitsa re um/s
 
     # Photon counting settings
     _counter_clock = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
@@ -694,9 +695,44 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                 scanning_task,
                 voltages=voltages,
                 autostart=True)
+
+            self._current_position[stack] = my_position
         except:
             return -1
         return 0
+
+    def scanner_slow_motion(self, end_xy, stack=None):
+        """
+        Used to move from A to B slowly only once, at the defined speed
+        """
+        self.prepare_motion_clock()
+
+        #Move first along y coordinate, then x
+        start_xy = self.get_scanner_position(stack=stack)
+        x_start, x_end = start_xy[0], end_xy[0]
+        y_start, y_end = start_xy[1], end_xy[1]
+
+        speed = self._motion_speed * 1e-6 #convert to real units
+
+        points_ymotion = int(self._motion_clock_frequency * abs(y_end - y_start) / speed)
+        points_xmotion = int(self._motion_clock_frequency * abs(x_end - x_start) / speed )
+
+        if points_ymotion < 2:
+            points_ymotion = 2
+        if points_xmotion < 2:
+            points_xmotion = 2
+
+        yline = np.zeros((2, points_ymotion))
+        yline[0], yline[1] = x_start, np.linspace(y_start, y_end, points_ymotion)
+
+        xline = np.zeros((2, points_xmotion))
+        xline[0], xline[1] = np.linspace(x_start, x_end, points_xmotion), y_end
+
+        self.move_along_line(yline, stack=stack)
+        self.move_along_line(xline, stack=stack)
+        self.clear_motion_clock()
+
+        self._current_position[stack] = np.array([x_end, y_end])
 
     def close_scanner(self, stack=None):
         """ Closes the scanners and cleans up afterwards.
@@ -792,6 +828,37 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             self.log.error('Some of the requested positions are out of the voltage bounds.')
             return np.array([np.nan])
         return volts.astype(np.float64)
+
+    def _scanner_volt_to_position(self, volts=None, stack=None):
+        """ Converts a set of voltage pixels to positionss.
+
+        @param np.ndarray positions: array with (2, n) shape, first column corresponding to x and second one to y.
+        @param string stack: the stack name
+
+        @return float[][n]: array of n-part tuples of corresponing positions
+        """
+        if not isinstance(volts, np.ndarray):
+            self.log.error('Given positions are not and nd array.')
+            return np.array([np.NaN])
+
+        if stack is None:
+            self.log.error('Please specify a stack to work with.')
+
+        scanner_voltage_ranges = np.array(self._scanner_voltage_ranges[stack])
+        scanner_position_ranges = np.array(self._scanner_position_ranges[stack])
+
+        post2volt_coeff = np.diff(scanner_voltage_ranges, axis=1) / np.diff(scanner_position_ranges, axis=1)
+        offset = scanner_voltage_ranges[:, 0]
+        offset = offset[:, np.newaxis]
+        positions = (volts - offset) / post2volt_coeff
+        if (np.any(np.logical_or(positions[0, :] < scanner_position_ranges[0, 0],
+                                 positions[0, :] > scanner_position_ranges[0, 1]))
+                or
+            np.any(np.logical_or(positions[1, :] < scanner_position_ranges[1, 0],
+                                 positions[1, :] > scanner_position_ranges[1, 1]))):
+            self.log.error('Some of the positions are out of the positions bounds.')
+            return np.array([np.nan])
+        return positions.astype(np.float64)
 
     # ================ End ConfocalScannerInterface Commands ===================
 
