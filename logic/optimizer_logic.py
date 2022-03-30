@@ -732,10 +732,9 @@ class OptimizerLogicPxScan(GenericLogic):
         self._sigScanNextXyLine.connect(self._refocus_xy_line, QtCore.Qt.QueuedConnection)
         self._sigCompletedXyOptimizerScan.connect(self._set_optimized_xy_from_fit, QtCore.Qt.QueuedConnection)
 
-        self._sigDoNextOptimizationStep.connect(self._do_next_optimization_step, QtCore.Qt.QueuedConnection)
+        self._sigDoNextOptimizationStep.connect(self._refocus_xy_line, QtCore.Qt.QueuedConnection)
         self._sigFinishedAllOptimizationSteps.connect(self.finish_refocus)
         self._initialize_xy_refocus_image()
-        self._initialize_z_refocus_image()
         return 0
 
     def on_deactivate(self):
@@ -768,8 +767,8 @@ class OptimizerLogicPxScan(GenericLogic):
         """
         # checking if refocus corresponding to crosshair or corresponding to initial_pos
 
-        if isinstance(initial_pos, (np.ndarray,list,tuple)):
-            self._initial_pos_x, self._initial_pos_y = initial_pos[0:3]
+        if isinstance(initial_pos, (np.ndarray, list, tuple)):
+            self._initial_pos_x, self._initial_pos_y = initial_pos
         elif initial_pos is None:
             scpos = self._scanning_device.get_scanner_position(stack=self.optimizer_stack)
             self._initial_pos_x, self._initial_pos_y = scpos
@@ -796,6 +795,9 @@ class OptimizerLogicPxScan(GenericLogic):
                 self._caller_tag,
                 [self.optim_pos_x, self.optim_pos_y])
             return
+
+        self._initialize_xy_refocus_image()
+
         self.sigRefocusStarted.emit(tag)
         self._sigDoNextOptimizationStep.emit()
 
@@ -807,13 +809,13 @@ class OptimizerLogicPxScan(GenericLogic):
     def _initialize_xy_refocus_image(self):
         """Initialisation of the xy refocus image."""
         self._xy_scan_line_count = 0
-
-        # Take optim pos as center of refocus image, to benefit from any previous
+        #
+        #         # Take optim pos as center of refocus image, to benefit from any previous
         # optimization steps that have occurred.
         x0 = self.optim_pos_x
         y0 = self.optim_pos_y0
 
-        # defining position intervals for refocushttp://www.spiegel.de/
+        # defining position intervals for refocus
         xmin = np.clip(x0 - 0.5 * self.refocus_XY_size, self.x_range[0], self.x_range[1])
         xmax = np.clip(x0 + 0.5 * self.refocus_XY_size, self.x_range[0], self.x_range[1])
         ymin = np.clip(y0 - 0.5 * self.refocus_XY_size, self.y_range[0], self.y_range[1])
@@ -822,31 +824,25 @@ class OptimizerLogicPxScan(GenericLogic):
         self._X_values = np.linspace(xmin, xmax, num=self.optimizer_XY_res)
         self._Y_values = np.linspace(ymin, ymax, num=self.optimizer_XY_res)
         self._return_X_values = np.linspace(xmax, xmin, num=self.optimizer_XY_res)
-        self._return_A_values = np.zeros(self._return_X_values.shape)
 
         self.xy_refocus_image = np.zeros((
             len(self._Y_values),
             len(self._X_values),
-            3 + len(self.get_scanner_count_channels())))
+            2 + len(self.get_scanner_count_channels())))
         self.xy_refocus_image[:, :, 0] = np.full((len(self._Y_values), len(self._X_values)), self._X_values)
         y_value_matrix = np.full((len(self._X_values), len(self._Y_values)), self._Y_values)
         self.xy_refocus_image[:, :, 1] = y_value_matrix.transpose()
-        self.xy_refocus_image[:, :, 2] = self.optim_pos_z * np.ones((len(self._Y_values), len(self._X_values)))
 
     def _move_to_start_pos(self, start_pos):
         """Moves the scanner from its current position to the start position of the optimizer scan.
 
         @param start_pos float[]: 3-point vector giving x, y, z position to go to.
         """
-        n_ch = len(self._scanning_device.get_scanner_axes())
         scanner_pos = self._scanning_device.get_scanner_position()
         lsx = np.linspace(scanner_pos[0], start_pos[0], self.return_slowness)
         lsy = np.linspace(scanner_pos[1], start_pos[1], self.return_slowness)
-        lsz = np.linspace(scanner_pos[2], start_pos[2], self.return_slowness)
-        if n_ch <= 3:
-            move_to_start_line = np.vstack((lsx, lsy, lsz)[0:n_ch])
-        else:
-            move_to_start_line = np.vstack((lsx, lsy, lsz, np.ones(lsx.shape) * scanner_pos[3]))
+
+        move_to_start_line = np.vstack((lsx, lsy))
 
         counts = self._scanning_device.scan_line(move_to_start_line)
         if np.any(counts == -1):
@@ -875,8 +871,7 @@ class OptimizerLogicPxScan(GenericLogic):
         # move to the start of the first line
         if self._xy_scan_line_count == 0:
             status = self._move_to_start_pos([self.xy_refocus_image[0, 0, 0],
-                                              self.xy_refocus_image[0, 0, 1],
-                                              self.xy_refocus_image[0, 0, 2]])
+                                              self.xy_refocus_image[0, 0, 1]])
             if status < 0:
                 self.log.error('Error during move to starting point.')
                 self.stop_refocus()
@@ -885,7 +880,6 @@ class OptimizerLogicPxScan(GenericLogic):
 
         lsx = self.xy_refocus_image[self._xy_scan_line_count, :, 0]
         lsy = self.xy_refocus_image[self._xy_scan_line_count, :, 1]
-        lsz = self.xy_refocus_image[self._xy_scan_line_count, :, 2]
 
         # scan a line of the xy optimization image
         if n_ch <= 3:
@@ -975,16 +969,14 @@ class OptimizerLogicPxScan(GenericLogic):
             'maximum at ({3:.3e},{4:.3e},{5:.3e}).'.format(
                 self._initial_pos_x,
                 self._initial_pos_y,
-                self._initial_pos_z,
                 self.optim_pos_x,
-                self.optim_pos_y,
-                self.optim_pos_z))
+                self.optim_pos_y,))
 
         # Signal that the optimization has finished, and "return" the optimal position along with
         # caller_tag
         self.sigRefocusFinished.emit(
             self._caller_tag,
-            [self.optim_pos_x, self.optim_pos_y, self.optim_pos_z, 0])
+            [self.optim_pos_x, self.optim_pos_y])
 
     def start_scanner(self):
         """Setting up the scanner device.
@@ -1019,7 +1011,7 @@ class OptimizerLogicPxScan(GenericLogic):
         self.module_state.unlock()
         return rv + rv2
 
-    def set_position(self, tag, x=None, y=None, z=None, a=None):
+    def set_position(self, tag, x=None, y=None):
         """ Set focus position.
 
             @param str tag: sting indicating who caused position change
@@ -1032,4 +1024,4 @@ class OptimizerLogicPxScan(GenericLogic):
             self._current_y = y
         if z is not None:
             self._current_z = z
-        self.sigPositionChanged.emit(self._current_x, self._current_y, self._current_z)
+        self.sigPositionChanged.emit(self._current_x, self._current_y)
