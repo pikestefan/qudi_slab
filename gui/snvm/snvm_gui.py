@@ -92,6 +92,7 @@ class SnvmGui(GUIBase):
 
     # declare connectors
     snvm_logic = Connector(interface='SnvmLogic')
+    optimizer_logic = Connector(interface='OptimizerLogicPxScan')
 
     default_meter_prefix = ConfigOption('default_meter_prefix', None)  # assume the unit prefix of position spinbox
     # FIXME: for now I fix the multipliers, put is as an option, and update the labels accordingly in the GUI
@@ -115,7 +116,7 @@ class SnvmGui(GUIBase):
 
         # Getting an access to all connectors:
         self._scanning_logic = self.snvm_logic()
-        self._hardware_state = True
+        self._optimizer_logic = self.optimizer_logic()
         self.initMainUI()      # initialize the main GUI
 
     def initMainUI(self):
@@ -198,6 +199,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.actionStart_snvmscan.triggered.connect(self.start_scanning)
         self._mainwindow.actionStart_conf_scan.triggered.connect(self.start_scanning)
         self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
+        self._mainwindow.actionOptimize.triggered.connect(self.optimize_counts)
 
         self._mainwindow.actionStop_scan.setEnabled(False)
 
@@ -420,6 +422,18 @@ class SnvmGui(GUIBase):
 
     def stop_scanning_request(self):
         self._scanning_logic.stopRequested = True
+        self._optimizer_logic.stop_refocus()
+
+    def optimize_counts(self):
+        self.disable_interactions()
+
+        self._optimizer_logic.set_bw_speed(self._afm_widgets['bwSpeed'].value() * 1e-6)
+        self._optimizer_logic.set_samps_per_pixel(self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier)
+
+        crosshair_pos = self._mainwindow.confocalScannerView.get_crosshair_pos()
+        crosshair_pos = [pos * 1e-6 for pos in crosshair_pos]
+
+        self._optimizer_logic.start_refocus(crosshair_pos)
 
     def refresh_snvm_image(self):
         if self._mainwindow.viewtracesample:
