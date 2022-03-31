@@ -263,6 +263,14 @@ class ScanPlotWidget(PlotWidget):
         self.hline.setMovable(enable)
         return
 
+    def get_crosshair_pos(self):
+        state_dict = self.crosshair.getState()
+
+        size_x, size_y = state_dict['size']
+        bl_corner_x, bl_corner_y = state_dict['pos']
+
+        return bl_corner_x + size_x/2, bl_corner_y + size_y/2
+
     def set_crosshair_pos(self, pos):
         """
         Set the crosshair center to the given coordinates.
