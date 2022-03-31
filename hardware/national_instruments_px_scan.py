@@ -93,7 +93,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     #Clock used when moving the scanners from A to B, without acquiring anything along the way
     _motion_clock_channel = ConfigOption('motion_clock_channel', missing='error')
     _default_motion_clock_frequency = ConfigOption('default_motion_clock_frequency', 100, missing='info')
-    _motion_speed = ConfigOption('motion_speed', 1, missing='info') #Unitsa re um/s
+    _motion_speed = ConfigOption('motion_speed', 1, missing='info') #Units are um/s
 
     # Photon counting settings
     _counter_clock = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
@@ -715,7 +715,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         speed = self._motion_speed * 1e-6 #convert to real units
 
         points_ymotion = int(self._motion_clock_frequency * abs(y_end - y_start) / speed)
-        points_xmotion = int(self._motion_clock_frequency * abs(x_end - x_start) / speed )
+        points_xmotion = int(self._motion_clock_frequency * abs(x_end - x_start) / speed)
 
         if points_ymotion < 2:
             points_ymotion = 2

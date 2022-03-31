@@ -225,6 +225,9 @@ class SnvmLogic(GenericLogic):
                 #self._odmrscanner.module_state.unlock()
 
     def start_snvm_scanning(self):
+
+        self.stopRequested = False
+
         self.module_state.lock()
 
         self._active_stack = self._sampleStackName
@@ -341,8 +344,10 @@ class SnvmLogic(GenericLogic):
 
         if not self.stopRequested:
             if self._is_retracing and not self.store_retrace:
-                retrace_line = np.linspace(self._x_scanning_axis.max(), self._x_scanning_axis.min(), self.backward_pixels)
-                retrace_line = np.vstack((retrace_line, np.full(retrace_line.shape, self._y_scanning_axis[self._y_scanning_index])))
+                retrace_line = np.linspace(self._x_scanning_axis.max(), self._x_scanning_axis.min(),
+                                           self.backward_pixels)
+                retrace_line = np.vstack((retrace_line, np.full(retrace_line.shape,
+                                                                self._y_scanning_axis[self._y_scanning_index])))
                 self._scanning_device.move_along_line(position_array=retrace_line, stack=self._active_stack)
                 self._x_scanning_index = 0
                 self._y_scanning_index += 1
