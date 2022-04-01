@@ -65,7 +65,6 @@ class OptimizerLogic(GenericLogic):
     sigRefocusXySizeChanged = QtCore.Signal()
     sigRefocusZSizeChanged = QtCore.Signal()
     sigRefocusFinished = QtCore.Signal(str, list)
-    sigClockFrequencyChanged = QtCore.Signal(int)
     sigPositionChanged = QtCore.Signal(float, float, float)
 
     def __init__(self, config, **kwargs):
