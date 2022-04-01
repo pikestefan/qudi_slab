@@ -89,6 +89,12 @@ class SnvmWindow(QtWidgets.QMainWindow):
 class SnvmGui(GUIBase):
     """ Main Confocal Class for xy and depth scans.
     """
+    #TODO: GENERAL TODO LIST
+    # -Fix range of optimizer plot whenever you click
+    # -Check that the optimizer actually moves to the desired spot at the end of the scan
+    # -Update the crosshair position once the optimization is done
+    # -Implement slow motion to the beginning of the plot when you click snvm or confocal scan
+    # -Implement the selection of the area like the one in the original qudi confocal scanner
 
     # declare connectors
     snvm_logic = Connector(interface='SnvmLogic')
@@ -102,7 +108,7 @@ class SnvmGui(GUIBase):
     px_time_multiplier = 1e-3
 
     # signals
-    sigStartOptimizer = QtCore.Signal(list, str)
+    sigStartOptimizer = QtCore.Signal()
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -137,7 +143,7 @@ class SnvmGui(GUIBase):
         self._crosshair_maxrange = None
 
         #Set up the SNVM image and colorbar
-        self.snvm_image = ScanImageItem()
+        self.snvm_image = ScanImageItem(axisOrder='row-major')
         self.snvm_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.multiFreqPlotView.addItem(self.snvm_image)
         self._mainwindow.multiFreqPlotView.toggle_crosshair(True, movable=True)
@@ -153,7 +159,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.multiFreqCbarView.addItem(self.multifreq_cb)
 
         #Set up the AFM image and colorbar
-        self.afm_image = ScanImageItem()
+        self.afm_image = ScanImageItem(axisOrder='row-major')
         self._mainwindow.afmPlotView.addItem(self.afm_image)
         self._mainwindow.afmPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.afmPlotView.set_crosshair_size((1, 1))
@@ -168,7 +174,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.afmCbarView.addItem(self.afm_cb)
 
         # Set up the confocal image and colorbar
-        self.cfc_image = ScanImageItem()
+        self.cfc_image = ScanImageItem(axisOrder='row-major')
         self.cfc_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.confocalScannerView.addItem(self.cfc_image)
         self._mainwindow.confocalScannerView.toggle_crosshair(True, movable=True)
@@ -181,6 +187,17 @@ class SnvmGui(GUIBase):
 
         self.cfc_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.confocalCbarView.addItem(self.cfc_cb)
+
+        # Set up the optimizer image and colorbar
+        self.optimizer_image = ScanImageItem(axisOrder='row-major')
+        self.optimizer_image.setLookupTable(self.photon_colormap.lut)
+        self._mainwindow.optimizerView.addItem(self.optimizer_image)
+
+        opt_im_vb = self.get_image_viewbox(self.optimizer_image)
+        opt_im_vb.setAspectLocked(True)
+
+        self.opt_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
+        self._mainwindow.optimizerCbarView.addItem(self.opt_cb)
 
         #Set up the ODMR plot
         self.curr_odmr_trace = pg.PlotDataItem(skipFiniteCheck=False, connect='finite', pen=pg.mkPen(color='w'))
@@ -199,7 +216,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.actionStart_snvmscan.triggered.connect(self.start_scanning)
         self._mainwindow.actionStart_conf_scan.triggered.connect(self.start_scanning)
         self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
-        self._mainwindow.actionOptimize.triggered.connect(self.optimize_counts)
+        self._mainwindow.actionOptimize.triggered.connect(self.optimize_clicked)
 
         self._mainwindow.actionStop_scan.setEnabled(False)
 
@@ -258,19 +275,25 @@ class SnvmGui(GUIBase):
         #########
 
         #Connect the signals
+
+        self.sigStartOptimizer.connect(self.optimize_counts, QtCore.Qt.QueuedConnection)
+
         self._afm_widgets['storeRetrace'].stateChanged.connect(self.deactivate_speed_box)
 
         self._odmr_widgets['mwStart'].valueChanged.connect(self.accept_frequency_ranges)
         self._odmr_widgets['mwEnd'].valueChanged.connect(self.accept_frequency_ranges)
         self._odmr_widgets['mwStep'].valueChanged.connect(self.accept_frequency_ranges)
 
-        self._scanning_logic.signal_scan_finished.connect(self.activate_interactions)
+        self._scanning_logic.signal_scan_finished.connect(self.snvm_confocal_finished)
         self._scanning_logic.signal_freq_px_acquired.connect(self.refresh_odmr_plot)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_snvm_image)
         self._scanning_logic.signal_snvm_image_updated.connect(self.refresh_afm_image)
         self._scanning_logic.signal_xy_image_updated.connect(self.refresh_confocal_image)
         self._scanning_logic.signal_snvm_initialized.connect(self.set_snvm_im_range)
         self._scanning_logic.signal_confocal_initialized.connect(self.set_confocal_im_range)
+
+        self._optimizer_logic.sigImageUpdated.connect(self.refresh_optimizer_image)
+        self._optimizer_logic.sigRefocusFinished.connect(self.activate_interactions)
 
         self._mainwindow.frequencySliceSelector.stepClicked.connect(self.frequency_selector_clicked)
         self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_snvm_image)
@@ -351,8 +374,16 @@ class SnvmGui(GUIBase):
 
             self._scanning_logic.start_confocal_scanning()
 
-    def stop_scanning(self):
+    def snvm_confocal_finished(self, was_snvm):
         self.activate_interactions()
+
+        xrange, yrange = self._scanning_logic.get_xy_image_range(multiplier=1 / self.xy_range_multiplier)
+
+        if was_snvm:
+            self._mainwindow.multiFreqPlotView.set_crosshair_range([xrange, yrange])
+            self._mainwindow.afmPlotView.set_crosshair_range([xrange, yrange])
+        else:
+            self._mainwindow.confocalScannerView.set_crosshair_range([xrange, yrange])
 
     def disable_interactions(self):
         self._mainwindow.actionStart_snvmscan.setEnabled(False)
@@ -368,7 +399,7 @@ class SnvmGui(GUIBase):
         for setting in self._odmr_widgets.values():
             setting.setEnabled(False)
 
-    def activate_interactions(self, was_snvm_scan):
+    def activate_interactions(self):
         self._mainwindow.actionStart_snvmscan.setEnabled(True)
         self._mainwindow.actionStart_conf_scan.setEnabled(True)
         self._mainwindow.actionResume_snvmscan.setEnabled(True)
@@ -381,14 +412,6 @@ class SnvmGui(GUIBase):
             setting.setEnabled(True)
         for setting in self._odmr_widgets.values():
             setting.setEnabled(True)
-
-        xrange, yrange = self._scanning_logic.get_xy_image_range(multiplier=1/self.xy_range_multiplier)
-
-        if was_snvm_scan:
-            self._mainwindow.multiFreqPlotView.set_crosshair_range([xrange, yrange])
-            self._mainwindow.afmPlotView.set_crosshair_range([xrange, yrange])
-        else:
-            self._mainwindow.confocalScannerView.set_crosshair_range([xrange, yrange])
 
     def accept_frequency_ranges(self):
         """
@@ -424,14 +447,23 @@ class SnvmGui(GUIBase):
         self._scanning_logic.stopRequested = True
         self._optimizer_logic.stop_refocus()
 
+    def optimize_clicked(self):
+        """
+        This intermediated function is used because if optimize_counts is called directly it does not let the
+        disable_interactions() function to finish. This causes a lag in the disabling, that hangs while the scanner is
+        moving to its initial position. Instead, emitting the signal and using a queued connection to optimize_counts
+        solves the problem.
+        """
+        self.disable_interactions()
+        self.sigStartOptimizer.emit()
+
     def optimize_counts(self):
         self.disable_interactions()
-
         self._optimizer_logic.set_bw_speed(self._afm_widgets['bwSpeed'].value() * 1e-6)
         self._optimizer_logic.set_samps_per_pixel(self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier)
 
         crosshair_pos = self._mainwindow.confocalScannerView.get_crosshair_pos()
-        crosshair_pos = [pos * 1e-6 for pos in crosshair_pos]
+        crosshair_pos = [pos * 1e-9 for pos in crosshair_pos]
 
         self._optimizer_logic.start_refocus(crosshair_pos)
 
@@ -466,8 +498,14 @@ class SnvmGui(GUIBase):
             curr_image = self._scanning_logic.xy_scan_matrix
         else:
             curr_image = self._scanning_logic.xy_scan_matrix_retrace
+
         minmax = [curr_image.min(), curr_image.max()]
         self.cfc_image.setImage(curr_image)
+
+    def refresh_optimizer_image(self):
+        curr_image = self._optimizer_logic.xy_refocus_image[:, :, 2]
+
+        self.optimizer_image.setImage(curr_image)
 
     def set_snvm_im_range(self):
         im_range = self._scanning_logic.get_xy_image_range(multiplier=1/self.xy_range_multiplier)
