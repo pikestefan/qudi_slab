@@ -238,7 +238,6 @@ class SnvmLogic(GenericLogic):
         self.prepare_devices()
 
         self.signal_snvm_image_updated.emit()
-        self.signal_xy_image_updated.emit()
         self.signal_snvm_initialized.emit()
 
         self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
@@ -284,10 +283,10 @@ class SnvmLogic(GenericLogic):
                 # the refresh plotting takes the average, along the last axis of the snvm_matrix. This means that it will
                 # display an extra pixel with lower value, until the move_to_next_pixel is called.
                 if self._is_retracing and self.store_retrace:
-                    self.snvm_matrix_retrace[self._x_scanning_index, self._y_scanning_index,
+                    self.snvm_matrix_retrace[self._y_scanning_index, self._x_scanning_index,
                                              self._freq_scanning_index, self._odmr_rep_index] = counts
                 else:
-                    self.snvm_matrix[self._x_scanning_index, self._y_scanning_index,
+                    self.snvm_matrix[self._y_scanning_index, self._x_scanning_index,
                                      self._freq_scanning_index, self._odmr_rep_index] = counts
                 self.signal_freq_px_acquired.emit(self._odmr_rep_index)
 
@@ -296,9 +295,9 @@ class SnvmLogic(GenericLogic):
             else:
                 if self._is_retracing and self.store_retrace:
                     # FIXME: I am not acquiring and storing properly the analog input, find a way after basic debugging done
-                    self.xy_scan_matrix_retrace[self._x_scanning_index, self._y_scanning_index] = self._temp_afm_matrix.mean()
+                    self.xy_scan_matrix_retrace[self._y_scanning_index, self._x_scanning_index] = self._temp_afm_matrix.mean()
                 else:
-                    self.xy_scan_matrix[self._x_scanning_index, self._y_scanning_index] = self._temp_afm_matrix.mean()
+                    self.xy_scan_matrix[self._y_scanning_index, self._x_scanning_index] = self._temp_afm_matrix.mean()
 
                 #The ODMR sequence has finished. Update the indices accordingly
                 self._x_scanning_index += self._x_index_step
@@ -313,9 +312,9 @@ class SnvmLogic(GenericLogic):
         if acquire_data:
             counts, _ = self.acquire_pixel()
             if self._is_retracing and self.store_retrace:
-                self.xy_scan_matrix_retrace[self._x_scanning_index, self._y_scanning_index] = counts
+                self.xy_scan_matrix_retrace[self._y_scanning_index, self._x_scanning_index] = counts
             else:
-                self.xy_scan_matrix[self._x_scanning_index, self._y_scanning_index] = counts
+                self.xy_scan_matrix[self._y_scanning_index, self._x_scanning_index] = counts
         self.signal_xy_image_updated.emit()
         self._x_scanning_index += self._x_index_step
         self.signal_xy_px_acquired.emit()
