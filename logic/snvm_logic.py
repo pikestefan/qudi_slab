@@ -212,7 +212,6 @@ class SnvmLogic(GenericLogic):
         self._scanning_device.prepare_counters(samples_to_acquire=self._photon_samples,
                                                counter_ai_channels=analog_channels)
         if self.store_retrace is False:
-            self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
             self._scanning_device.prepare_motion_clock()
             clk_freq = self._scanning_device.get_motion_clock_frequency()
             speed = self._scanning_device.get_motion_speed()
@@ -426,7 +425,6 @@ class SnvmLogic(GenericLogic):
         return 0
 
     def go_to_point(self, xy_coord, stack=None):
-        self._scanning_device.set_motion_clock_frequency(self.slow_motion_clock_rate)
         self._scanning_device.scanner_slow_motion(xy_coord, stack=stack)
 
     def get_xy_image_range(self, multiplier=1):
@@ -447,13 +445,16 @@ class SnvmLogic(GenericLogic):
         self._scanning_device.get_motion_clock_frequency()
 
     def set_slowmotion_clockrate(self, clockrate):
+        self.slow_motion_clock_rate = clockrate
         self._scanning_device.set_motion_clock_frequency(clockrate)
 
     def get_motion_speed(self):
         return self._scanning_device.get_motion_speed()
 
     def set_motion_speed(self, speed):
-        self._scanning_device.set_motion_speed()
+        #FIXME: dirty trick to keep the motion_speed as a status variable which sets the speed when reloading Qudi.
+        self.motion_speed = speed
+        self._scanning_device.set_motion_speed(speed * 1e-6)
 
     def _initialize_scanning_statuses(self):
         self._x_scanning_index = 0

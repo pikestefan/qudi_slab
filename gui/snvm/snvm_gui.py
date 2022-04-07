@@ -556,9 +556,10 @@ class SnvmGui(GUIBase):
 
     def refresh_odmr_plot(self, odmr_rep_index):
         curr_freq_matrix = self._scanning_logic.temp_freq_matrix[odmr_rep_index]
-        self.curr_odmr_trace.setData(self._scanning_logic.freq_axis/1e9, curr_freq_matrix)
+        self.curr_odmr_trace.setData(self._scanning_logic.freq_axis/self.startstopFreq_multiplier, curr_freq_matrix)
         if odmr_rep_index > 0:
-            self.average_odmr_trace.setData(self._scanning_logic.freq_axis/1e9, self._scanning_logic.average_odmr_trace)
+            self.average_odmr_trace.setData(self._scanning_logic.freq_axis/self.startstopFreq_multiplier,
+                                            self._scanning_logic.average_odmr_trace)
         else:
             self.average_odmr_trace.clear()
 
@@ -626,12 +627,12 @@ class SnvmGui(GUIBase):
         self._optim_dialog.optimScanner_ComboBox.setCurrentIndex(index)
 
     def update_snvm_settings(self):
-        self._snvm_dialog.slowmotionSpeed.setValue(self._optimizer_logic.backward_speed)
+        self._scanning_logic.set_motion_speed(self._snvm_dialog.slowspeedSpinBox.value())
+        self._scanning_logic.set_slowmotion_clockrate(self._snvm_dialog.motionClockRate_Spinbox.value())
 
     def keep_former_snvm_settings(self):
         self._snvm_dialog.slowmotionSpeed.setValue(self._optimizer_logic.backward_speed)
         self._snvm_dialog.clock_rate.setValue(self._snvm_logic.get_slowmotion_clockrate())
-
 
     def frequency_selector_clicked(self, freq_val):
         difference = ( (freq_val - self._odmr_widgets["mwStart"].value()) *
