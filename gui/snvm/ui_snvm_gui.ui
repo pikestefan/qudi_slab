@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1223</width>
-    <height>742</height>
+    <height>795</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -31,6 +31,20 @@
      <height>21</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuOptions">
+    <property name="title">
+     <string>Options</string>
+    </property>
+    <addaction name="actionSlow_motion_settings"/>
+    <addaction name="actionOptimizer_settings"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuOptions"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="sampleDock">
@@ -470,28 +484,6 @@
        </property>
       </widget>
      </item>
-     <item row="5" column="1">
-      <widget class="QSpinBox" name="bwSpeed">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="buttonSymbols">
-        <enum>QAbstractSpinBox::NoButtons</enum>
-       </property>
-       <property name="accelerated">
-        <bool>true</bool>
-       </property>
-       <property name="keyboardTracking">
-        <bool>false</bool>
-       </property>
-       <property name="maximum">
-        <number>5000</number>
-       </property>
-      </widget>
-     </item>
      <item row="0" column="7" colspan="3">
       <widget class="QLabel" name="label_11">
        <property name="font">
@@ -819,21 +811,6 @@
        </property>
       </widget>
      </item>
-     <item row="5" column="2" colspan="2">
-      <widget class="QLabel" name="label_6">
-       <property name="font">
-        <font>
-         <pointsize>10</pointsize>
-        </font>
-       </property>
-       <property name="text">
-        <string>Backward speed (um/s)</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-     </item>
      <item row="4" column="2" colspan="2">
       <widget class="QLabel" name="label_3">
        <property name="font">
@@ -885,6 +862,8 @@
    <addaction name="actionStop_scan"/>
    <addaction name="separator"/>
    <addaction name="actionOptimize"/>
+   <addaction name="separator"/>
+   <addaction name="action_gotoPoint"/>
   </widget>
   <widget class="QDockWidget" name="odmrDock">
    <property name="sizePolicy">
@@ -1007,6 +986,33 @@
    </property>
    <property name="text">
     <string>Optimize</string>
+   </property>
+  </action>
+  <action name="actionSlow_motion_settings">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/oxygen/22x22/configure.png</normaloff>../../artwork/icons/oxygen/22x22/configure.png</iconset>
+   </property>
+   <property name="text">
+    <string>Slow motion settings</string>
+   </property>
+  </action>
+  <action name="actionOptimizer_settings">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/oxygen/22x22/configure.png</normaloff>../../artwork/icons/oxygen/22x22/configure.png</iconset>
+   </property>
+   <property name="text">
+    <string>Optimizer settings</string>
+   </property>
+  </action>
+  <action name="action_gotoPoint">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/qudiTheme/22x22/move_to.png</normaloff>../../artwork/icons/qudiTheme/22x22/move_to.png</iconset>
+   </property>
+   <property name="text">
+    <string>Go to point</string>
    </property>
   </action>
  </widget>
