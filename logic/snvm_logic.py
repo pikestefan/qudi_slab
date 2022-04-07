@@ -46,8 +46,8 @@ class SnvmLogic(GenericLogic):
         self._scanning_device = self.doublescanner()
         self._odmrscanner = self.odmrscanner()
 
-        self._scanning_device.set_motion_clock_frequency(self.slow_motion_clock_rate)
-        self._scanning_device.set_motion_speed(self.backward_speed*1e-6)
+        self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
+        self.set_motion_speed(self.backward_speed*1e-6)
 
         #TODO: figure out a smart way of storing all these data in another class
         #####
@@ -445,6 +445,7 @@ class SnvmLogic(GenericLogic):
         self._scanning_device.get_motion_clock_frequency()
 
     def set_slowmotion_clockrate(self, clockrate):
+        # FIXME: dirty trick to keep the clock rate as a status variable which sets the clock rate when reloading Qudi.
         self.slow_motion_clock_rate = clockrate
         self._scanning_device.set_motion_clock_frequency(clockrate)
 
