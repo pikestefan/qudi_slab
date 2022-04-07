@@ -93,7 +93,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     #Clock used when moving the scanners from A to B, without acquiring anything along the way
     _motion_clock_channel = ConfigOption('motion_clock_channel', missing='error')
     _default_motion_clock_frequency = ConfigOption('default_motion_clock_frequency', 100, missing='info')
-    _motion_speed = ConfigOption('motion_speed', 1, missing='info') #Units are um/s
+    _motion_speed = ConfigOption('motion_speed', 1e-6, missing='info') #in m/s
 
     # Photon counting settings
     _counter_clock = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
@@ -154,7 +154,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         self._scanner_ao_tasks = dict().fromkeys(self._stack_names, None)
         self._motion_clock_task = None
-        self._motion_clock_frequency = None
+        self._motion_clock_frequency = self._default_motion_clock_frequency
 
         self._photon_sources = self._photon_sources if self._photon_sources is not None else list()
 
@@ -341,17 +341,13 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             self._counter_ai_channels = []
         return error
 
-    def prepare_motion_clock(self, clock_frequency=None, clock_channel=None):
+    def prepare_motion_clock(self, clock_channel=None):
 
         if self._motion_clock_task is not None:
             self.log.error("The motion clock is running, close the other task first.")
             return -1
 
         clock_task = daq.TaskHandle()
-        if clock_frequency is None:
-            self._motion_clock_frequency = self._default_motion_clock_frequency
-        else:
-            self._motion_clock_frequency = clock_frequency
 
         if clock_channel is not None:
             self._motion_clock_channel = clock_channel
@@ -532,11 +528,10 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         return self._counter_clock_frequency
 
     def get_motion_clock_frequency(self):
-        if self._motion_clock_task is not None:
-            return self._motion_clock_frequency
-        else:
-            self.log.error("The motion clock task has not been set up, so the clock frequency is undefined.")
-            return -1
+        return self._motion_clock_frequency
+
+    def get_motion_speed(self):
+        return self._motion_speed
 
     def get_scanner_position(self, stack):
         """ Get the current position of the scanner hardware.
@@ -575,6 +570,12 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         ch = self._scanner_counter_channels[:]
         #ch.extend(self._scanner_ai_channels)
         return ch
+
+    def set_motion_speed(self, speed):
+        self._motion_speed = speed
+
+    def set_motion_clock_frequency(self, frequency):
+        self._motion_clock_frequency = frequency
 
     def read_pixel(self, samples=1):
         for i, task in enumerate(self._counter_daq_tasks):
@@ -701,18 +702,23 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             return -1
         return 0
 
-    def scanner_slow_motion(self, end_xy, stack=None):
+    def scanner_slow_motion(self, end_xy, speed=None, stack=None):
         """
         Used to move from A to B slowly only once, at the defined speed
         """
-        self.prepare_motion_clock()
+        if self._motion_clock_task is None:  # If a motion clock already exists, use that to move to the position.
+            self.prepare_motion_clock()
+            close_at_end = True
+        else:
+            close_at_end = False
 
         #Move first along y coordinate, then x
         start_xy = self.get_scanner_position(stack=stack)
         x_start, x_end = start_xy[0], end_xy[0]
         y_start, y_end = start_xy[1], end_xy[1]
 
-        speed = self._motion_speed * 1e-6 #convert to real units
+        if speed is None:
+            speed = self._motion_speed
 
         points_ymotion = int(self._motion_clock_frequency * abs(y_end - y_start) / speed)
         points_xmotion = int(self._motion_clock_frequency * abs(x_end - x_start) / speed)
@@ -730,7 +736,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         self.move_along_line(yline, stack=stack)
         self.move_along_line(xline, stack=stack)
-        self.clear_motion_clock()
+
+        if close_at_end:
+            self.clear_motion_clock()
 
         self._current_position[stack] = np.array([x_end, y_end])
 
@@ -765,7 +773,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         return self.close_clock(scanner=True)
 
     def reset_hardware(self):
-        #FIXME: the resetting is still not working properly.
         """ Resets the NI hardware, so the connection is lost and other
             programs can access it.
 
@@ -773,10 +780,16 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         """
         retval = 0
         chanlist = []
-        chanlist.extend(self._scanner_ao_channels)
+
+        ao_chans = [chan for sublist in self._scanner_ao_channels.values() for chan in sublist]
+        ai_chans = [chan for sublist in self._scanner_ai_channels.values() for chan in sublist]
+        scan_chans = [chan for sublist in self._scanner_counter_channels.values() for chan in sublist]
+
+        chanlist.extend(ao_chans)
+        chanlist.extend(ai_chans)
+        chanlist.extend(scan_chans)
         chanlist.extend(self._photon_sources)
-        chanlist.extend(self._counter_channels)
-        chanlist.extend(self._scanner_counter_channels)
+        chanlist.extend([self._motion_clock_channel])
 
         devicelist = []
         for channel in chanlist:
