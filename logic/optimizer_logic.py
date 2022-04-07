@@ -664,9 +664,10 @@ class OptimizerLogicPxScan(GenericLogic):
     fitlogic = Connector(interface='FitLogic')
 
     # declare status vars
-    optimizer_stack = ConfigOption('optimizer_stack', missing='error')
+    optimizer_stack = StatusVar('optimizer_stack', 'tip')
     refocus_XY_size = StatusVar('xy_size', 0.6e-6)
     optimizer_XY_res = StatusVar('xy_resolution', 10)
+    integration_time = StatusVar('integration_time', 20)
 
     # "private" signals to keep track of activities here in the optimizer logic
     _sigScanNextXyLine = QtCore.Signal()
@@ -677,7 +678,7 @@ class OptimizerLogicPxScan(GenericLogic):
     sigImageUpdated = QtCore.Signal()
     sigRefocusStarted = QtCore.Signal(str)
     sigRefocusXySizeChanged = QtCore.Signal()
-    sigRefocusFinished = QtCore.Signal(str, list)
+    sigRefocusFinished = QtCore.Signal(list)
     sigPositionChanged = QtCore.Signal(float, float, float)
 
     def __init__(self, config, **kwargs):
@@ -700,13 +701,13 @@ class OptimizerLogicPxScan(GenericLogic):
         self._scanning_device = self.scanner()
         self._fit_logic = self.fitlogic()
 
+        #First check the naming is valid
+        if self.optimizer_stack not in self._scanning_device.get_stack_names():
+            self.log.error("The optimizer stack name is not compatible with the "
+                           "scanner stack names.")
         # Reads in the maximal scanning range. The unit of that scan range is micrometer!
         self.x_range = self._scanning_device.get_position_range(stack=self.optimizer_stack)[0]
         self.y_range = self._scanning_device.get_position_range(stack=self.optimizer_stack)[1]
-
-        #The scanning backward speed. Set it before calling the optimizer!
-        self._bw_speed = 0. #Units are um/s
-
         self._initial_pos_x = 0.
         self._initial_pos_y = 0.
         self.optim_pos_x = self._initial_pos_x
@@ -838,7 +839,8 @@ class OptimizerLogicPxScan(GenericLogic):
         self._Y_values = np.linspace(ymin, ymax, num=self.optimizer_XY_res)
 
         self._slowmove_clock = self._scanning_device.get_motion_clock_frequency()
-        slow_pixels = int((xmax - xmin) * self._slowmove_clock / self._bw_speed)
+        speed = self._scanning_device.get_motion_speed()
+        slow_pixels = int((xmax - xmin) * self._slowmove_clock / speed)
 
         self._return_X_values = np.linspace(xmax, xmin, num=slow_pixels)
 
@@ -855,9 +857,7 @@ class OptimizerLogicPxScan(GenericLogic):
 
         @param start_pos float[]: 2-point vector giving x, y position to go to.
         """
-
         self._scanning_device.scanner_slow_motion(start_pos, stack=self.optimizer_stack)
-
         return 0
 
     def _refocus_xy_line(self):
@@ -984,9 +984,7 @@ class OptimizerLogicPxScan(GenericLogic):
 
         # Signal that the optimization has finished, and "return" the optimal position along with
         # caller_tag
-        self.sigRefocusFinished.emit(
-            self._caller_tag,
-            [self.optim_pos_x, self.optim_pos_y])
+        self.sigRefocusFinished.emit([self.optim_pos_x, self.optim_pos_y])
 
     def start_scanner(self):
         """Setting up the scanner device.
@@ -996,6 +994,8 @@ class OptimizerLogicPxScan(GenericLogic):
         self.module_state.lock()
 
         motion_clock_status = self._scanning_device.prepare_motion_clock()
+
+        self.samps_per_px = self._samps_per_pixel(self.integration_time*1e-3)
 
         self._scanning_device.prepare_counters(samples_to_acquire=self.samps_per_px)
 
@@ -1035,8 +1035,5 @@ class OptimizerLogicPxScan(GenericLogic):
             self._current_y = y
         self.sigPositionChanged.emit(self._current_x, self._current_y)
 
-    def set_samps_per_pixel(self, integration_time):
-        self.samps_per_px = round(integration_time * self._scanning_device.get_counter_clock_frequency())
-
-    def set_bw_speed(self, speed):
-        self._bw_speed = speed
+    def _samps_per_pixel(self, integration_time):
+        return round(integration_time * self._scanning_device.get_counter_clock_frequency())

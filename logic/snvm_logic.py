@@ -17,6 +17,9 @@ class SnvmLogic(GenericLogic):
     doublescanner = Connector(interface='SnvmScannerInterface')
     odmrscanner = Connector(interface='MicrowaveInterface')
 
+    slow_motion_clock_rate = StatusVar('slow_motion_clock_rate', 10)
+    backward_speed = StatusVar('slow_motion_speed', 1)
+
     # signals
     signal_start_snvm = QtCore.Signal()
     signal_continue_snvm = QtCore.Signal()
@@ -33,7 +36,6 @@ class SnvmLogic(GenericLogic):
     signal_snvm_initialized = QtCore.Signal()
     signal_confocal_initialized = QtCore.Signal()
 
-
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
@@ -43,6 +45,9 @@ class SnvmLogic(GenericLogic):
     def on_activate(self):
         self._scanning_device = self.doublescanner()
         self._odmrscanner = self.odmrscanner()
+
+        self._scanning_device.set_motion_clock_frequency(self.slow_motion_clock_rate)
+        self._scanning_device.set_motion_speed(self.backward_speed*1e-6)
 
         #TODO: figure out a smart way of storing all these data in another class
         #####
@@ -74,9 +79,8 @@ class SnvmLogic(GenericLogic):
         self.scanning_y_resolution = 0
 
         #Integration time per pixel
-        self.px_time = 0
+        self.px_time = self.integration_time
         self._photon_samples = 0
-        self.backward_speed = None
         self.backward_pixels = 0 #The number is determined by the clock frequency and the bw_speed
 
         #These are the indices which will be used to scan through the arrays of the frequencies and position pairs
@@ -208,9 +212,11 @@ class SnvmLogic(GenericLogic):
         self._scanning_device.prepare_counters(samples_to_acquire=self._photon_samples,
                                                counter_ai_channels=analog_channels)
         if self.store_retrace is False:
+            self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
             self._scanning_device.prepare_motion_clock()
             clk_freq = self._scanning_device.get_motion_clock_frequency()
-            self.backward_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / self.backward_speed) *
+            speed = self._scanning_device.get_motion_speed()
+            self.backward_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / speed) *
                                        clk_freq)
 
         if self._snvm_active:
@@ -240,9 +246,12 @@ class SnvmLogic(GenericLogic):
         self.signal_snvm_image_updated.emit()
         self.signal_snvm_initialized.emit()
 
-        self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
-                                                    self._y_scanning_axis[self._y_scanning_index]],
-                                                   stack=self._active_stack)
+        #self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
+        #                                           self._y_scanning_axis[self._y_scanning_index]],
+        #                                           stack=self._active_stack)
+        self._scanning_device.scanner_slow_motion([self._x_scanning_axis[self._x_scanning_index],
+                                                   self._y_scanning_axis[self._y_scanning_index]],
+                                                  stack=self._active_stack)
         #FIXME: look into how to operate the srs in list mode
         self._odmrscanner.set_frequency(self.freq_axis[self._freq_scanning_index])
         self._odmrscanner.on()
@@ -262,9 +271,12 @@ class SnvmLogic(GenericLogic):
         self.signal_xy_image_updated.emit()
         self.signal_confocal_initialized.emit()
 
-        self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
-                                                    self._y_scanning_axis[self._y_scanning_index]],
-                                                   stack=self._active_stack)
+        #self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
+        #                                            self._y_scanning_axis[self._y_scanning_index]],
+        #                                           stack=self._active_stack)
+        self._scanning_device.scanner_slow_motion([self._x_scanning_axis[self._x_scanning_index],
+                                                   self._y_scanning_axis[self._y_scanning_index]],
+                                                  stack=self._active_stack)
         self.signal_continue_confocal.emit()
 
     def continue_snvm_scanning(self):
@@ -413,7 +425,11 @@ class SnvmLogic(GenericLogic):
 
         return 0
 
-    def get_xy_image_range(self, multiplier = 1):
+    def go_to_point(self, xy_coord, stack=None):
+        self._scanning_device.set_motion_clock_frequency(self.slow_motion_clock_rate)
+        self._scanning_device.scanner_slow_motion(xy_coord, stack=stack)
+
+    def get_xy_image_range(self, multiplier=1):
         """
         Multiplier is an optional parameter to convert the range to the desired units
         """
@@ -424,6 +440,21 @@ class SnvmLogic(GenericLogic):
         return [(self._x_scanning_axis[1]-self._x_scanning_axis[0])*multiplier,
                 (self._y_scanning_axis[1]-self._y_scanning_axis[0])*multiplier]
 
+    def get_stack_names(self):
+        return self._scanning_device.get_stack_names()
+
+    def get_slowmotion_clockrate(self):
+        self._scanning_device.get_motion_clock_frequency()
+
+    def set_slowmotion_clockrate(self, clockrate):
+        self._scanning_device.set_motion_clock_frequency(clockrate)
+
+    def get_motion_speed(self):
+        return self._scanning_device.get_motion_speed()
+
+    def set_motion_speed(self, speed):
+        self._scanning_device.set_motion_speed()
+
     def _initialize_scanning_statuses(self):
         self._x_scanning_index = 0
         self._y_scanning_index = 0
@@ -432,6 +463,7 @@ class SnvmLogic(GenericLogic):
         self._odmr_rep_index = 0
         self._is_retracing = False
         self.stopRequested = False
+
 
 
 
