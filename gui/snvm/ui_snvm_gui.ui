@@ -40,7 +40,7 @@
     <property name="title">
      <string>Options</string>
     </property>
-    <addaction name="actionSlow_motion_settings"/>
+    <addaction name="actionSnvm_settings"/>
     <addaction name="actionOptimizer_settings"/>
    </widget>
    <addaction name="menuFile"/>
@@ -855,15 +855,16 @@
    </attribute>
    <addaction name="actionStart_snvmscan"/>
    <addaction name="actionResume_snvmscan"/>
+   <addaction name="action_snvm_goToPoint"/>
    <addaction name="separator"/>
    <addaction name="actionStart_conf_scan"/>
    <addaction name="actionResume_conf_scan"/>
+   <addaction name="action_cfc_goToPoint"/>
    <addaction name="separator"/>
    <addaction name="actionStop_scan"/>
    <addaction name="separator"/>
    <addaction name="actionOptimize"/>
    <addaction name="separator"/>
-   <addaction name="action_gotoPoint"/>
   </widget>
   <widget class="QDockWidget" name="odmrDock">
    <property name="sizePolicy">
@@ -988,13 +989,13 @@
     <string>Optimize</string>
    </property>
   </action>
-  <action name="actionSlow_motion_settings">
+  <action name="actionSnvm_settings">
    <property name="icon">
     <iconset>
      <normaloff>../../artwork/icons/oxygen/22x22/configure.png</normaloff>../../artwork/icons/oxygen/22x22/configure.png</iconset>
    </property>
    <property name="text">
-    <string>Slow motion settings</string>
+    <string>Snvm settings</string>
    </property>
   </action>
   <action name="actionOptimizer_settings">
@@ -1006,13 +1007,25 @@
     <string>Optimizer settings</string>
    </property>
   </action>
-  <action name="action_gotoPoint">
+  <action name="action_snvm_goToPoint">
    <property name="icon">
     <iconset>
      <normaloff>../../artwork/icons/qudiTheme/22x22/move_to.png</normaloff>../../artwork/icons/qudiTheme/22x22/move_to.png</iconset>
    </property>
    <property name="text">
-    <string>Go to point</string>
+    <string>SNVM move</string>
+   </property>
+   <property name="toolTip">
+    <string>SNVM go to point</string>
+   </property>
+  </action>
+  <action name="action_cfc_goToPoint">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/qudiTheme/22x22/move_to.png</normaloff>../../artwork/icons/qudiTheme/22x22/move_to.png</iconset>
+   </property>
+   <property name="text">
+    <string>CFC move</string>
    </property>
   </action>
  </widget>
