@@ -47,22 +47,22 @@ class SnvmLogic(GenericLogic):
         self._odmrscanner = self.odmrscanner()
 
         self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
-        self.set_motion_speed(self.backward_speed*1e-6)
+        self.set_motion_speed(self.backward_speed)
 
         #TODO: figure out a smart way of storing all these data in another class
         #####
         # Setting up the scanning initial parameters, and get the two stack names.
         #####
-        self._sampleStackName, self._tipStackName = self._scanning_device.get_stack_names()
+        self.sampleStackName, self.tipStackName = self._scanning_device.get_stack_names()
 
-        self._active_stack = self._sampleStackName #Default stack is sample
+        self._active_stack = self.sampleStackName #Default stack is sample
 
         #Get the maximum scanning ranges, and the position to voltage conversion factors, and put them in a dictionary
         self.x_maxrange = dict()
         self.y_maxrange = dict()
         self.position_to_voltage_arrays = dict()
 
-        for stack in [self._sampleStackName, self._tipStackName]:
+        for stack in [self.sampleStackName, self.tipStackName]:
             x_range, y_range = self._scanning_device.get_position_range(stack=stack)
             x_volt_range, y_volt_range = self._scanning_device.get_voltage_range(stack=stack)
             self.x_maxrange[stack] = x_range
@@ -79,7 +79,7 @@ class SnvmLogic(GenericLogic):
         self.scanning_y_resolution = 0
 
         #Integration time per pixel
-        self.px_time = self.integration_time
+        self.px_time = 0
         self._photon_samples = 0
         self.backward_pixels = 0 #The number is determined by the clock frequency and the bw_speed
 
@@ -235,7 +235,7 @@ class SnvmLogic(GenericLogic):
 
         self.module_state.lock()
 
-        self._active_stack = self._sampleStackName
+        self._active_stack = self.sampleStackName
         self._snvm_active = True
         self._prepare_data_matrices()
 
@@ -248,6 +248,7 @@ class SnvmLogic(GenericLogic):
         #self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
         #                                           self._y_scanning_axis[self._y_scanning_index]],
         #                                           stack=self._active_stack)
+        print(self._active_stack)
         self._scanning_device.scanner_slow_motion([self._x_scanning_axis[self._x_scanning_index],
                                                    self._y_scanning_axis[self._y_scanning_index]],
                                                   stack=self._active_stack)
@@ -260,7 +261,7 @@ class SnvmLogic(GenericLogic):
     def start_confocal_scanning(self):
         self.module_state.lock()
 
-        self._active_stack = self._tipStackName
+        self._active_stack = self.tipStackName
         self._snvm_active = False
         self._prepare_data_matrices()
 
@@ -442,7 +443,7 @@ class SnvmLogic(GenericLogic):
         return self._scanning_device.get_stack_names()
 
     def get_slowmotion_clockrate(self):
-        self._scanning_device.get_motion_clock_frequency()
+        return self._scanning_device.get_motion_clock_frequency()
 
     def set_slowmotion_clockrate(self, clockrate):
         # FIXME: dirty trick to keep the clock rate as a status variable which sets the clock rate when reloading Qudi.
