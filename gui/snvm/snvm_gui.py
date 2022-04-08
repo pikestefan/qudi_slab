@@ -144,6 +144,7 @@ class SnvmGui(GUIBase):
         self._optimizer_logic = self.optimizer_logic()
         self.initMainUI()      # initialize the main GUI
         self.initOptimizer()
+        self.initSnvmSettings()
 
     def initMainUI(self):
         """ Definition, configuration and initialisation of the confocal GUI.
@@ -238,6 +239,9 @@ class SnvmGui(GUIBase):
         self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
         self._mainwindow.actionOptimize.triggered.connect(self.optimize_clicked)
         self._mainwindow.actionOptimizer_settings.triggered.connect(self.menu_optimizer_settings)
+        self._mainwindow.actionSnvm_settings.triggered.connect(self.menu_snvm_settings)
+        self._mainwindow.action_snvm_goToPoint.triggered.connect(self.go_to_point_snvm)
+        self._mainwindow.action_cfc_goToPoint.triggered.connect(self.go_to_point_cfc)
 
         self._mainwindow.actionStop_scan.setEnabled(False)
 
@@ -631,8 +635,8 @@ class SnvmGui(GUIBase):
         self._scanning_logic.set_slowmotion_clockrate(self._snvm_dialog.motionClockRate_Spinbox.value())
 
     def keep_former_snvm_settings(self):
-        self._snvm_dialog.slowmotionSpeed.setValue(self._optimizer_logic.backward_speed)
-        self._snvm_dialog.clock_rate.setValue(self._snvm_logic.get_slowmotion_clockrate())
+        self._snvm_dialog.slowspeedSpinBox.setValue(self._scanning_logic.backward_speed)
+        self._snvm_dialog.motionClockRate_Spinbox.setValue(self._scanning_logic.get_slowmotion_clockrate())
 
     def frequency_selector_clicked(self, freq_val):
         difference = ( (freq_val - self._odmr_widgets["mwStart"].value()) *
@@ -656,3 +660,18 @@ class SnvmGui(GUIBase):
         """ This method opens the settings menu. """
         self.keep_former_optimizer_settings()
         self._optim_dialog.exec_()
+
+    def menu_snvm_settings(self):
+        """ This method opens the settings menu. """
+        self.keep_former_snvm_settings()
+        self._snvm_dialog.exec_()
+
+    def go_to_point_snvm(self):
+        position = self._mainwindow.multiFreqPlotView.crosshair_position
+        position = [pos * self.xy_range_multiplier for pos in position]
+        self._scanning_logic.go_to_point(position, stack=self._scanning_logic.sampleStackName)
+
+    def go_to_point_cfc(self):
+        position = self._mainwindow.confocalScannerView.crosshair_position
+        position = [pos * self.xy_range_multiplier for pos in position]
+        self._scanning_logic.go_to_point(position, stack=self._scanning_logic.tipStackName)
