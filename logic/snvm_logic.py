@@ -20,6 +20,7 @@ class SnvmLogic(GenericLogic):
     slow_motion_clock_rate = StatusVar('slow_motion_clock_rate', 10)
     backward_speed = StatusVar('slow_motion_speed', 1)
 
+    signal_moved_to_point = QtCore.Signal()
     # signals
     signal_start_snvm = QtCore.Signal()
     signal_continue_snvm = QtCore.Signal()
@@ -211,12 +212,16 @@ class SnvmLogic(GenericLogic):
             analog_channels = None
         self._scanning_device.prepare_counters(samples_to_acquire=self._photon_samples,
                                                counter_ai_channels=analog_channels)
+
+        self._scanning_device.create_ao_task(self._active_stack)
         if self.store_retrace is False:
             self._scanning_device.prepare_motion_clock()
             clk_freq = self._scanning_device.get_motion_clock_frequency()
             speed = self._scanning_device.get_motion_speed()
             self.backward_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / speed) *
                                        clk_freq)
+            if self.backward_pixels < 2:
+                self.backward_pixels = 2
 
         if self._snvm_active:
             self._odmrscanner.module_state.lock()
@@ -248,10 +253,10 @@ class SnvmLogic(GenericLogic):
         #self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
         #                                           self._y_scanning_axis[self._y_scanning_index]],
         #                                           stack=self._active_stack)
-        print(self._active_stack)
+
         self._scanning_device.scanner_slow_motion([self._x_scanning_axis[self._x_scanning_index],
                                                    self._y_scanning_axis[self._y_scanning_index]],
-                                                  stack=self._active_stack)
+                                                  stack=self._active_stack, clear_ao_whenfinished=False)
         #FIXME: look into how to operate the srs in list mode
         self._odmrscanner.set_frequency(self.freq_axis[self._freq_scanning_index])
         self._odmrscanner.on()
@@ -276,7 +281,7 @@ class SnvmLogic(GenericLogic):
         #                                           stack=self._active_stack)
         self._scanning_device.scanner_slow_motion([self._x_scanning_axis[self._x_scanning_index],
                                                    self._y_scanning_axis[self._y_scanning_index]],
-                                                  stack=self._active_stack)
+                                                  stack=self._active_stack, clear_ao_whenfinished=False)
         self.signal_continue_confocal.emit()
 
     def continue_snvm_scanning(self):
@@ -410,6 +415,10 @@ class SnvmLogic(GenericLogic):
         except Exception as e:
             self.log.exception('Could not close the scanning tasks.')
         try:
+            self._scanning_device.clear_ao_task(self._active_stack)
+        except:
+            self.log.exception("Could not clear the ao task.")
+        try:
             self._scanning_device.module_state.unlock()
         except Exception as e:
             self.log.exception('Could not unlock scanning device.')
@@ -427,6 +436,7 @@ class SnvmLogic(GenericLogic):
 
     def go_to_point(self, xy_coord, stack=None):
         self._scanning_device.scanner_slow_motion(xy_coord, stack=stack)
+        self.signal_moved_to_point.emit()
 
     def get_xy_image_range(self, multiplier=1):
         """
