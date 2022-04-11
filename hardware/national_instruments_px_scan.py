@@ -173,28 +173,19 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         if len(self._tip_scanner_ao_channels) < len(self._tip_scanner_position_ranges):
             self.log.error(
                 'Specify at least as many tip_scanner_position_ranges as tip_scanner_ao_channels!')
-        """
+
         if len(self._scanner_counter_channels) + len(self._scanner_ai_channels) < 1:
             self.log.error(
                 'Specify at least one counter or analog input channel for the scanner!')
-        """
-        # Analog output is always needed and it does not interfere with the
-        # rest, so start it always and leave it running
-        if self._start_analog_outputs() < 0:
-            self.log.error('Failed to start analog output.')
-            raise Exception('Failed to start NI Card module due to analog output failure.')
 
         self._current_position = dict(zip(self._stack_names, [np.zeros((2,)), np.zeros((2,))]))
 
     def on_deactivate(self):
         """ Shut down the NI card.
         """
-        self._stop_analog_outputs()
-        # clear the task
         try:
-            for stack_name, scanner_ao_task in self._scanner_ao_tasks.items():
-                daq.DAQmxClearTask(scanner_ao_task)
-                self._scanner_ao_tasks[stack_name] = None
+            for stack_name in self._scanner_ao_tasks:
+                self.clear_ao_task(stack_name)
         except:
             self.log.exception('Could not clear AO Out Task.')
 
@@ -421,15 +412,30 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         voltages = self._scanner_position_to_volt(position_array, stack)
         self.write_voltage(motion_task, voltages=voltages, autostart=False)
+
         daq.DAQmxStartTask(motion_task)
         daq.DAQmxStartTask(self._motion_clock_task)
 
-        daq.DAQmxWaitUntilTaskDone(self._motion_clock_task, 2 * self._RWTimeout * position_array.shape[1])
+        daq.DAQmxWaitUntilTaskDone(self._motion_clock_task,
+                                   2 * self._RWTimeout * position_array.shape[1])
 
-        daq.DAQmxStopTask(motion_task)
-        daq.DAQmxStopTask(self._motion_clock_task)
+        daq.DAQmxWaitUntilTaskDone(motion_task,
+                                   2 * self._RWTimeout * position_array.shape[1])
 
-        daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_OnDemand)
+        try:
+            daq.DAQmxStopTask(self._motion_clock_task)
+        except:
+            self.log.exception("stoppping clock didnt' work.")
+        try:
+            daq.DAQmxStopTask(motion_task)
+        except:
+            self.log.exception("Stopping ao didn't work.")
+
+        try:
+            daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_OnDemand)
+            daq.DAQmxStopTask(motion_task)
+        except:
+            self.log.exception("Changing ao mode didn't work.")
 
         self._current_position[stack] = position_array[:, -1]
 
@@ -446,57 +452,75 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     def get_ai_counter_channels(self, stack_name=None):
         return self._scanner_ai_channels[stack_name]
 
-    # ================ ConfocalScannerInterface Commands =======================
-    def _start_analog_outputs(self):
-        """ Starts or restarts the analog output.
-
-        @return int: error code (0:OK, -1:error)
+    # ================ Scanning Commands =======================
+    def create_ao_task(self, stack=None):
         """
+        Implemented this function to start and kill the ao every time it's required. Used in combination with
+        clear_ao_task, it helps avoiding resource allocation problems in the DAQ card.
+        """
+        ao_task = self._scanner_ao_tasks[stack]
         try:
             # If an analog task is already running, kill that one first
-            for stack_name, stack_scanner_ao_task in self._scanner_ao_tasks.items():
-                if stack_scanner_ao_task is not None:
-                    # stop the analog output task
-                    daq.DAQmxStopTask(stack_scanner_ao_task)
 
-                    # delete the configuration of the analog output
-                    daq.DAQmxClearTask(stack_scanner_ao_task)
+            if ao_task is not None:
+                # stop the analog output task
+                daq.DAQmxStopTask(ao_task)
 
-                    # set the task handle to None as a safety
-                    self._scanner_ao_tasks[stack_name] = None
+                # delete the configuration of the analog output
+                daq.DAQmxClearTask(ao_task)
+
+                # set the task handle to None as a safety
+                self._scanner_ao_tasks[stack] = None
 
             # initialize ao channels / task for scanner, should always be active.
             # Define at first the type of the variable as a Task:
-            for stack_name in self._scanner_ao_tasks:
-                self._scanner_ao_tasks[stack_name] = daq.TaskHandle()
+            ao_task = daq.TaskHandle()
 
             # create the actual analog output task on the hardware device. Via
             # byref you pass the pointer of the object to the TaskCreation function:
-            for stack_name, scanner_ao_task in self._scanner_ao_tasks.items():
-                daq.DAQmxCreateTask('{:s}ScannerAO'.format(stack_name.capitalize()),
-                                    daq.byref(scanner_ao_task))
-                for n, chan in enumerate(self._scanner_ao_channels[stack_name]):
-                    # Assign and configure the created task to an analog output voltage channel.
-                    daq.DAQmxCreateAOVoltageChan(
-                        # The AO voltage operation function is assigned to this task.
-                        scanner_ao_task,
-                        # use (all) scanner ao_channels for the output
-                        chan,
-                        # assign a name for that channel
-                        'Sample Scanner AO Channel {0}'.format(n),
-                        # minimum possible voltage
-                        self._scanner_voltage_ranges[stack_name][n][0],
-                        # maximum possible voltage
-                        self._scanner_voltage_ranges[stack_name][n][1],
-                        # units is Volt
-                        daq.DAQmx_Val_Volts,
-                        # empty for future use
-                        '')
 
-                daq.DAQmxSetSampTimingType(scanner_ao_task, daq.DAQmx_Val_OnDemand)
+            daq.DAQmxCreateTask('{:s}ScannerAO'.format(stack.capitalize()),
+                                daq.byref(ao_task))
+            for n, chan in enumerate(self._scanner_ao_channels[stack]):
+                # Assign and configure the created task to an analog output voltage channel.
+                daq.DAQmxCreateAOVoltageChan(
+                    # The AO voltage operation function is assigned to this task.
+                    ao_task,
+                    # use (all) scanner ao_channels for the output
+                    chan,
+                    # assign a name for that channel
+                    'Sample Scanner AO Channel {0}'.format(n),
+                    # minimum possible voltage
+                    self._scanner_voltage_ranges[stack][n][0],
+                    # maximum possible voltage
+                    self._scanner_voltage_ranges[stack][n][1],
+                    # units is Volt
+                    daq.DAQmx_Val_Volts,
+                    # empty for future use
+                    '')
+
+            self._scanner_ao_tasks[stack] = ao_task
+
+            daq.DAQmxSetSampTimingType(ao_task, daq.DAQmx_Val_OnDemand)
 
         except:
             self.log.exception('Error starting analog output task.')
+            return -1
+        return 0
+
+    def clear_ao_task(self, stack):
+        ao_task = self._scanner_ao_tasks[stack]
+        if ao_task is None:
+            self.log.info(f"The AO task for the {stack} stack is already cleared.")
+            return 0
+
+        try:
+            daq.DAQmxStopTask(ao_task)
+            daq.DAQmxClearTask(ao_task)
+
+            self._scanner_ao_tasks[stack] = None
+        except:
+            self.log.exception(f"Error clearing the AO {stack} stack task.")
             return -1
         return 0
 
@@ -702,7 +726,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             return -1
         return 0
 
-    def scanner_slow_motion(self, end_xy, speed=None, stack=None):
+    def scanner_slow_motion(self, end_xy, speed=None, stack=None, clear_ao_whenfinished = True):
         """
         Used to move from A to B slowly only once, at the defined speed
         """
@@ -711,6 +735,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             close_at_end = True
         else:
             close_at_end = False
+
+        #Create the ao task for the scanning
+        self.create_ao_task(stack)
 
         #Move first along y coordinate, then x
         start_xy = self.get_scanner_position(stack=stack)
@@ -740,6 +767,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         if close_at_end:
             self.clear_motion_clock()
 
+        if clear_ao_whenfinished:
+            self.clear_ao_task(stack)
+
         self._current_position[stack] = np.array([x_end, y_end])
 
     def close_scanner(self, stack=None):
@@ -747,7 +777,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         @return int: error code (0:OK, -1:error)
         """
-        a = self._stop_analog_outputs()
+        a = self.clear_ao_task(stack)
 
         b = 0
         if self._scanner_ai_channels[stack]:
@@ -762,7 +792,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                 self.log.exception('Could not close analog.')
                 b = -1
 
-        c = self.close_counter(scanner=True)
+        c = self.close_counters()
         return -1 if a < 0 or b < 0 or c < 0 else 0
 
     def close_scanner_clock(self):
@@ -872,75 +902,3 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             self.log.error('Some of the positions are out of the positions bounds.')
             return np.array([np.nan])
         return positions.astype(np.float64)
-
-    # ================ End ConfocalScannerInterface Commands ===================
-
-    def get_status(self):
-        """ Receives the current status of the Fast Counter and outputs it as
-            return value.
-
-        0 = unconfigured
-        1 = idle
-        2 = running
-        3 = paused
-        -1 = error state
-        """
-        if self._gated_counter_daq_task is None:
-            return 0
-        else:
-            # return value represents a uint32 value, i.e.
-            #   task_done = 0  => False, i.e. device is runnin
-            #   task_done !=0  => True, i.e. device has stopped
-            task_done = daq.bool32()
-
-            ret_v = daq.DAQmxIsTaskDone(
-                # task reference
-                self._gated_counter_daq_task,
-                # reference to bool value.
-                daq.byref(task_done))
-
-            if ret_v != 0:
-                return ret_v
-
-            if task_done.value() == 0:
-                return 1
-            else:
-                return 2
-
-    # ======================== Digital channel control ==========================
-
-    def digital_channel_switch(self, channel_name, mode=True):
-        """
-        Switches on or off the voltage output (5V) of one of the digital channels, that
-        can as an example be used to switch on or off the AOM driver or apply a single
-        trigger for ODMR.
-        @param str channel_name: Name of the channel which should be controlled
-                                    for example ('/Dev1/PFI9')
-        @param bool mode: specifies if the voltage output of the chosen channel should be turned on or off
-
-        @return int: error code (0:OK, -1:error)
-        """
-        if channel_name is None:
-            self.log.error('No channel for digital output specified')
-            return -1
-        else:
-
-            self.digital_out_task = daq.TaskHandle()
-            if mode:
-                self.digital_data = daq.c_uint32(0xffffffff)
-            else:
-                self.digital_data = daq.c_uint32(0x0)
-            self.digital_read = daq.c_int32()
-            self.digital_samples_channel = daq.c_int32(1)
-            daq.DAQmxCreateTask('DigitalOut', daq.byref(self.digital_out_task))
-            daq.DAQmxCreateDOChan(self.digital_out_task, channel_name, "", daq.DAQmx_Val_ChanForAllLines)
-            daq.DAQmxStartTask(self.digital_out_task)
-            daq.DAQmxWriteDigitalU32(self.digital_out_task, self.digital_samples_channel, True,
-                                        self._RWTimeout, daq.DAQmx_Val_GroupByChannel,
-                                        np.array(self.digital_data), self.digital_read, None)
-
-            daq.DAQmxStopTask(self.digital_out_task)
-            daq.DAQmxClearTask(self.digital_out_task)
-            return 0
-
-
