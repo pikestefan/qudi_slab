@@ -128,6 +128,8 @@ class SnvmGui(GUIBase):
 
     # signals
     sigStartOptimizer = QtCore.Signal()
+    sigStartScanning = QtCore.Signal(str)
+    sigGoTo = QtCore.Signal(str)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -234,14 +236,14 @@ class SnvmGui(GUIBase):
         ##############
         # Connect the actions to their slots
         ##############
-        self._mainwindow.actionStart_snvmscan.triggered.connect(self.start_scanning)
-        self._mainwindow.actionStart_conf_scan.triggered.connect(self.start_scanning)
+        self._mainwindow.actionStart_snvmscan.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionStart_conf_scan.triggered.connect(self.scanning_action_clicked)
         self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
-        self._mainwindow.actionOptimize.triggered.connect(self.optimize_clicked)
+        self._mainwindow.actionOptimize.triggered.connect(self.scanning_action_clicked)
         self._mainwindow.actionOptimizer_settings.triggered.connect(self.menu_optimizer_settings)
         self._mainwindow.actionSnvm_settings.triggered.connect(self.menu_snvm_settings)
-        self._mainwindow.action_snvm_goToPoint.triggered.connect(self.go_to_point_snvm)
-        self._mainwindow.action_cfc_goToPoint.triggered.connect(self.go_to_point_cfc)
+        self._mainwindow.action_snvm_goToPoint.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.action_cfc_goToPoint.triggered.connect(self.scanning_action_clicked)
 
         self._mainwindow.actionStop_scan.setEnabled(False)
 
@@ -300,6 +302,8 @@ class SnvmGui(GUIBase):
         #Connect the signals
 
         self.sigStartOptimizer.connect(self.optimize_counts, QtCore.Qt.QueuedConnection)
+        self.sigStartScanning.connect(self.start_scanning, QtCore.Qt.QueuedConnection)
+        self.sigGoTo.connect(self.go_to_point, QtCore.Qt.QueuedConnection)
 
         self._odmr_widgets['mwStart'].valueChanged.connect(self.accept_frequency_ranges)
         self._odmr_widgets['mwEnd'].valueChanged.connect(self.accept_frequency_ranges)
@@ -312,6 +316,7 @@ class SnvmGui(GUIBase):
         self._scanning_logic.signal_xy_image_updated.connect(self.refresh_confocal_image)
         self._scanning_logic.signal_snvm_initialized.connect(self.set_snvm_im_range)
         self._scanning_logic.signal_confocal_initialized.connect(self.set_confocal_im_range)
+        self._scanning_logic.signal_moved_to_point.connect(self.go_to_finished)
 
         self._optimizer_logic.sigImageUpdated.connect(self.refresh_optimizer_image)
         self._optimizer_logic.sigRefocusStarted.connect(self.set_optimizer_im_range)
@@ -386,9 +391,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.activateWindow()
         self._mainwindow.raise_()
 
-    def start_scanning(self):
-        self.disable_interactions()
-
+    def start_scanning(self, start_name):
         #Get the scanning settings from the GUI, and set them in the logic
         #FIXME: find a way to do this more efficiently, without calling each attribute one by one
         self._scanning_logic.store_retrace = True if self._afm_widgets['storeRetrace'].checkState()==2 else False
@@ -405,9 +408,7 @@ class SnvmGui(GUIBase):
         #Set the integration time
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
 
-
-        start_name = self.sender().objectName()
-        if start_name == 'actionStart_snvmscan':
+        if start_name == 'snvm':
 
             #First update the crosshair position
             crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
@@ -430,8 +431,7 @@ class SnvmGui(GUIBase):
             self._mainwindow.frequencySliceSelector.setValue(self._odmr_widgets['mwStart'].value())
 
             self._scanning_logic.start_snvm_scanning()
-
-        else:
+        elif start_name == 'cfc':
             # First update the crosshair position
             crosshair_pos = self._mainwindow.confocalScannerView.crosshair_position
             if (crosshair_pos[0] not in self._scanning_logic.scanning_x_range
@@ -440,6 +440,8 @@ class SnvmGui(GUIBase):
                 self._mainwindow.confocalScannerView.set_crosshair_pos(newpos)
 
             self._scanning_logic.start_confocal_scanning()
+        else:
+            self.log.exception("Invalid name.")
 
     def snvm_confocal_finished(self, was_snvm):
         self.activate_interactions()
@@ -458,6 +460,8 @@ class SnvmGui(GUIBase):
         self._mainwindow.actionResume_snvmscan.setEnabled(False)
         self._mainwindow.actionResume_conf_scan.setEnabled(False)
         self._mainwindow.actionOptimize.setEnabled(False)
+        self._mainwindow.action_snvm_goToPoint.setEnabled(False)
+        self._mainwindow.action_cfc_goToPoint.setEnabled(False)
 
         self._mainwindow.actionStop_scan.setEnabled(True)
 
@@ -472,6 +476,8 @@ class SnvmGui(GUIBase):
         self._mainwindow.actionResume_snvmscan.setEnabled(True)
         self._mainwindow.actionResume_conf_scan.setEnabled(True)
         self._mainwindow.actionOptimize.setEnabled(True)
+        self._mainwindow.action_snvm_goToPoint.setEnabled(True)
+        self._mainwindow.action_cfc_goToPoint.setEnabled(True)
 
         self._mainwindow.actionStop_scan.setEnabled(False)
 
@@ -516,15 +522,21 @@ class SnvmGui(GUIBase):
         self._scanning_logic.stopRequested = True
         self._optimizer_logic.stop_refocus()
 
-    def optimize_clicked(self):
-        """
-        This intermediated function is used because if optimize_counts is called directly it does not let the
-        disable_interactions() function to finish. This causes a lag in the disabling, that hangs while the scanner is
-        moving to its initial position. Instead, emitting the signal and using a queued connection to optimize_counts
-        solves the problem.
-        """
+    def scanning_action_clicked(self):
+        sendername = self.sender().objectName()
         self.disable_interactions()
-        self.sigStartOptimizer.emit()
+        if sendername == 'actionOptimize':
+            self.sigStartOptimizer.emit()
+        elif sendername == 'action_snvm_goToPoint':
+            self._mainwindow.actionStop_scan.setEnabled(False)
+            self.sigGoTo.emit('snvm')
+        elif sendername == 'action_cfc_goToPoint':
+            self._mainwindow.actionStop_scan.setEnabled(False)
+            self.sigGoTo.emit('cfc')
+        elif sendername == 'actionStart_conf_scan':
+            self.sigStartScanning.emit('cfc')
+        elif sendername == 'actionStart_snvmscan':
+            self.sigStartScanning.emit('snvm')
 
     def optimize_counts(self):
         self.disable_interactions()
@@ -666,12 +678,19 @@ class SnvmGui(GUIBase):
         self.keep_former_snvm_settings()
         self._snvm_dialog.exec_()
 
-    def go_to_point_snvm(self):
-        position = self._mainwindow.multiFreqPlotView.crosshair_position
-        position = [pos * self.xy_range_multiplier for pos in position]
-        self._scanning_logic.go_to_point(position, stack=self._scanning_logic.sampleStackName)
+    def go_to_point(self, scanner):
+        if scanner == 'snvm':
+            position = self._mainwindow.multiFreqPlotView.crosshair_position
+            position = [pos * self.xy_range_multiplier for pos in position]
+            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.sampleStackName)
+        elif scanner == 'cfc':
+            position = self._mainwindow.confocalScannerView.crosshair_position
+            position = [pos * self.xy_range_multiplier for pos in position]
+            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.tipStackName)
+        else:
+            self.log.exception("Invalid name.")
 
-    def go_to_point_cfc(self):
-        position = self._mainwindow.confocalScannerView.crosshair_position
-        position = [pos * self.xy_range_multiplier for pos in position]
-        self._scanning_logic.go_to_point(position, stack=self._scanning_logic.tipStackName)
+    def go_to_finished(self):
+        self.activate_interactions()
+        self._mainwindow.actionStop_scan.setEnabled(True)
+
