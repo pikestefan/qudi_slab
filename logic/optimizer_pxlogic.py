@@ -235,7 +235,7 @@ class OptimizerLogicPxScan(GenericLogic):
 
         @param start_pos float[]: 2-point vector giving x, y position to go to.
         """
-        self._scanning_device.scanner_slow_motion(start_pos, stack=self.optimizer_stack)
+        self._scanning_device.scanner_slow_motion(start_pos, stack=self.optimizer_stack, clear_ao_whenfinished=False)
         return 0
 
     def _refocus_xy_line(self):
@@ -374,6 +374,7 @@ class OptimizerLogicPxScan(GenericLogic):
 
         self.samps_per_px = self._samps_per_pixel(self.integration_time*1e-3)
 
+        self._scanning_device.create_ao_task(self.optimizer_stack)
         self._scanning_device.prepare_counters(samples_to_acquire=self.samps_per_px,
                                                counter_ai_channels=None)
 
@@ -388,17 +389,9 @@ class OptimizerLogicPxScan(GenericLogic):
 
         @return int: error code (0:OK, -1:error)
         """
-        print("Here")
-        try:
-            self._scanning_device.clear_motion_clock()
-        except:
-            self.log.exception('Closing motion clock failed.')
-            return -1
-        try:
-            self._scanning_device.close_counters()
-        except:
-            self.log.exception('Closing counters failed.')
-            return -1
+        self._scanning_device.close_counters()
+        self._scanning_device.clear_ao_task(self.optimizer_stack)
+        self._scanning_device.clear_motion_clock()
         self.module_state.unlock()
 
     def set_position(self, tag, x=None, y=None):
