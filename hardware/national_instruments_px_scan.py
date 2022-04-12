@@ -450,7 +450,10 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         return ch
 
     def get_ai_counter_channels(self, stack_name=None):
-        return self._scanner_ai_channels[stack_name]
+        if stack_name is None:
+            return None
+        else:
+            return self._scanner_ai_channels[stack_name]
 
     # ================ Scanning Commands =======================
     def create_ao_task(self, stack=None):
