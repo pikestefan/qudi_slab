@@ -1156,3 +1156,159 @@ class ODMRLogic(GenericLogic):
             self.save_odmr_data(tag=name_tag)
 
         return self.odmr_plot_x, self.odmr_plot_y, fit_params
+
+class OMDRPxLogic(GenericLogic):
+
+    photon_counter = Connector(interface='SnvmScannerInterface')
+    fitlogic = Connector(interface='FitLogic')
+    mw_source = Connector(interface='MicrowaveInterface')
+    #savelogic = Connector(interface='SaveLogic')
+
+    mw_frequency = StatusVar('cw_mw_frequency', 2870e6)
+    mw_power = StatusVar('cw_mw_power', -30)
+    mw_start = StatusVar('mw_start', 2820e6)
+    mw_stop = StatusVar('mw_stop', 2920e6)
+    mw_step = StatusVar('mw_steps', 1e6)
+    integration_time = StatusVar('integration_time', 30e-3) #In ms
+    averages = StatusVar('averages', 5) #Averages
+    number_of_lines = StatusVar('number_of_lines', 1) #Number of line to define a moving average (for 2D plots)
+    _oversampling = StatusVar('oversampling', default=10)
+
+    # Internal signals
+    sigContinueOdmr = QtCore.Signal()
+    sigFreqPxAcquired = QtCore.Signal()
+    sigStopOdmr = QtCore.Signal()
+    sigOdmrFinished = QtCore.Signal()
+
+    # Update signals, e.g. for GUI module
+    def __init__(self, config, **kwargs):
+        super().__init__(config=config, **kwargs)
+        self.threadlock = Mutex()
+
+    def on_activate(self):
+        self._mw_source = self.mw_source()
+        self._photon_counter = self.photon_counter()
+
+        self._mw_source.off()
+
+        ####
+        # Set up the ODMR scanner parameters
+        ####
+        self._freq_scanning_index = 0
+        self._average_index = 0
+
+        # Initalize the attributes that will be the scan data containers
+        self.count_matrix = None  # This matrix is used to store the ODMR traces to be averaged.
+        self.freq_axis = None
+        self._freq_axis_length = None  # Same here
+        self.average_odmr_trace = None
+
+        self.invalid = np.nan  # Number corresponding to invalid data points.
+
+        self._photon_samples = None #Number of samples to acquire in each pixel.
+
+        self.stopRequested = False
+
+        self.sigContinueOdmr.connect(self.continue_odmr, QtCore.Qt.QueuedConnection)
+        self.sigFreqPxAcquired.connect(self.next_freq_pixel, QtCore.Qt.QueuedConnection)
+        self.sigStopOdmr.connect(self.stop_scanning)
+
+    def on_deactivate(self):
+        pass
+
+    def _prepare_count_matrix(self):
+        # Here it is assumed that the GUI has already ensured that the frequency step fits an integer amount of times
+        # in the desired range.
+        step_number = 1 + round((self.mw_stop - self.mw_start) / self.mw_step)
+        freq_axis = np.linspace(self.mw_start, self.mw_stop, step_number)
+
+        count_matrix = np.full((self.averages, len(freq_axis)), self.invalid)
+
+        self._freq_scanning_index = 0
+        self._average_index = 0
+        self.freq_axis = freq_axis
+        self.count_matrix = count_matrix
+        self.average_odmr_trace = np.zeros(freq_axis.shape)
+        self._freq_axis_length = len(freq_axis) if isinstance(self.freq_axis, np.ndarray) else None
+
+    def _prepare_devices(self):
+        """
+        Initialize the counter and the settings of the MW device prior to starting scanning.
+        """
+
+        self._photon_counter.module_state.lock()
+        self._photon_samples = self.pxtime_to_samples()
+
+        self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
+
+        self._mw_source.module_state.lock()
+        try:
+            pass
+            # FIXME: look into how to operate the srs in list mode
+            #self._odmrscanner.set_list(frequency=self.freq_axis, power=self.mw_power)
+        except:
+            self.log.error("Failed loading the frequency axis into the ODMR scanner. Aborted execution.")
+            #self._odmrscanner.module_state.unlock()
+
+
+    def start_odmr(self):
+        self.module_state.lock()
+
+        self._prepare_count_matrix()
+        self._prepare_devices()
+
+        self._mw_source.set_frequency(self.freq_axis[self._freq_scanning_index])
+        self._mw_source.on()
+
+        self.sigContinueOdmr.emit()
+
+    def continue_odmr(self):
+        if not self.stopRequested:
+            counts, _ = self.acquire_pixel()
+            self.count_matrix[self._average_index, self._freq_scanning_index] = counts
+
+            if self._average_index > 0:
+                self.average_odmr_trace = np.nanmean(self.count_matrix, axis=0)
+
+        self.sigFreqPxAcquired.emit()
+
+    def next_freq_pixel(self):
+        self._freq_scanning_index += 1
+        if self._freq_scanning_index == self._freq_axis_length:
+            self._average_index += 1
+            self._freq_scanning_index = 0
+        self._mw_source.set_frequency(self.freq_axis[self._freq_scanning_index])
+        if (self._average_index == self.averages) or self.stopRequested:
+            self.stopRequested = True
+            self.sigStopOdmr.emit()
+        else:
+            self.sigContinueOdmr.emit()
+
+    def stop_scanning(self):
+        if self.stopRequested:
+            with self.threadlock:
+                self._mw_source.off()
+                self._photon_counter.close_counters()
+                try:
+                    self._photon_counter.module_state.unlock()
+                except Exception as e:
+                    self.log.exception('Could not unlock counter device.')
+                try:
+                    self._mw_source.module_state.unlock()
+                except Exception as e:
+                    self.log.exception('Could not unlock mw source.')
+                self.module_state.unlock()
+            self.stopRequested = False
+            self.sigOdmrFinished.emit()
+
+    def acquire_pixel(self):
+        data = self._photon_counter.read_pixel(self._photon_samples)
+        return data
+
+    def pxtime_to_samples(self):
+        return round(self.integration_time * self._photon_counter.get_counter_clock_frequency())
+
+
+
+
+

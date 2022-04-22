@@ -26,6 +26,7 @@ import time
 from logic.generic_logic import GenericLogic
 from core.connector import Connector
 from core.statusvariable import StatusVar
+from core.configoption import ConfigOption
 from core.util.mutex import Mutex
 
 
@@ -64,7 +65,6 @@ class OptimizerLogic(GenericLogic):
     sigRefocusXySizeChanged = QtCore.Signal()
     sigRefocusZSizeChanged = QtCore.Signal()
     sigRefocusFinished = QtCore.Signal(str, list)
-    sigClockFrequencyChanged = QtCore.Signal(int)
     sigPositionChanged = QtCore.Signal(float, float, float)
 
     def __init__(self, config, **kwargs):
@@ -651,4 +651,3 @@ class OptimizerLogic(GenericLogic):
         if z is not None:
             self._current_z = z
         self.sigPositionChanged.emit(self._current_x, self._current_y, self._current_z)
-
