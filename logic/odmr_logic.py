@@ -1272,7 +1272,7 @@ class OMDRPxLogic(GenericLogic):
 
         self.sigFreqPxAcquired.emit()
 
-    def next_freq_pixel(self):
+    def _next_freq_pixel(self):
         self._freq_scanning_index += 1
         if self._freq_scanning_index == self._freq_axis_length:
             self._average_index += 1
@@ -1301,11 +1301,11 @@ class OMDRPxLogic(GenericLogic):
             self.stopRequested = False
             self.sigOdmrFinished.emit()
 
-    def acquire_pixel(self):
+    def _acquire_pixel(self):
         data = self._photon_counter.read_pixel(self._photon_samples)
         return data
 
-    def pxtime_to_samples(self):
+    def _pxtime_to_samples(self):
         return round(self.integration_time * self._photon_counter.get_counter_clock_frequency())
 
 
