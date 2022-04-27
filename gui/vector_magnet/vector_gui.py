@@ -78,6 +78,10 @@ class VectorMagnetGui(GUIBase):
         self._mainwindow.Phi.valueChanged.connect(self.update_current)
         self._mainwindow.ChannelsOnOffBox.stateChanged.connect(self.check_channels_off)
 
+    def on_deactivate(self):
+        """ Deinitialisation performed during deactivation of the module.
+        """
+
     def initMainUI(self):
         self._mainwindow = VectorMagnetMainWindow()
         self.show()
@@ -93,10 +97,12 @@ class VectorMagnetGui(GUIBase):
         """
         triggers the logic to update the currents
         """
+        #currents = self._vector_logic.get_real_currents()
+        #current = str(round(float(self._powersupply.get_real_current(channel)), 4))
         # update display
-        self._mainwindow.Disp1.display(self._vector_logic.get_real_currents(1))
-        self._mainwindow.Disp2.display(self._vector_logic.get_real_currents(2))
-        self._mainwindow.Disp3.display(self._vector_logic.get_real_currents(3))
+        self._mainwindow.Disp1.display(str(round(float(self._vector_logic.get_real_currents(1)), 4)))
+        self._mainwindow.Disp2.display(str(round(float(self._vector_logic.get_real_currents(2)), 4)))
+        self._mainwindow.Disp3.display(str(round(float(self._vector_logic.get_real_currents(3)), 4)))
 
     def ApplyButton(self):
         """
@@ -127,7 +133,7 @@ class VectorMagnetGui(GUIBase):
     def check_channels_off(self):
         #shut down channel outputs and set voltages to 0 [TO BE INCLUDED]
         if self._mainwindow.ChannelsOnOffBox.checkState() == 2: #0::unchecked, 1::partially checked, 2::checked
-            self._vector_logic.shut_down_channels(2)
+            self._vector_logic.shut_down_channels("Off")
             self._mainwindow.Disp1.setStyleSheet("""QLCDNumber { 
                                                     background-color: darkred; 
                                                     color: white; }""")
@@ -138,7 +144,7 @@ class VectorMagnetGui(GUIBase):
                                                     background-color: darkred; 
                                                     color: white; }""")
         elif self._mainwindow.ChannelsOnOffBox.checkState() == 0: #0::unchecked, 1::partially checked, 2::checked
-            self._vector_logic.shut_down_channels(0)
+            self._vector_logic.shut_down_channels("On")
             self._mainwindow.Disp1.setStyleSheet("""""")
             self._mainwindow.Disp2.setStyleSheet("""""")
             self._mainwindow.Disp3.setStyleSheet("""""")

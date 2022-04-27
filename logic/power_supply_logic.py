@@ -50,7 +50,7 @@ class PowerSupplyLogic(GenericLogic):
 
     def get_real_currents(self, channel):
         # updates the current containers directly from the power supply
-        current = self._powersupply.get_real_current(channel)
+        current= self._powersupply.get_real_current(channel)
         return current
 
 

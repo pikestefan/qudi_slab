@@ -26,6 +26,10 @@ from core.meta import InterfaceMetaclass
 
 class PowerSupplyInterface(metaclass=InterfaceMetaclass):
     @abstract_interface_method
+    def on_deactivate(self):
+        """ Deinitialisation performed during deactivation of the module.
+        """
+    @abstract_interface_method
     def set_voltage(self, setvoltage, channel):
         """
         set the voltage of specified channel to a specific value
