@@ -73,10 +73,12 @@ class VectorMagnetGui(GUIBase):
 
         # Connecting user interactions
         self._mainwindow.ApplyButton.clicked.connect(self.ApplyButton)
+        self._mainwindow.ResetButton.clicked.connect(self.ResetButton)
         self._mainwindow.Magnitude.valueChanged.connect(self.update_current)
         self._mainwindow.Theta.valueChanged.connect(self.update_current)
         self._mainwindow.Phi.valueChanged.connect(self.update_current)
         self._mainwindow.ChannelsOnOffBox.stateChanged.connect(self.check_channels_off)
+        self._mainwindow.LimitSlider.valueChanged.connect(self.LimitSlider_changed)
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -97,22 +99,29 @@ class VectorMagnetGui(GUIBase):
         """
         triggers the logic to update the currents
         """
-        #currents = self._vector_logic.get_real_currents()
-        #current = str(round(float(self._powersupply.get_real_current(channel)), 4))
         # update display
-        self._mainwindow.Disp1.display(str(round(float(self._vector_logic.get_real_currents(1)), 4)))
-        self._mainwindow.Disp2.display(str(round(float(self._vector_logic.get_real_currents(2)), 4)))
-        self._mainwindow.Disp3.display(str(round(float(self._vector_logic.get_real_currents(3)), 4)))
+        self._vector_logic.applied_current = np.asarray([self._vector_logic.get_real_currents(1), self._vector_logic.get_real_currents(2), self._vector_logic.get_real_currents(3)], dtype = int)
+        self._mainwindow.Disp1.display(str(round(self._vector_logic.applied_current[0], 4)))
+        self._mainwindow.Disp2.display(str(round(self._vector_logic.applied_current[1], 4)))
+        self._mainwindow.Disp3.display(str(round(self._vector_logic.applied_current[2], 4)))
 
     def ApplyButton(self):
         """
-        apply settings to power supply [TO BE INCLUDED]
+        apply settings to power supply
         """
+        print('I was here')
         if self._mainwindow.ChannelsOnOffBox.checkState() == 0:
             # call logic
-            self._vector_logic.apply_magnetic_field()
+            self._vector_logic.apply_magnetic_field(1)
             # update GUI
             self.update_display()
+
+    def ResetButton(self):
+        """
+        reset ALL current outputs to 0A
+        """
+        self._vector_logic.apply_magnetic_field(0)
+        self.update_display()
 
 
     def update_current(self):
@@ -131,7 +140,7 @@ class VectorMagnetGui(GUIBase):
         self._mainwindow.ChannelV3.setPlainText(str(self._vector_logic.current_z))
 
     def check_channels_off(self):
-        #shut down channel outputs and set voltages to 0 [TO BE INCLUDED]
+        #shut down channel outputs
         if self._mainwindow.ChannelsOnOffBox.checkState() == 2: #0::unchecked, 1::partially checked, 2::checked
             self._vector_logic.shut_down_channels("Off")
             self._mainwindow.Disp1.setStyleSheet("""QLCDNumber { 
@@ -148,8 +157,12 @@ class VectorMagnetGui(GUIBase):
             self._mainwindow.Disp1.setStyleSheet("""""")
             self._mainwindow.Disp2.setStyleSheet("""""")
             self._mainwindow.Disp3.setStyleSheet("""""")
-    def test(self):
-        print("success!")
+    def LimitSlider_changed(self):
+        #set V-limits according to slider position
+        Vlimit = self._mainwindow.LimitSlider.value()*10
+        self._vector_logic.set_Vlimit(Vlimit)
+        self._mainwindow.LimitValue.setText('{}'.format(Vlimit))
+
 
     """ 
         global value

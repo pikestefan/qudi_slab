@@ -22,14 +22,18 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
     _usb_address = ConfigOption('usb_address', missing='error')
     _usb_timeout = ConfigOption('usb_timeout', 10, missing='warn')
 
+    ###### CLEAN THIS UP?
     _voltage_min = ConfigOption('voltage_min', missing='error')
     _voltage_max_1 = ConfigOption('voltage_max_1', missing='error')
     _voltage_max_2 = ConfigOption('voltage_max_2', missing='error')
     _voltage_max_3 = ConfigOption('voltage_max_3', missing='error')
     _current_max = ConfigOption('current_max', missing='error')
 
+    _negative_polarity = ConfigOption('negative_outputs', missing='error')
+
     def on_activate(self):
-        """ Initialisation performed during activation of the module.
+        """
+        Initialisation performed during activation of the module.
         """
         self.rm = visa.ResourceManager()
         try:
@@ -68,9 +72,11 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
         print("0 current")
 
     def set_current_all(self, setcurrent_x, setcurrent_y, setcurrent_z):
-        print('x set to ', setcurrent_x,' A')
-        print('y set to ', setcurrent_y,' A')
-        print('z set to ', setcurrent_z,' A')
+        #when currents are negative, call arduino to switch
+        print('x set to ', setcurrent_x, ' A')
+        print('y set to ', setcurrent_y, ' A')
+        print('z set to ', setcurrent_z, ' A')
+
         self._write('APP:CURR {},{},{}'.format(setcurrent_z, 0, 0))
 
 
@@ -110,7 +116,7 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
             self._write('Outp ON')
             print('Device state: ', state)
         else:
-            print("fuck")
+            print('Cannot change state of device!')
             raise
 
     def _ask(self, question):
@@ -134,6 +140,18 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
         if wait:
             self._usb_connection.write('*WAI')
         return statuscode
+
+    def set_Vlimit(self, Vlimit):
+        #sets limits to all channels
+        self._write('INST:NSEL 1')
+        self._write('Volt:limit {}'.format(Vlimit))
+        self._write('Volt:LIMit:STATe 1')
+        self._write('INST:NSEL 2')
+        self._write('Volt:limit {}'.format(Vlimit))
+        self._write('Volt:LIMit:STATe 1')
+        self._write('INST:NSEL 3')
+        self._write('Volt:limit {}'.format(Vlimit))
+        self._write('Volt:LIMit:STATe 1')
 
     ##### these two functions need to be here!
     def set_current(self, setcurrent, channel):

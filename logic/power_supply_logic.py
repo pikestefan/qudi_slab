@@ -24,6 +24,8 @@ class PowerSupplyLogic(GenericLogic):
         self.current_x = 0
         self.current_y = 0
         self.current_z = 0
+        self.Vswitch_state = [0, 0, 0] #for all three axes, 0=off, 1=on
+        self.applied_current = [0, 0, 0]
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -41,12 +43,28 @@ class PowerSupplyLogic(GenericLogic):
         self.current_y = current[1]
         self.current_z = current[2]
 
-    def apply_magnetic_field(self):
+    def apply_magnetic_field(self, task):
         """
         call hardware and pass the required fields
+        Check, if hardware allows negative outputs, otherwise call V-switch (default: off)
         """
-        # call hardware
-        self._powersupply.set_current_all(self.current_x, self.current_y, self.current_z)
+        if self._powersupply._negative_polarity == False
+            sign_init = np.sign(self.applied_current)
+            sign_final = np.sign([self.current_x, self.current_y, self.current_z])
+            sign_change = sign_init+sign_final
+            print(sign_init)
+            print(sign_final)
+            print(sign_change)  # switch when [-2, -1, 0], stay when [0, 1, 2]
+            ##### turn_arduino_switch(sign_change)
+
+        #1 = use current containers, 0=reset currents to 0
+        if task == 1:
+            self._powersupply.set_current_all(self.current_x, self.current_y, self.current_z)
+        elif task == 0:
+            self._powersupply.set_current_all(0, 0, 0)
+        else:
+            self.log.error('task for power supplied not given. Must be 0 or 1!')
+            raise
 
     def get_real_currents(self, channel):
         # updates the current containers directly from the power supply
@@ -57,3 +75,7 @@ class PowerSupplyLogic(GenericLogic):
     def shut_down_channels(self, state):
         # state = 2 :disable all outputs; state = 0 : enable all outputs
         self._powersupply.set_device_state(state)
+
+    def set_Vlimit(self, Vlimit):
+        #call the hardware and set limit to value
+        self._powersupply.set_Vlimit(Vlimit)
