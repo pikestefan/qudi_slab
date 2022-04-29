@@ -465,7 +465,7 @@ class SnvmLogic(GenericLogic):
 
     def set_motion_speed(self, speed):
         #FIXME: dirty trick to keep the motion_speed as a status variable which sets the speed when reloading Qudi.
-        self.motion_speed = speed
+        self.backward_speed = speed
         self._scanning_device.set_motion_speed(speed * 1e-6)
 
     def _initialize_scanning_statuses(self):
