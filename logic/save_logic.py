@@ -712,10 +712,12 @@ class HDF5SaveLogic(SaveLogic):
         if self.active_poi_name != '':
             filelabel = self.active_poi_name.replace(' ', '_') + '_' + filelabel
 
+        #TODO: change default file naming, the time stamp is useless since now it's
+        # stored in the data attributes
         if filename is None:
             filename = timestamp.strftime('%Y%m%d-%H%M-%S' + '_' + filelabel + '.h5')
 
-        with h5py.File(filename, 'w') as h5file:
+        with h5py.File(os.path.join(filepath, filename), 'w') as h5file:
             for dset_name, data in data_dict.items():
                 if isinstance(data, (list, np.ndarray)):
                     dset = h5file.create_dataset(dset_name, shape=data.shape, dtype=data.dtype, data=data)
@@ -723,8 +725,7 @@ class HDF5SaveLogic(SaveLogic):
                     self.log.info("The data you passed for {} are not an array, the corresponding dataset will not"
                                   "be created.".format(dset_name))
 
-                dset.attrs['timestamp'] = timestamp
-
+                dset.attrs['timestamp'] = timestamp.strftime('%Y-%m-%d, %H:%M:%S')
                 if (attributes is not None) and (dset_name in attributes):
                     if not isinstance(attributes, (dict, OrderedDict)):
                         self.log.info("The attributes need to be a dictionary, the saving of the attributes of {}"
