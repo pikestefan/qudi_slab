@@ -287,6 +287,10 @@ class SnvmLogic(GenericLogic):
 
         self._snvm_active = False
 
+        self._curr_snvm_image = []
+        self._curr_afm_image = []
+        self._curr_cfc_image = []
+
         #Now connect all the signals
         self.signal_continue_snvm.connect(self.continue_snvm_scanning, QtCore.Qt.QueuedConnection)
         self.signal_stop_scan.connect(self.stop_scanning, QtCore.Qt.QueuedConnection)
@@ -339,8 +343,8 @@ class SnvmLogic(GenericLogic):
             xy_scan_matrix_retrace = np.copy(xy_scan_matrix)
             snvm_matrix_retrace = np.copy(snvm_matrix)
         else:
-            xy_scan_matrix_retrace = None
-            snvm_matrix_retrace = None
+            xy_scan_matrix_retrace = np.zeros(xy_scan_matrix.shape)
+            snvm_matrix_retrace = np.zeros(snvm_matrix.shape)
 
         self._x_scanning_axis = x_axis
         self._y_scanning_axis = y_axis
@@ -567,6 +571,17 @@ class SnvmLogic(GenericLogic):
         else:
             self.signal_stop_scan.emit()
 
+    def _store_data_matrices(self, is_snvm_data=True):
+        if is_snvm_data:
+            self._curr_snvm_image = [self._x_scanning_axis, self._y_scanning_axis,
+                                     self.freq_axis, np.arange(self.odmr_averages),
+                                     self.snvm_matrix, self.snvm_matrix_retrace]
+            self._curr_afm_image = [self._x_scanning_axis, self._y_scanning_axis,
+                                    self.xy_scan_matrix, self.xy_scan_matrix_retrace]
+        else:
+            self._curr_cfc_image = [self._x_scanning_axis, self._y_scanning_axis,
+                                    self.xy_scan_matrix, self.xy_scan_matrix_retrace]
+
     def stop_scanning(self):
         if self.stopRequested:
             with self.threadlock:
@@ -578,6 +593,8 @@ class SnvmLogic(GenericLogic):
                 if not self.store_retrace:
                     self._scanning_device.clear_motion_clock()
                 self.module_state.unlock()
+
+            self._store_data_matrices(self._snvm_active)
             self.signal_scan_finished.emit(self._snvm_active)
 
     def stop_xy_scanner(self):
@@ -657,7 +674,14 @@ class SnvmLogic(GenericLogic):
         self.stopRequested = False
 
     def save_snvm(self):
-        self._savelogic.save_hdf5_data()
+        xax, yax, freqax, averages, snvm_trace, snvm_retrace = self._curr_snvm_image
+        data = {'x_axis': xax,
+                'y_axis': yax,
+                'frequency_axis': freqax,
+                'averages': averages,
+                'snvm_trace': snvm_trace,
+                'snvm_retrace': snvm_retrace}
+        self._savelogic.save_hdf5_data(data)
 
     def save_confocal(self):
         self._savelogic.save_hdf5_data()
