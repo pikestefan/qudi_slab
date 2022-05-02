@@ -35,6 +35,8 @@
     <property name="title">
      <string>File</string>
     </property>
+    <addaction name="actionSave_snvm"/>
+    <addaction name="actionSave_confocal"/>
    </widget>
    <widget class="QMenu" name="menuOptions">
     <property name="title">
@@ -1026,6 +1028,24 @@
    </property>
    <property name="text">
     <string>CFC move</string>
+   </property>
+  </action>
+  <action name="actionSave_snvm">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/oxygen/22x22/document-save.png</normaloff>../../artwork/icons/oxygen/22x22/document-save.png</iconset>
+   </property>
+   <property name="text">
+    <string>Save SNVM</string>
+   </property>
+  </action>
+  <action name="actionSave_confocal">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/oxygen/22x22/document-save.png</normaloff>../../artwork/icons/oxygen/22x22/document-save.png</iconset>
+   </property>
+   <property name="text">
+    <string>Save confocal</string>
    </property>
   </action>
  </widget>
