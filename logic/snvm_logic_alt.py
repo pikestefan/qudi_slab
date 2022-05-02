@@ -55,14 +55,14 @@ class ConfocalHistoryEntry(QtCore.QObject):
                                                       (y_volt_range[1] - y_volt_range[0]) / (y_range[1] - y_range[0])]
 
         # These are the scanning ranges that will be used for the scanning
-        self.scanning_x_range = 0  # Initalize to zero
-        self.scanning_y_range = 0
+        self.scanning_x_range = [0,1e-6]
+        self.scanning_y_range = [0,1e-6]
 
-        self.scanning_x_resolution = 0
-        self.scanning_y_resolution = 0
+        self.scanning_x_resolution = 10
+        self.scanning_y_resolution = 10
 
         # Integration time per pixel
-        self.px_time = 0
+        self.px_time = 30e-3
         self._photon_samples = 0
         self.backward_pixels = 0  # The number is determined by the clock frequency and the bw_speed
 
@@ -73,11 +73,11 @@ class ConfocalHistoryEntry(QtCore.QObject):
         ####
         # Set up the ODMR scanner parameters
         ####
-        self.start_freq = 0
-        self.stop_freq = 0
-        self.freq_resolution = 0
+        self.start_freq = 2.82e9
+        self.stop_freq = 2.92e9
+        self.freq_resolution = 1e6
         self.mw_power = -100
-        self.odmr_averages = 0
+        self.odmr_averages = 1
 
     def restore(self, snvm):
         """ Write data back into confocal logic and pull all the necessary strings """
@@ -198,6 +198,7 @@ class SnvmLogic(GenericLogic):
 
     doublescanner = Connector(interface='SnvmScannerInterface')
     odmrscanner = Connector(interface='MicrowaveInterface')
+    savelogic = Connector(interface='HDF5SaveLogic')
 
     slow_motion_clock_rate = StatusVar('slow_motion_clock_rate', 10)
     backward_speed = StatusVar('slow_motion_speed', 1)
@@ -229,6 +230,7 @@ class SnvmLogic(GenericLogic):
     def on_activate(self):
         self._scanning_device = self.doublescanner()
         self._odmrscanner = self.odmrscanner()
+        self._savelogic = self.savelogic()
 
         self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
         self.set_motion_speed(self.backward_speed)
@@ -654,6 +656,11 @@ class SnvmLogic(GenericLogic):
         self._is_retracing = False
         self.stopRequested = False
 
+    def save_snvm(self):
+        self._savelogic.save_hdf5_data()
+
+    def save_confocal(self):
+        self._savelogic.save_hdf5_data()
 
 
 
