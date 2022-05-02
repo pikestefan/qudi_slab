@@ -233,20 +233,6 @@ class SnvmGui(GUIBase):
 
         self._viewIndex = 0 #Variable used to scroll through the SNVM images.Gets updated when clicking the frequency selector
 
-        ##############
-        # Connect the actions to their slots
-        ##############
-        self._mainwindow.actionStart_snvmscan.triggered.connect(self.scanning_action_clicked)
-        self._mainwindow.actionStart_conf_scan.triggered.connect(self.scanning_action_clicked)
-        self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
-        self._mainwindow.actionOptimize.triggered.connect(self.scanning_action_clicked)
-        self._mainwindow.actionOptimizer_settings.triggered.connect(self.menu_optimizer_settings)
-        self._mainwindow.actionSnvm_settings.triggered.connect(self.menu_snvm_settings)
-        self._mainwindow.action_snvm_goToPoint.triggered.connect(self.scanning_action_clicked)
-        self._mainwindow.action_cfc_goToPoint.triggered.connect(self.scanning_action_clicked)
-
-        self._mainwindow.actionStop_scan.setEnabled(False)
-
         ########
         # AFM scanning settings
         ########
@@ -305,7 +291,6 @@ class SnvmGui(GUIBase):
         #########
 
         #Connect the signals
-
         self.sigStartOptimizer.connect(self.optimize_counts, QtCore.Qt.QueuedConnection)
         self.sigStartScanning.connect(self.start_scanning, QtCore.Qt.QueuedConnection)
         self.sigGoTo.connect(self.go_to_point, QtCore.Qt.QueuedConnection)
@@ -332,6 +317,21 @@ class SnvmGui(GUIBase):
         self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_afm_image)
         self._mainwindow.tipTraceViewSpinBox.valueChanged.connect(self.refresh_confocal_image)
 
+        ##############
+        # Connect the actions to their slots
+        ##############
+        self._mainwindow.actionStart_snvmscan.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionStart_conf_scan.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
+        self._mainwindow.actionOptimize.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionOptimizer_settings.triggered.connect(self.menu_optimizer_settings)
+        self._mainwindow.actionSnvm_settings.triggered.connect(self.menu_snvm_settings)
+        self._mainwindow.action_snvm_goToPoint.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.action_cfc_goToPoint.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionSave_snvm.triggered.connect(self.save_snvm_data)
+        self._mainwindow.actionSave_confocal.triggered.connect(self.save_confocal_data)
+
+        self._mainwindow.actionStop_scan.setEnabled(False)
         self.show()
 
     def initOptimizer(self):
@@ -696,4 +696,10 @@ class SnvmGui(GUIBase):
     def go_to_finished(self):
         self.activate_interactions()
         self._mainwindow.actionStop_scan.setEnabled(True)
+
+    def save_snvm_data(self):
+        self._scanning_logic.save_snvm()
+
+    def save_confocal_data(self):
+        self._scanning_logic.save_confocal()
 
