@@ -261,17 +261,20 @@ class SnvmGui(GUIBase):
         self._afm_widgets[self._mainwindow.fwpxTime.objectName()] = self._mainwindow.fwpxTime
         self._afm_widgets[self._mainwindow.storeRetrace.objectName()] = self._mainwindow.storeRetrace
 
-        # TODO: maybe set the maximum and minimum limits of the xmin/xmax and ymin/ymax
-        #  from the maximum ranges allowed.
-
         #########
-        # TODO: remove these defaults after debugging ended
-        self._afm_widgets['xResolution'].setValue(5)
-        self._afm_widgets['yResolution'].setValue(5)
-        self._afm_widgets['xMaxRange'].setValue(40e2)
-        self._afm_widgets['yMaxRange'].setValue(40e2)
-        self._afm_widgets['fwpxTime'].setValue(10)
-        self._afm_widgets['storeRetrace'].setChecked(True)
+        self._afm_widgets['xResolution'].setValue(self._scanning_logic.scanning_x_resolution)
+        self._afm_widgets['yResolution'].setValue(self._scanning_logic.scanning_y_resolution)
+        self._afm_widgets['xMinRange'].setValue(self._scanning_logic.scanning_x_range[0] /
+                                                self.xy_range_multiplier)
+        self._afm_widgets['yMinRange'].setValue(self._scanning_logic.scanning_y_range[0] /
+                                                self.xy_range_multiplier)
+        self._afm_widgets['xMaxRange'].setValue(self._scanning_logic.scanning_x_range[1] /
+                                                self.xy_range_multiplier)
+        self._afm_widgets['yMaxRange'].setValue(self._scanning_logic.scanning_y_range[1] /
+                                                self.xy_range_multiplier)
+        self._afm_widgets['fwpxTime'].setValue(self._scanning_logic.px_time /
+                                               self.px_time_multiplier)
+        self._afm_widgets['storeRetrace'].setChecked(self._scanning_logic.store_retrace)
         #########
 
         #######
@@ -291,12 +294,14 @@ class SnvmGui(GUIBase):
         self._mainwindow.mwStep.setDecimals(6)
 
         #########
-        # TODO: remove these defaults after debugging ended
-        self._odmr_widgets['mwStart'].setValue(2.87)
-        self._odmr_widgets['mwEnd'].setValue(2.88)
-        self._odmr_widgets['mwStep'].setValue(1)
-        self._odmr_widgets['mwPower'].setValue(-100)
-        self._odmr_widgets['mwAverages'].setValue(1)
+        self._odmr_widgets['mwStart'].setValue(self._scanning_logic.start_freq /
+                                               self.startstopFreq_multiplier)
+        self._odmr_widgets['mwEnd'].setValue(self._scanning_logic.stop_freq /
+                                             self.startstopFreq_multiplier)
+        self._odmr_widgets['mwStep'].setValue(self._scanning_logic.freq_resolution /
+                                              self.stepFreq_multiplier)
+        self._odmr_widgets['mwPower'].setValue(self._scanning_logic.mw_power)
+        self._odmr_widgets['mwAverages'].setValue(self._scanning_logic.odmr_averages)
         #########
 
         #Connect the signals
@@ -401,7 +406,6 @@ class SnvmGui(GUIBase):
         self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value()*self.xy_range_multiplier,
                                                  self._afm_widgets['yMaxRange'].value()*self.xy_range_multiplier]
 
-
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
 
@@ -409,7 +413,6 @@ class SnvmGui(GUIBase):
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
 
         if start_name == 'snvm':
-
             #First update the crosshair position
             crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
             if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range
