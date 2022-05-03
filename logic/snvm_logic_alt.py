@@ -204,7 +204,6 @@ class SnvmLogic(GenericLogic):
     backward_speed = StatusVar('slow_motion_speed', 1)
     max_history_length = StatusVar(default=10)
 
-    signal_moved_to_point = QtCore.Signal()
     # signals
     signal_start_snvm = QtCore.Signal()
     signal_continue_snvm = QtCore.Signal()
@@ -217,6 +216,9 @@ class SnvmLogic(GenericLogic):
     signal_freq_px_acquired = QtCore.Signal(int) #Emits the row of the temporary data matrix to store the odmr data
     signal_xy_px_acquired = QtCore.Signal()
     signal_scan_finished = QtCore.Signal(bool) #Emits True if the scan was snvm, False otherwise
+
+    signal_goto_start = QtCore.Signal(list, str, bool, str)
+    signal_moved_to_point = QtCore.Signal(str)
 
     signal_snvm_initialized = QtCore.Signal()
     signal_confocal_initialized = QtCore.Signal()
@@ -297,6 +299,7 @@ class SnvmLogic(GenericLogic):
         self.signal_xy_px_acquired.connect(self.move_to_xy_pixel, QtCore.Qt.QueuedConnection)
         self.signal_freq_px_acquired.connect(self.move_to_freq_pixel, QtCore.Qt.QueuedConnection)
         self.signal_continue_confocal.connect(self.continue_confocal_scanning, QtCore.Qt.QueuedConnection)
+        self.signal_goto_start.connect(self._go_to_point, QtCore.Qt.QueuedConnection)
 
     def on_deactivate(self):
         """ Reverse steps of activation
@@ -312,7 +315,6 @@ class SnvmLogic(GenericLogic):
         return 0
 
     def _prepare_data_matrices(self):
-
         #Clip the ranges if they are out of bound
         self.check_xy_ranges()
 
@@ -432,10 +434,15 @@ class SnvmLogic(GenericLogic):
         #self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
         #                                           self._y_scanning_axis[self._y_scanning_index]],
         #                                           stack=self._active_stack)
-
+        """
         self._scanning_device.scanner_slow_motion([self._x_scanning_axis[self._x_scanning_index],
                                                    self._y_scanning_axis[self._y_scanning_index]],
                                                   stack=self._active_stack, clear_ao_whenfinished=False)
+        """
+        self.go_to_point([self._x_scanning_axis[self._x_scanning_index],
+                          self._y_scanning_axis[self._y_scanning_index]],
+                         stack=self._active_stack, clear_ao_whenfinished=False,
+                         caller="logic")
         #FIXME: look into how to operate the srs in list mode
         self._odmrscanner.set_frequency(self.freq_axis[self._freq_scanning_index])
         self._odmrscanner.on()
@@ -458,12 +465,19 @@ class SnvmLogic(GenericLogic):
         #self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
         #                                            self._y_scanning_axis[self._y_scanning_index]],
         #                                           stack=self._active_stack)
+        """
         self._scanning_device.scanner_slow_motion([self._x_scanning_axis[self._x_scanning_index],
                                                    self._y_scanning_axis[self._y_scanning_index]],
                                                   stack=self._active_stack, clear_ao_whenfinished=False)
+        """
+        self.go_to_point([self._x_scanning_axis[self._x_scanning_index],
+                          self._y_scanning_axis[self._y_scanning_index]],
+                         stack=self._active_stack, clear_ao_whenfinished=False,
+                         caller="logic")
         self.signal_continue_confocal.emit()
 
     def continue_snvm_scanning(self):
+        print("Started snvm")
         acquire_data = False if (self.store_retrace is False) and (self._is_retracing is True) else True
         if acquire_data:
             #If the index of the ODMR is less than the averages, keep acquiring
@@ -626,13 +640,25 @@ class SnvmLogic(GenericLogic):
 
         return 0
 
-    def go_to_point(self, xy_coord, stack=None):
-        self.module_state.lock()
-        self._scanning_device.module_state.lock()
-        self._scanning_device.scanner_slow_motion(xy_coord, stack=stack)
-        self.module_state.unlock()
-        self._scanning_device.module_state.unlock()
-        self.signal_moved_to_point.emit()
+    def go_to_point(self, xy_coord, stack=None, clear_ao_whenfinished=True,
+                    caller="logic"):
+        """
+        This public method emits only the signal that calls the private
+        _go_to_point, which calls the scanner_slow_motion of the scanning device.
+        This is done to prevent the GUI from freezing when the scanner_slow_motion
+        is running.
+        """
+        self.signal_goto_start.emit(xy_coord, stack, clear_ao_whenfinished, caller)
+
+    def _go_to_point(self, xy_coord, stack, clear_ao_whenfinished, caller):
+        """
+        Private method that calls the scanner_slow_motion. To be called only by the public
+        go_to_point.
+        """
+        self._scanning_device.scanner_slow_motion(xy_coord, stack=stack,
+                                                  clear_ao_whenfinished=clear_ao_whenfinished)
+
+        self.signal_moved_to_point.emit(caller)
 
     def get_xy_image_range(self, multiplier=1):
         """

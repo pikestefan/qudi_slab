@@ -685,17 +685,22 @@ class SnvmGui(GUIBase):
         if scanner == 'snvm':
             position = self._mainwindow.multiFreqPlotView.crosshair_position
             position = [pos * self.xy_range_multiplier for pos in position]
-            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.sampleStackName)
+            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.sampleStackName,
+                                             caller="gui")
         elif scanner == 'cfc':
             position = self._mainwindow.confocalScannerView.crosshair_position
             position = [pos * self.xy_range_multiplier for pos in position]
-            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.tipStackName)
+            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.tipStackName,
+                                             caller="gui")
         else:
             self.log.exception("Invalid name.")
 
-    def go_to_finished(self):
-        self.activate_interactions()
-        self._mainwindow.actionStop_scan.setEnabled(True)
+    def go_to_finished(self, callertag):
+        if callertag=="gui":
+            self.activate_interactions()
+            self._mainwindow.actionStop_scan.setEnabled(True)
+        else:
+            pass
 
     def save_snvm_data(self):
         self._scanning_logic.save_snvm()
