@@ -671,17 +671,23 @@ class HDF5SaveLogic(SaveLogic):
     def __init__(self, *args, **kwargs):
         super(HDF5SaveLogic, self).__init__(*args, **kwargs)
 
-    def save_hdf5_data(self, data_dict, attributes=None, filepath=None, filename=None, filelabel=None,
+    def save_hdf5_data(self, data_dict, attributes=None, filepath=None, filelabel=None, filename=None,
                        timestamp=None, plotfig=None):
         """
         Function used to save the data in hdf5 format. Data is a dictionary of data and
-        metadata. The dictionary key corresponds to the hdf5 file key, so it follows it is
-        arranged in a POSIX-style hierarchy with /-separators.
+        metadata. The dictionary key corresponds to the hdf5 file key, so it follows a POSIX-style hierarchy
+        with /-separators.
 
         @param data_dict: A dictionary containing the hdf5 dataset names and the data. The data need to be lists or
                           numpy.ndarray
         @param attributes: A dictionary containning the dataset attibutes. Each attribute item needs to be a dictionary.
+        @param filepath: An optional argument to give the name of the filepath. Default is module name.
+        @param filelabel: An optional parameter is module name. Default is module name.
+        @param filename: An optional parameter to set the file name. Default is timestamp + module name.
+        @param timestamp: An optional parameter which sets the timestamp. Default is the date-time at saving.
+        @param plotfig: a 2D-array which provides an optional saved figure.
         """
+
         start_time = time.time()
         if timestamp is None:
             timestamp = datetime.datetime.now()
