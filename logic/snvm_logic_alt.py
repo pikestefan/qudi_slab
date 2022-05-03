@@ -699,17 +699,27 @@ class SnvmLogic(GenericLogic):
         self.stopRequested = False
 
     def save_snvm(self):
-        xax, yax, freqax, averages, snvm_trace, snvm_retrace = self._curr_snvm_image
-        data = {'x_axis': xax,
-                'y_axis': yax,
-                'frequency_axis': freqax,
-                'averages': averages,
-                'snvm_trace': snvm_trace,
-                'snvm_retrace': snvm_retrace}
+        xaxsnvm, yaxsnvm, freqax, averages, snvm_trace, snvm_retrace = self._curr_snvm_image
+        xaxafm, yaxafm, afm_trace, afm_retrace = self._curr_afm_image
+        data = {'snvm/x_axis': xaxsnvm,
+                'snvm/y_axis': yaxsnvm,
+                'snvm/frequency_axis': freqax,
+                'snvm/averages': averages,
+                'snvm/snvm_trace': snvm_trace,
+                'snvm/snvm_retrace': snvm_retrace,
+                'afm/x_axis': xaxafm,
+                'afm/y_axis': yaxafm,
+                'afm/afm_trace': afm_trace,
+                'afm/afm_retrace': afm_retrace}
         self._savelogic.save_hdf5_data(data)
 
     def save_confocal(self):
-        self._savelogic.save_hdf5_data()
+        xax, yax, cfc_trace, cfc_retrace = self._curr_cfc_image
+        data = {'confocal/x_axis': xax,
+                'confocal/y_axis': yax,
+                'confocal/confocal_trace': cfc_trace,
+                'confocal/confocal_retrace': cfc_retrace}
+        self._savelogic.save_hdf5_data(data, plotfig=cfc_trace)
 
 
 
