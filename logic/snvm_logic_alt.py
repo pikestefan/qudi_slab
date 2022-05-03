@@ -477,7 +477,6 @@ class SnvmLogic(GenericLogic):
         self.signal_continue_confocal.emit()
 
     def continue_snvm_scanning(self):
-        print("Started snvm")
         acquire_data = False if (self.store_retrace is False) and (self._is_retracing is True) else True
         if acquire_data:
             #If the index of the ODMR is less than the averages, keep acquiring
