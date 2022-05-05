@@ -169,6 +169,8 @@ class SnvmGui(GUIBase):
         self.snvm_image = ScanImageItem(axisOrder='row-major')
         self.snvm_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.multiFreqPlotView.addItem(self.snvm_image)
+        self._mainwindow.multiFreqPlotView.setLabel('bottom', 'X (nm)')
+        self._mainwindow.multiFreqPlotView.setLabel('left', 'Y (nm)')
         self._mainwindow.multiFreqPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.multiFreqPlotView.set_crosshair_size((1,1))
         self._mainwindow.multiFreqPlotView.sigCrosshairDraggedPosChanged.connect(self.move_afm_crosshair)
@@ -180,10 +182,14 @@ class SnvmGui(GUIBase):
 
         self.multifreq_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.multiFreqCbarView.addItem(self.multifreq_cb)
+        self._mainwindow.multiFreqCbarView.hideAxis('bottom')
+        self._mainwindow.multiFreqCbarView.setMouseEnabled(x=False, y=False)
 
         #Set up the AFM image and colorbar
         self.afm_image = ScanImageItem(axisOrder='row-major')
         self._mainwindow.afmPlotView.addItem(self.afm_image)
+        self._mainwindow.afmPlotView.setLabel('bottom', 'X (nm)')
+        self._mainwindow.afmPlotView.setLabel('left', 'Y (nm)')
         self._mainwindow.afmPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.afmPlotView.set_crosshair_size((1, 1))
         self._mainwindow.afmPlotView.sigCrosshairDraggedPosChanged.connect(self.move_multifreq_crosshair)
@@ -200,6 +206,8 @@ class SnvmGui(GUIBase):
         self.cfc_image = ScanImageItem(axisOrder='row-major')
         self.cfc_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.confocalScannerView.addItem(self.cfc_image)
+        self._mainwindow.confocalScannerView.setLabel('bottom', 'X (nm)')
+        self._mainwindow.confocalScannerView.setLabel('left', 'Y (nm)')
         self._mainwindow.confocalScannerView.toggle_crosshair(True, movable=True)
         self._mainwindow.confocalScannerView.set_crosshair_size((1, 1))
 
@@ -215,6 +223,8 @@ class SnvmGui(GUIBase):
         self.optimizer_image = ScanImageItem(axisOrder='row-major')
         self.optimizer_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.optimizerView.addItem(self.optimizer_image)
+        self._mainwindow.optimizerView.setLabel('bottom', 'X (nm)')
+        self._mainwindow.optimizerView.setLabel('left', 'Y (nm)')
 
         opt_im_vb = self.get_image_viewbox(self.optimizer_image)
         opt_im_vb.setAspectLocked(True)
@@ -227,6 +237,8 @@ class SnvmGui(GUIBase):
         self.average_odmr_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
         self._mainwindow.odmrPlotWidget.addItem(self.curr_odmr_trace)
         self._mainwindow.odmrPlotWidget.addItem(self.average_odmr_trace)
+        self._mainwindow.odmrPlotWidget.setLabel('bottom', 'Frequency (GHz)')
+        self._mainwindow.odmrPlotWidget.setLabel('left', 'Counts (GHz)')
 
         #Quick settings for the spinbox to view the frequency slices
         self._mainwindow.frequencySliceSelector.lineEdit().setReadOnly(True)
