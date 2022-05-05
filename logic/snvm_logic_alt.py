@@ -482,6 +482,7 @@ class SnvmLogic(GenericLogic):
             #If the index of the ODMR is less than the averages, keep acquiring
             if self._odmr_rep_index < self.odmr_averages:
                 counts, ainput = self.acquire_pixel()
+                counts = counts[0] / self.px_time
                 self.temp_freq_matrix[self._odmr_rep_index, self._freq_scanning_index] = counts
                 self._temp_afm_matrix[self._odmr_rep_index, self._freq_scanning_index] = ainput.mean()
 
@@ -520,6 +521,7 @@ class SnvmLogic(GenericLogic):
         acquire_data = False if (self.store_retrace is False) and (self._is_retracing is True) else True
         if acquire_data:
             counts, _ = self.acquire_pixel()
+            counts = counts[0] / self.px_time
             if self._is_retracing and self.store_retrace:
                 self.xy_scan_matrix_retrace[self._y_scanning_index, self._x_scanning_index] = counts
             else:
