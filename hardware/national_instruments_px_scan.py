@@ -764,8 +764,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         xline = np.zeros((2, points_xmotion))
         xline[0], xline[1] = np.linspace(x_start, x_end, points_xmotion), y_end
 
-        self.move_along_line(yline, stack=stack)
-        self.move_along_line(xline, stack=stack)
+        final_line = np.hstack((yline, xline))
+
+        self.move_along_line(final_line, stack=stack)
 
         if close_at_end:
             self.clear_motion_clock()

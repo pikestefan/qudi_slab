@@ -39,6 +39,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
 from PIL import PngImagePlugin
 
+import h5py
+
 
 class DailyLogHandler(logging.FileHandler):
     """
@@ -660,4 +662,141 @@ class SaveLogic(GenericLogic):
         """
         self._additional_parameters.pop(key, None)
         return
+
+class HDF5SaveLogic(SaveLogic):
+    """
+    Class that adds the save_hdf5_data function, which is meant to save all the desired data
+    and metadata in a single file.
+    """
+    def __init__(self, *args, **kwargs):
+        super(HDF5SaveLogic, self).__init__(*args, **kwargs)
+
+    def save_hdf5_data(self, data_dict, attributes=None, filepath=None, filelabel=None, filename=None,
+                       timestamp=None, plotfig=None):
+        """
+        Function used to save the data in hdf5 format. Data is a dictionary of data and
+        metadata. The dictionary key corresponds to the hdf5 file key, so it follows a POSIX-style hierarchy
+        with /-separators.
+
+        @param data_dict: A dictionary containing the hdf5 dataset names and the data. The data need to be lists or
+                          numpy.ndarray
+        @param attributes: A dictionary containning the dataset attibutes. Each attribute item needs to be a dictionary.
+        @param filepath: An optional argument to give the name of the filepath. Default is module name.
+        @param filelabel: An optional parameter is module name. Default is module name.
+        @param filename: An optional parameter to set the file name. Default is timestamp + module name.
+        @param timestamp: An optional parameter which sets the timestamp. Default is the date-time at saving.
+        @param plotfig: a 2D-array which provides an optional saved figure.
+        """
+
+        start_time = time.time()
+        if timestamp is None:
+            timestamp = datetime.datetime.now()
+
+        # try to trace back the functioncall to the class which was calling it.
+        try:
+            frm = inspect.stack()[1]
+            # this will get the object, which called the save_data function.
+            mod = inspect.getmodule(frm[0])
+            # that will extract the name of the class.
+            module_name = mod.__name__.split('.')[-1]
+        except:
+            # Sometimes it is not possible to get the object which called the save_data function
+            # (such as when calling this from the console).
+            module_name = 'UNSPECIFIED'
+
+        # determine proper file path
+        if filepath is None:
+            filepath = self.get_path_for_module(module_name)
+        elif not os.path.exists(filepath):
+            os.makedirs(filepath)
+            self.log.info('Custom filepath does not exist. Created directory "{0}"'
+                          ''.format(filepath))
+
+        # create filelabel if none has been passed
+        if filelabel is None:
+            filelabel = module_name
+        if self.active_poi_name != '':
+            filelabel = self.active_poi_name.replace(' ', '_') + '_' + filelabel
+
+        #TODO: change default file naming, the time stamp is useless since now it's
+        # stored in the data attributes
+        if filename is None:
+            filename = timestamp.strftime('%Y%m%d-%H%M-%S' + '_' + filelabel + '.h5')
+
+        with h5py.File(os.path.join(filepath, filename), 'w') as h5file:
+            for dset_name, data in data_dict.items():
+                if isinstance(data, (list, np.ndarray)):
+                    dset = h5file.create_dataset(dset_name, shape=data.shape, dtype=data.dtype, data=data)
+                else:
+                    self.log.info("The data you passed for {} are not an array, the corresponding dataset will not"
+                                  "be created.".format(dset_name))
+
+                dset.attrs['timestamp'] = timestamp.strftime('%Y-%m-%d, %H:%M:%S')
+                if (attributes is not None) and (dset_name in attributes):
+                    if not isinstance(attributes, (dict, OrderedDict)):
+                        self.log.info("The attributes need to be a dictionary, the saving of the attributes of {}"
+                                      "has been aborted".format(dset_name))
+                    else:
+                        for attr_name, attr in attributes.items():
+                            dset.attrs[attr_name] = attr
+
+        if plotfig is not None:
+            # create Metadata
+            metadata = dict()
+            metadata['Title'] = 'Image produced by qudi: ' + module_name
+            metadata['Author'] = 'qudi - Software Suite'
+            metadata['Subject'] = 'Find more information on: https://github.com/Ulm-IQO/qudi'
+            metadata[
+                'Keywords'] = 'Python 3, Qt, experiment control, automation, measurement, software, framework, modular'
+            metadata['Producer'] = 'qudi - Software Suite'
+            if timestamp is not None:
+                metadata['CreationDate'] = timestamp
+                metadata['ModDate'] = timestamp
+            else:
+                metadata['CreationDate'] = time
+                metadata['ModDate'] = time
+
+            if self.save_pdf:
+                # determine the PDF-Filename
+                fig_fname_vector = os.path.join(filepath, filename)[:-4] + '_fig.pdf'
+
+                # Create the PdfPages object to which we will save the pages:
+                # The with statement makes sure that the PdfPages object is closed properly at
+                # the end of the block, even if an Exception occurs.
+                with PdfPages(fig_fname_vector) as pdf:
+                    pdf.savefig(plotfig, bbox_inches='tight', pad_inches=0.05)
+
+                    # We can also set the file's metadata via the PdfPages object:
+                    pdf_metadata = pdf.infodict()
+                    for x in metadata:
+                        pdf_metadata[x] = metadata[x]
+
+            if self.save_png:
+                # determine the PNG-Filename and save the plain PNG
+                fig_fname_image = os.path.join(filepath, filename)[:-4] + '_fig.png'
+                plotfig.savefig(fig_fname_image, bbox_inches='tight', pad_inches=0.05)
+
+                # Use Pillow (an fork for PIL) to attach metadata to the PNG
+                png_image = Image.open(fig_fname_image)
+                png_metadata = PngImagePlugin.PngInfo()
+
+                # PIL can only handle Strings, so let's convert our times
+                metadata['CreationDate'] = metadata['CreationDate'].strftime('%Y%m%d-%H%M-%S')
+                metadata['ModDate'] = metadata['ModDate'].strftime('%Y%m%d-%H%M-%S')
+
+                for x in metadata:
+                    # make sure every value of the metadata is a string
+                    if not isinstance(metadata[x], str):
+                        metadata[x] = str(metadata[x])
+
+                    # add the metadata to the picture
+                    png_metadata.add_text(x, metadata[x])
+
+                # save the picture again, this time including the metadata
+                png_image.save(fig_fname_image, "png", pnginfo=png_metadata)
+
+            # close matplotlib figure
+            plt.close(plotfig)
+            self.log.debug('Time needed to save data: {0:.2f}s'.format(time.time() - start_time))
+            # ----------------------------------------------------------------------------------
 

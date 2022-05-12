@@ -57,6 +57,7 @@ class OptimizerLogicPxScan(GenericLogic):
     sigRefocusXySizeChanged = QtCore.Signal()
     sigRefocusFinished = QtCore.Signal(list)
     sigPositionChanged = QtCore.Signal(float, float, float)
+    sigGoToPoint = QtCore.Signal(list)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -111,6 +112,8 @@ class OptimizerLogicPxScan(GenericLogic):
         self._sigCompletedXyOptimizerScan.connect(self._set_optimized_xy_from_fit, QtCore.Qt.QueuedConnection)
 
         self._sigOptimizationComplete.connect(self.finish_refocus)
+
+        self.sigGoToPoint.connect(self._move_to_start_pos, QtCore.Qt.QueuedConnection)
         return 0
 
     def on_deactivate(self):
@@ -172,13 +175,9 @@ class OptimizerLogicPxScan(GenericLogic):
         xmin = np.clip(x0 - 0.5 * self.refocus_XY_size, self.x_range[0], self.x_range[1])
         ymin = np.clip(y0 - 0.5 * self.refocus_XY_size, self.y_range[0], self.y_range[1])
 
-        status = self._move_to_start_pos([xmin, ymin])
-        if status < 0:
-            self.log.error('Error during move to starting point.')
-            self.stop_refocus()
-            self._sigScanNextXyLine.emit()
-            return
+        self.sigGoToPoint.emit([xmin, ymin])
 
+    def _launch_optimizer(self):
         scanner_status = self.start_scanner()
         if scanner_status < 0:
             self.sigRefocusFinished.emit(
@@ -188,7 +187,7 @@ class OptimizerLogicPxScan(GenericLogic):
 
         self._initialize_xy_refocus_image()
 
-        self.sigRefocusStarted.emit(tag)
+        self.sigRefocusStarted.emit('logic')
         self._sigScanNextXyLine.emit()
 
     def stop_refocus(self):
@@ -235,8 +234,16 @@ class OptimizerLogicPxScan(GenericLogic):
 
         @param start_pos float[]: 2-point vector giving x, y position to go to.
         """
-        self._scanning_device.scanner_slow_motion(start_pos, stack=self.optimizer_stack, clear_ao_whenfinished=False)
-        return 0
+        try:
+            self._scanning_device.scanner_slow_motion(start_pos, stack=self.optimizer_stack,
+                                                      clear_ao_whenfinished=False)
+        except:
+            self.log.error('Error during move to starting point.')
+            self.stop_refocus()
+            self._sigScanNextXyLine.emit()
+            return
+
+        self._launch_optimizer()
 
     def _refocus_xy_line(self):
         """Scanning a line of the xy optimization image.

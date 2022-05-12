@@ -169,6 +169,8 @@ class SnvmGui(GUIBase):
         self.snvm_image = ScanImageItem(axisOrder='row-major')
         self.snvm_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.multiFreqPlotView.addItem(self.snvm_image)
+        self._mainwindow.multiFreqPlotView.setLabel('bottom', 'X (nm)')
+        self._mainwindow.multiFreqPlotView.setLabel('left', 'Y (nm)')
         self._mainwindow.multiFreqPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.multiFreqPlotView.set_crosshair_size((1,1))
         self._mainwindow.multiFreqPlotView.sigCrosshairDraggedPosChanged.connect(self.move_afm_crosshair)
@@ -180,10 +182,14 @@ class SnvmGui(GUIBase):
 
         self.multifreq_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.multiFreqCbarView.addItem(self.multifreq_cb)
+        self._mainwindow.multiFreqCbarView.hideAxis('bottom')
+        self._mainwindow.multiFreqCbarView.setMouseEnabled(x=False, y=False)
 
         #Set up the AFM image and colorbar
         self.afm_image = ScanImageItem(axisOrder='row-major')
         self._mainwindow.afmPlotView.addItem(self.afm_image)
+        self._mainwindow.afmPlotView.setLabel('bottom', 'X (nm)')
+        self._mainwindow.afmPlotView.setLabel('left', 'Y (nm)')
         self._mainwindow.afmPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.afmPlotView.set_crosshair_size((1, 1))
         self._mainwindow.afmPlotView.sigCrosshairDraggedPosChanged.connect(self.move_multifreq_crosshair)
@@ -200,6 +206,8 @@ class SnvmGui(GUIBase):
         self.cfc_image = ScanImageItem(axisOrder='row-major')
         self.cfc_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.confocalScannerView.addItem(self.cfc_image)
+        self._mainwindow.confocalScannerView.setLabel('bottom', 'X (nm)')
+        self._mainwindow.confocalScannerView.setLabel('left', 'Y (nm)')
         self._mainwindow.confocalScannerView.toggle_crosshair(True, movable=True)
         self._mainwindow.confocalScannerView.set_crosshair_size((1, 1))
 
@@ -215,6 +223,8 @@ class SnvmGui(GUIBase):
         self.optimizer_image = ScanImageItem(axisOrder='row-major')
         self.optimizer_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.optimizerView.addItem(self.optimizer_image)
+        self._mainwindow.optimizerView.setLabel('bottom', 'X (nm)')
+        self._mainwindow.optimizerView.setLabel('left', 'Y (nm)')
 
         opt_im_vb = self.get_image_viewbox(self.optimizer_image)
         opt_im_vb.setAspectLocked(True)
@@ -227,25 +237,13 @@ class SnvmGui(GUIBase):
         self.average_odmr_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
         self._mainwindow.odmrPlotWidget.addItem(self.curr_odmr_trace)
         self._mainwindow.odmrPlotWidget.addItem(self.average_odmr_trace)
+        self._mainwindow.odmrPlotWidget.setLabel('bottom', 'Frequency (GHz)')
+        self._mainwindow.odmrPlotWidget.setLabel('left', 'Counts (GHz)')
 
         #Quick settings for the spinbox to view the frequency slices
         self._mainwindow.frequencySliceSelector.lineEdit().setReadOnly(True)
 
         self._viewIndex = 0 #Variable used to scroll through the SNVM images.Gets updated when clicking the frequency selector
-
-        ##############
-        # Connect the actions to their slots
-        ##############
-        self._mainwindow.actionStart_snvmscan.triggered.connect(self.scanning_action_clicked)
-        self._mainwindow.actionStart_conf_scan.triggered.connect(self.scanning_action_clicked)
-        self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
-        self._mainwindow.actionOptimize.triggered.connect(self.scanning_action_clicked)
-        self._mainwindow.actionOptimizer_settings.triggered.connect(self.menu_optimizer_settings)
-        self._mainwindow.actionSnvm_settings.triggered.connect(self.menu_snvm_settings)
-        self._mainwindow.action_snvm_goToPoint.triggered.connect(self.scanning_action_clicked)
-        self._mainwindow.action_cfc_goToPoint.triggered.connect(self.scanning_action_clicked)
-
-        self._mainwindow.actionStop_scan.setEnabled(False)
 
         ########
         # AFM scanning settings
@@ -261,17 +259,20 @@ class SnvmGui(GUIBase):
         self._afm_widgets[self._mainwindow.fwpxTime.objectName()] = self._mainwindow.fwpxTime
         self._afm_widgets[self._mainwindow.storeRetrace.objectName()] = self._mainwindow.storeRetrace
 
-        # TODO: maybe set the maximum and minimum limits of the xmin/xmax and ymin/ymax
-        #  from the maximum ranges allowed.
-
         #########
-        # TODO: remove these defaults after debugging ended
-        self._afm_widgets['xResolution'].setValue(5)
-        self._afm_widgets['yResolution'].setValue(5)
-        self._afm_widgets['xMaxRange'].setValue(40e2)
-        self._afm_widgets['yMaxRange'].setValue(40e2)
-        self._afm_widgets['fwpxTime'].setValue(10)
-        self._afm_widgets['storeRetrace'].setChecked(True)
+        self._afm_widgets['xResolution'].setValue(self._scanning_logic.scanning_x_resolution)
+        self._afm_widgets['yResolution'].setValue(self._scanning_logic.scanning_y_resolution)
+        self._afm_widgets['xMinRange'].setValue(self._scanning_logic.scanning_x_range[0] /
+                                                self.xy_range_multiplier)
+        self._afm_widgets['yMinRange'].setValue(self._scanning_logic.scanning_y_range[0] /
+                                                self.xy_range_multiplier)
+        self._afm_widgets['xMaxRange'].setValue(self._scanning_logic.scanning_x_range[1] /
+                                                self.xy_range_multiplier)
+        self._afm_widgets['yMaxRange'].setValue(self._scanning_logic.scanning_y_range[1] /
+                                                self.xy_range_multiplier)
+        self._afm_widgets['fwpxTime'].setValue(self._scanning_logic.px_time /
+                                               self.px_time_multiplier)
+        self._afm_widgets['storeRetrace'].setChecked(self._scanning_logic.store_retrace)
         #########
 
         #######
@@ -291,16 +292,17 @@ class SnvmGui(GUIBase):
         self._mainwindow.mwStep.setDecimals(6)
 
         #########
-        # TODO: remove these defaults after debugging ended
-        self._odmr_widgets['mwStart'].setValue(2.87)
-        self._odmr_widgets['mwEnd'].setValue(2.88)
-        self._odmr_widgets['mwStep'].setValue(1)
-        self._odmr_widgets['mwPower'].setValue(-100)
-        self._odmr_widgets['mwAverages'].setValue(1)
+        self._odmr_widgets['mwStart'].setValue(self._scanning_logic.start_freq /
+                                               self.startstopFreq_multiplier)
+        self._odmr_widgets['mwEnd'].setValue(self._scanning_logic.stop_freq /
+                                             self.startstopFreq_multiplier)
+        self._odmr_widgets['mwStep'].setValue(self._scanning_logic.freq_resolution /
+                                              self.stepFreq_multiplier)
+        self._odmr_widgets['mwPower'].setValue(self._scanning_logic.mw_power)
+        self._odmr_widgets['mwAverages'].setValue(self._scanning_logic.odmr_averages)
         #########
 
         #Connect the signals
-
         self.sigStartOptimizer.connect(self.optimize_counts, QtCore.Qt.QueuedConnection)
         self.sigStartScanning.connect(self.start_scanning, QtCore.Qt.QueuedConnection)
         self.sigGoTo.connect(self.go_to_point, QtCore.Qt.QueuedConnection)
@@ -327,6 +329,21 @@ class SnvmGui(GUIBase):
         self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_afm_image)
         self._mainwindow.tipTraceViewSpinBox.valueChanged.connect(self.refresh_confocal_image)
 
+        ##############
+        # Connect the actions to their slots
+        ##############
+        self._mainwindow.actionStart_snvmscan.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionStart_conf_scan.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
+        self._mainwindow.actionOptimize.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionOptimizer_settings.triggered.connect(self.menu_optimizer_settings)
+        self._mainwindow.actionSnvm_settings.triggered.connect(self.menu_snvm_settings)
+        self._mainwindow.action_snvm_goToPoint.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.action_cfc_goToPoint.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionSave_snvm.triggered.connect(self.save_snvm_data)
+        self._mainwindow.actionSave_confocal.triggered.connect(self.save_confocal_data)
+
+        self._mainwindow.actionStop_scan.setEnabled(False)
         self.show()
 
     def initOptimizer(self):
@@ -401,7 +418,6 @@ class SnvmGui(GUIBase):
         self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value()*self.xy_range_multiplier,
                                                  self._afm_widgets['yMaxRange'].value()*self.xy_range_multiplier]
 
-
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
 
@@ -409,7 +425,6 @@ class SnvmGui(GUIBase):
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
 
         if start_name == 'snvm':
-
             #First update the crosshair position
             crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
             if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range
@@ -682,15 +697,26 @@ class SnvmGui(GUIBase):
         if scanner == 'snvm':
             position = self._mainwindow.multiFreqPlotView.crosshair_position
             position = [pos * self.xy_range_multiplier for pos in position]
-            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.sampleStackName)
+            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.sampleStackName,
+                                             caller="gui")
         elif scanner == 'cfc':
             position = self._mainwindow.confocalScannerView.crosshair_position
             position = [pos * self.xy_range_multiplier for pos in position]
-            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.tipStackName)
+            self._scanning_logic.go_to_point(position, stack=self._scanning_logic.tipStackName,
+                                             caller="gui")
         else:
             self.log.exception("Invalid name.")
 
-    def go_to_finished(self):
-        self.activate_interactions()
-        self._mainwindow.actionStop_scan.setEnabled(True)
+    def go_to_finished(self, callertag):
+        if callertag=="gui":
+            self.activate_interactions()
+            self._mainwindow.actionStop_scan.setEnabled(True)
+        else:
+            pass
+
+    def save_snvm_data(self):
+        self._scanning_logic.save_snvm()
+
+    def save_confocal_data(self):
+        self._scanning_logic.save_confocal()
 
