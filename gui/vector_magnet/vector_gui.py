@@ -135,9 +135,9 @@ class VectorMagnetGui(GUIBase):
         # call logic
         self._vector_logic.Magn_to_Curr()
         # update current
-        self._mainwindow.ChannelV1.setPlainText(str(self._vector_logic.current_x))
-        self._mainwindow.ChannelV2.setPlainText(str(self._vector_logic.current_y))
-        self._mainwindow.ChannelV3.setPlainText(str(self._vector_logic.current_z))
+        self._mainwindow.ChannelV1.setPlainText(str(round(self._vector_logic.current_x, 4)))
+        self._mainwindow.ChannelV2.setPlainText(str(round(self._vector_logic.current_y, 4)))
+        self._mainwindow.ChannelV3.setPlainText(str(round(self._vector_logic.current_z, 4)))
 
     def check_channels_off(self):
         #shut down channel outputs

@@ -29,7 +29,7 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
     _voltage_max_3 = ConfigOption('voltage_max_3', missing='error')
     _current_max = ConfigOption('current_max', missing='error')
 
-    _negative_polarity = ConfigOption('negative_outputs', missing='error')
+    _negative_polarity = ConfigOption('negative_polarity', missing='error')
 
     def on_activate(self):
         """
@@ -59,7 +59,7 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
             self._write('Appl ch3,max,min')
             """
         except:
-            self.log.error('Could not connect to the GPIB address "{}". Check '
+            self.log.error('Could not connect to the usb address "{}". Check '
                            'whether address exists and reload '
                            'module!'.format(self._usb_address))
             raise
