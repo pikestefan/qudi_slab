@@ -189,9 +189,11 @@ class SpectrumNetbox(Base):
                 do_chans = [masteridx+1]
         else:
             do_chans = []
-        #Merge and get the unique
+
+        #Merge and get the unique numbers
         chans_to_activate = list(set(chans_to_activate + do_chans))
-        print(chans_to_activate)
+        self._chan_enable(*chans_to_activate)
+
 
     def _get_device_info(self):
         #FIXME: consider moving this to the CardCollection class, rather than doing it here.
