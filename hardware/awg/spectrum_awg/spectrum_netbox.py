@@ -160,7 +160,7 @@ class SpectrumNetbox(Base):
         @param dict waveform_sequences: A dictionary containing the ao waveforms. The keys must be called: ch0, ch1,
         etc... and refer to the ao channels of the AWG. Each dictionary element is a list of lists, containing the
         waveforms for each sequence.
-        @param dict digital_sequences. A dictionary containing the ao waveforms. The keys must be called: x0, x1,
+        @param dict digital_sequences. A dictionary containing the digital waveforms. The keys must be called: x0, x1,
         etc... and refer to the digital I/O channels of the AWG. Each dictionary element is a list of lists,
         containing the waveforms for each sequence.
         """
@@ -194,6 +194,7 @@ class SpectrumNetbox(Base):
         chans_to_activate = list(set(chans_to_activate + do_chans))
         self._chan_enable(*chans_to_activate)
 
+        #FIXME: GOT HERE WITH THE EDITS
 
     def _get_device_info(self):
         #FIXME: consider moving this to the CardCollection class, rather than doing it here.
@@ -289,12 +290,15 @@ class SpectrumNetbox(Base):
                 return -1
         return 0
 
-    def _allocate_data_buffer(self, analog_waveform, memsize, digital_waveforms=None):
+    def _allocate_data_buffer(self, card, analog_waveform, memsize, digital_waveforms=None):
+        # FIXME: This function cannot be used like this. If two channels are active on the same card, the data are
+        #  interleaved between the two channels. Modify the buffer allocation to reflect this.
         """
         Create the data buffer and its pointer. Analog waveform is the waveform played by the channel, while digital
         waveforms is the optional list of digital waveforms. Remember to set the X0,X1,X2 mode and assign the bits
         correctly with the appropriate method if digital waveforms are provided.
         This function also deals with correctly dealing with the data conversion from float to 16bit integer.
+
 
         @param list analog_waveform: the list/np.array containing the analog waveforms
         @param list digital_waveforms: a list with maximum three elements, and each is a list which must have the same length
@@ -322,8 +326,11 @@ class SpectrumNetbox(Base):
         else:
             dig_wforms_num = 0
 
+        # Get the number of active channels
+        active_chans = self._count_active_channels(card)
+
         # Prepare the contiguous-memory array and its pointer
-        dataBuffer = pvAllocMemPageAligned(self._netbox.bytes_persample * memsize)
+        dataBuffer = pvAllocMemPageAligned(self._netbox.bytes_persample * memsize * active_chans)
         pointertoDataBuff = cast(dataBuffer, ptr16)
 
         wformmax = max(abs(analog_waveform))  # Used for normalization.
