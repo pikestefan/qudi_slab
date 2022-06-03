@@ -112,7 +112,7 @@ class SpectrumNetbox(Base):
             if card is None:
                 self.log.error("Could not load card.")
                 return -1
-            #Make sure that the card is an AO card.
+            # Make sure that the card is an AO card.
             card_function = self._command_get(card, SPC_FNCTYPE)
             cardfeatures = self._command_get(card, SPC_PCIFEATURES)
             if (card_function != SPCM_TYPE_AO) or (cardfeatures & SPCM_FEAT_SEQUENCE) == 0:
@@ -201,7 +201,7 @@ class SpectrumNetbox(Base):
 
         @return int: -1 if errors occured, 0 otherwise
         """
-        #Make sure everything is sorted
+        # Make sure everything is sorted
         channels, amplitudes = (list(srlist) for srlist in zip(*sorted(zip(channels, amplitudes))))
         for channel, amplitude in zip(channels, amplitudes):
             card_idx = channel // self._card_num
@@ -271,14 +271,14 @@ class SpectrumNetbox(Base):
         else:
             dig_wforms_num = 0
 
-        #Prepare the contiguous-memory array and its pointer
+        # Prepare the contiguous-memory array and its pointer
         dataBuffer = pvAllocMemPageAligned(self._netbox.bytes_persample * memsize)
         pointertoDataBuff = cast(dataBuffer, ptr16)
 
         wformmax = max(abs(analog_waveform))
 
-        #Each digital output "burns" one bit of analog output. Reduce the maximum ADC value accordingly.
-        max_adc = (self._netbox.adc_resolution / 2**dig_wforms_num) - 1 #Without the -1, you "tunnel" to the negative value
+        # Each digital output "burns" one bit of analog output. Reduce the maximum ADC value accordingly.
+        max_adc = (self._netbox.adc_resolution / 2**dig_wforms_num) - 1  # Without the -1, you "tunnel" to the negative value
 
         for ii, wform_sample in enumerate(analog_waveform):
             aoval = int(max_adc * wform_sample / wformmax)
@@ -286,11 +286,20 @@ class SpectrumNetbox(Base):
             digval = 0
             if digital_waveforms is not None:
                 for jj, digform in digital_waveforms:
-                    digval |= digform[ii] << (15-jj) #Shift the bit to the correct position of the 16bit number.
+                    digval |= digform[ii] << (15-jj)  # Shift the bit to the correct position of the 16bit number.
 
-            pointertoDataBuff[ii] = int16(aoval | digval) #Finally combine the ao value with the digital one
+            pointertoDataBuff[ii] = int16(aoval | digval)  # Finally combine the ao value with the digital one
             
         return dataBuffer, pointertoDataBuff
+
+    def _sequence_max_memory(self, card):
+        """
+        Gets the maximum memory for the sequence, which depends on the number of active channels.
+
+        @param card: The card onto which the sequence will be loaded.
+        """
+        active_chans = self._count_active_channels(card)
+        return self._netbox.memsize // active_chans
 
     def _set_stop_level(self, channels, stoplevels):
         """
@@ -308,10 +317,23 @@ class SpectrumNetbox(Base):
             errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx),
                                            self.__stoplevel_chans[channel % self._card_num],
                                            int64(stoplevel))
+
             errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
             if errorout:
                 return -1
         return 0
+
+    def _set_clock_rate(self, card, clk_rate=50):
+        if not isinstance(clk_rate, int):
+            clk_rate = int(clk_rate)
+            self.log.warning(f"Given clock rate {clk_rate} is not an integer. Rounding will occurr.")
+
+        errorout = spcm_dwSetParam_i64(card, SPC_SAMPLERATE, clk_rate)
+        errorout = self._get_error_msg(card, errorout)
+        if errorout:
+            return -1
+
+    
 
     def _count_active_channels(self, card):
         """
