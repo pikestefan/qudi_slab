@@ -333,8 +333,7 @@ class SpectrumNetbox(Base):
         if errorout:
             return -1
 
-    def wowow(self):
-        pass
+    
 
     def _count_active_channels(self, card):
         """
