@@ -36,6 +36,7 @@ class CardCollection(object):
     def __init__(self):
         self.masteridx = None
         self._cards = []
+        self._chans_per_card = []
         self.max_samprate = None
         self.memsize = None
         self.bytes_persample = None
@@ -75,6 +76,12 @@ class CardCollection(object):
         Return number of loaded cards
         """
         return len(self._cards)
+
+    def set_chan_num(self, num):
+        self._chans_per_card.append(num)
+
+    def get_chan_num(self, card_idx):
+        return self._chans_per_card[card_idx]
 
 
 # FIXME: for now, the inheritance gets only Base. Once everything is settled, check the pulser interface class and see
@@ -123,7 +130,9 @@ class SpectrumNetbox(Base):
                 is_master = True
             else:
                 is_master = False
+            chan_num = self._command_get(card, SPC_MIINST_CHPERMODULE)
             self._netbox.add_card(card, is_master=is_master)
+            self._netbox.set_chan_num(chan_num)
         self.log.info("Loaded all the cards successfully.")
         if self._netbox.master() is None:
             self.log.warning("No card with starhub found.")
@@ -143,6 +152,46 @@ class SpectrumNetbox(Base):
         if self.starHub is not None:
             spcm_vClose(self.starHub)
             self.log.info("Successfully closed starhub.")
+
+    def load_sequence(self, waveform_sequences=None, digital_sequences=None):
+        """
+        Method that loads the waveforms into the AWG. Assumes that all the different sequences will be played
+        synchronously, meaning that all the requested sequences need to have the same length.
+        @param dict waveform_sequences: A dictionary containing the ao waveforms. The keys must be called: ch0, ch1,
+        etc... and refer to the ao channels of the AWG. Each dictionary element is a list of lists, containing the
+        waveforms for each sequence.
+        @param dict digital_sequences. A dictionary containing the ao waveforms. The keys must be called: x0, x1,
+        etc... and refer to the digital I/O channels of the AWG. Each dictionary element is a list of lists,
+        containing the waveforms for each sequence.
+        """
+
+        #Check that all the requested channels have the same number of steps.
+        seq_lengths = []
+        for dictionary in [waveform_sequences, digital_sequences]:
+            if dictionary is not None:
+                seq_lengths += list(map(len, dictionary.values()))
+        seq_lengths = set(seq_lengths)
+        if len(seq_lengths) > 1:
+            self.log.error("All the requested sequences need to have the same number of segments.")
+            return -1
+
+        # Get which channels need to be activated for the ao waveforms.
+        get_chan_num = lambda key: int(key[-1])
+        chans_to_activate = list(map(get_chan_num, waveform_sequences.keys()))
+
+        # Now check also the digital inputs. They will require the activation of the master card. They will first be
+        # distributed on each analog channel to minimize the sacrificed bits.
+        if digital_sequences is not None:
+            masteridx = self._netbox.masteridx
+            if len(digital_sequences.keys()) > 1:
+                do_chans = [masteridx+1 + chnum for chnum in range(self._netbox.get_chan_num(masteridx))]
+            else:
+                do_chans = [masteridx+1]
+        else:
+            do_chans = []
+        #Merge and get the unique
+        chans_to_activate = list(set(chans_to_activate + do_chans))
+        print(chans_to_activate)
 
     def _get_device_info(self):
         #FIXME: consider moving this to the CardCollection class, rather than doing it here.
@@ -275,7 +324,7 @@ class SpectrumNetbox(Base):
         dataBuffer = pvAllocMemPageAligned(self._netbox.bytes_persample * memsize)
         pointertoDataBuff = cast(dataBuffer, ptr16)
 
-        wformmax = max(abs(analog_waveform))
+        wformmax = max(abs(analog_waveform))  # Used for normalization.
 
         # Each digital output "burns" one bit of analog output. Reduce the maximum ADC value accordingly.
         max_adc = (self._netbox.adc_resolution / 2**dig_wforms_num) - 1  # Without the -1, you "tunnel" to the negative value
@@ -332,8 +381,6 @@ class SpectrumNetbox(Base):
         errorout = self._get_error_msg(card, errorout)
         if errorout:
             return -1
-
-    
 
     def _count_active_channels(self, card):
         """
