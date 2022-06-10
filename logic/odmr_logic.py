@@ -1258,6 +1258,7 @@ class OMDRPxLogic(GenericLogic):
         self._prepare_devices()
 
         self._mw_source.set_frequency(self.freq_axis[self._freq_scanning_index])
+        # FIXME: forgot to set the mw power here, add it before start
         self._mw_source.on()
 
         self.sigContinueOdmr.emit()

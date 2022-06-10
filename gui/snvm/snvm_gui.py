@@ -232,6 +232,7 @@ class SnvmGui(GUIBase):
         self.opt_cb = ColorBar(self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1)
         self._mainwindow.optimizerCbarView.addItem(self.opt_cb)
 
+
         #Set up the ODMR plot
         self.curr_odmr_trace = pg.PlotDataItem(skipFiniteCheck=False, connect='finite', pen=pg.mkPen(color='w'))
         self.average_odmr_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))

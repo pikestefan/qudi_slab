@@ -270,6 +270,7 @@ class SnvmLogic(GenericLogic):
         self._x_index_step = 1 #This coefficient is decided to decide the direction of the x scanning
         self._freq_scanning_index = 0
         self._odmr_rep_index = 0 #To keep track of the averages
+        self.mw_power = -1000
         self._is_retracing = False
         self.stopRequested = False
 
@@ -445,6 +446,7 @@ class SnvmLogic(GenericLogic):
                          caller="logic")
         #FIXME: look into how to operate the srs in list mode
         self._odmrscanner.set_frequency(self.freq_axis[self._freq_scanning_index])
+        self._odmrscanner.set_power(self.mw_power)
         self._odmrscanner.on()
 
         self.signal_continue_snvm.emit()
