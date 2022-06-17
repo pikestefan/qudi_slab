@@ -110,7 +110,6 @@ class SpectrumNetbox(Base):
             self.log.error("Unknown digitizerNETBOX/generatorNETBOX.")
             return -1
 
-        self._card_num = 2
         self._netbox = CardCollection()
 
         for ii in range(self._card_num):
@@ -153,19 +152,19 @@ class SpectrumNetbox(Base):
             spcm_vClose(self.starHub)
             self.log.info("Successfully closed starhub.")
 
-    def load_sequence(self, waveform_sequences=None, digital_sequences=None):
+    def load_sequence(self, waveform_sequences=None, digital_sequences=None, step_map=None):
         """
         Method that loads the waveforms into the AWG. Assumes that all the different sequences will be played
         synchronously, meaning that all the requested sequences need to have the same length.
-        @param dict waveform_sequences: A dictionary containing the ao waveforms. The keys must be called: ch0, ch1,
-        etc... and refer to the ao channels of the AWG. Each dictionary element is a list of lists, containing the
-        waveforms for each sequence.
-        @param dict digital_sequences. A dictionary containing the digital waveforms. The keys must be called: x0, x1,
-        etc... and refer to the digital I/O channels of the AWG. Each dictionary element is a list of lists,
-        containing the waveforms for each sequence.
+        @param dict waveform_sequences: A dictionary containing the list of ao waveforms. The keys must be called:
+                                        ch0, ch1, etc... and refer to the ao channels of the AWG.
+        @param dict digital_sequences: A dictionary containing the list of digital waveforms. The keys must be called:
+                                       x0, x1, etc... and refer to the digital I/O channels of the AWG.
+        @param list step_map: A list containing the order of sequence steps to be replayed. For example, if there are
+                              three sequences, step_map = [0,2,1] will play the first, the last and the middle one.
+                              Default is sequential.
         """
-
-        #Check that all the requested channels have the same number of steps.
+        # Check that all the requested channels have the same number of steps.
         seq_lengths = []
         for dictionary in [waveform_sequences, digital_sequences]:
             if dictionary is not None:
@@ -174,6 +173,9 @@ class SpectrumNetbox(Base):
         if len(seq_lengths) > 1:
             self.log.error("All the requested sequences need to have the same number of segments.")
             return -1
+
+        if step_map is None:
+            step_map = [ii for ii in range(seq_lengths[0])]
 
         # Get which channels need to be activated for the ao waveforms.
         get_chan_num = lambda key: int(key[-1])
@@ -193,8 +195,70 @@ class SpectrumNetbox(Base):
         #Merge and get the unique numbers
         chans_to_activate = list(set(chans_to_activate + do_chans))
         self._chan_enable(*chans_to_activate)
+        pass
 
-        #FIXME: GOT HERE WITH THE EDITS
+    def _create_waveform_buffers(self, analog_waveforms=dict(), digital_waveforms=dict()):
+        """
+        Given a bunch of waveforms, it prepares the buffers for data transfer. Channels have to be activated somewhere
+        else, this function just prepares and returns the buffers for data transfer.
+        @param dict waveform_sequences: A dictionary containing subdictionaries. The keys of the dictionary need to be
+                                        integer numbers, and they describe which is the required card. Each
+                                        subdictionary is indexed with the channels indices (i.e. 0,1,2...)
+        @param dict digital_sequences:  A dictionary containing the digital waveforms. The keys are 0,1,2,...
+                                        corresponding to which digital channels the digital waveforms will be assigned
+                                        to. Each element of the dictionary is a numpy array with shape MxN, where M
+                                        corresponds to number of digital waveforms assigned to the channel. If you have
+                                        a device with 16 bits, they will first be assigned to the 15th bit, then the
+                                        14th, and so on.
+        """
+        masteridx = self._netbox.masteridx
+        maxADC = self._netbox.adc_resolution
+
+        #First calculate how many cards are needed.
+        cards_required = []
+        if analog_waveforms:
+            cards_required.append(list(analog_waveforms.keys()))
+        if digital_waveforms:
+            cards_required.append(masteridx)  # The card used for digital output is always the master card.
+        cards_required = sorted(set(cards_required))
+
+        card_buffers = dict().fromkeys(cards_required)
+        for card_idx in cards_required:
+            waveform_size = 0
+            card_ao_waveforms = None
+            req_ao_channels = []
+            req_do_channels = []
+            if analog_waveforms[card_idx]:
+                card_ao_waveforms = analog_waveforms[card_idx]
+                req_ao_channels = list(card_ao_waveforms.keys())
+                waveform_size = len(card_ao_waveforms[req_ao_channels[0]])  # It's the same for all the waveforms in the card
+            if card_idx == masteridx and digital_waveforms:
+                req_do_channels = list(digital_waveforms.keys())
+                waveform_size = len(req_do_channels[req_do_channels[0]])  # It's the same for all the waveforms in the card
+
+            tot_channels = max(len(req_ao_channels), len(req_do_channels))
+            buffer_size = (self._netbox.bytes_persample * waveform_size * tot_channels)
+
+            pvData = pvAllocMemPageAligned(buffer_size)  # The page-aligned buffer that will be transferred
+            #FIXME: here I'm casting to a 16 bit pointer. This is not general for any netbox.
+            pnData = cast(pvData, ptr16)  # The pointer to the buffer, used to fill it up
+            for buff_idx in range(0, waveform_size):
+                for ii, channel in enumerate(tot_channels):
+                    sample = 0
+                    maxADC_chan = maxADC-1 # By default, use the full resolution of the instrument
+                    if card_idx == masteridx and digital_waveforms and channel in digital_waveforms:
+                        # If there are digital channels, you need to sacrifice one bit for each digital channel
+                        maxADC_chan = (maxADC // 2**(len(digital_waveforms[channel]))) - 1
+                        for jj, do_line in digital_waveforms[channel]:
+                            sample |= (do_line[buff_idx] << (15-jj))  # Add the digital samples to the correct bit
+                    if card_ao_waveforms and channel in card_ao_waveforms:
+                        ao_sample = maxADC_chan * int(card_ao_waveforms[channel][buff_idx])
+                        ao_sample &= 2**maxADC_chan  # For safety, to avoid overriding the already written do samples
+                        sample |= ao_sample  # Combine the sample with the ao_sample
+
+                    pnData[buff_idx + ii] = int16(sample)
+            card_buffers[card_idx] = [pvData, pnData]
+        return card_buffers
 
     def _get_device_info(self):
         #FIXME: consider moving this to the CardCollection class, rather than doing it here.
@@ -290,66 +354,6 @@ class SpectrumNetbox(Base):
                 return -1
         return 0
 
-    def _allocate_data_buffer(self, card, analog_waveform, memsize, digital_waveforms=None):
-        # FIXME: This function cannot be used like this. If two channels are active on the same card, the data are
-        #  interleaved between the two channels. Modify the buffer allocation to reflect this.
-        """
-        Create the data buffer and its pointer. Analog waveform is the waveform played by the channel, while digital
-        waveforms is the optional list of digital waveforms. Remember to set the X0,X1,X2 mode and assign the bits
-        correctly with the appropriate method if digital waveforms are provided.
-        This function also deals with correctly dealing with the data conversion from float to 16bit integer.
-
-
-        @param list analog_waveform: the list/np.array containing the analog waveforms
-        @param list digital_waveforms: a list with maximum three elements, and each is a list which must have the same length
-                                       of the analog_waveform_list. If more than one list is provided, the first one will
-                                       be assigned to bit #15, the second to #14, and the third to #13.
-
-        @return tuple or int: data buffer and its pointer, -1 if errors occured
-        """
-
-        if len(analog_waveform) > memsize:
-            self.log.error("The length of the analog waveform exceeds the assigned allocated size in memory.")
-        elif len(analog_waveform) < memsize:
-            self.log.warning("The length of the analog waveform is less than the allocated size in memory/")
-
-        if digital_waveforms is not None:
-            if not isinstance(digital_waveforms, (list, np.ndarray)) and len(digital_waveforms) > 3:
-                self.log.error("Too many digital wafeforms provided for the same analog waveform. The maximum number is 3.")
-                return -1
-
-            if not all(len(wform) == len(analog_waveform) for wform in digital_waveforms):
-                self.log.error("One or more waveforms have length different from the analog waveform. Please fix this.")
-                return -1
-
-            dig_wforms_num = len(digital_waveforms)
-        else:
-            dig_wforms_num = 0
-
-        # Get the number of active channels
-        active_chans = self._count_active_channels(card)
-
-        # Prepare the contiguous-memory array and its pointer
-        dataBuffer = pvAllocMemPageAligned(self._netbox.bytes_persample * memsize * active_chans)
-        pointertoDataBuff = cast(dataBuffer, ptr16)
-
-        wformmax = max(abs(analog_waveform))  # Used for normalization.
-
-        # Each digital output "burns" one bit of analog output. Reduce the maximum ADC value accordingly.
-        max_adc = (self._netbox.adc_resolution / 2**dig_wforms_num) - 1  # Without the -1, you "tunnel" to the negative value
-
-        for ii, wform_sample in enumerate(analog_waveform):
-            aoval = int(max_adc * wform_sample / wformmax)
-
-            digval = 0
-            if digital_waveforms is not None:
-                for jj, digform in digital_waveforms:
-                    digval |= digform[ii] << (15-jj)  # Shift the bit to the correct position of the 16bit number.
-
-            pointertoDataBuff[ii] = int16(aoval | digval)  # Finally combine the ao value with the digital one
-            
-        return dataBuffer, pointertoDataBuff
-
     def _sequence_max_memory(self, card):
         """
         Gets the maximum memory for the sequence, which depends on the number of active channels.
@@ -381,7 +385,7 @@ class SpectrumNetbox(Base):
                 return -1
         return 0
 
-    def _set_clock_rate(self, card, clk_rate=50):
+    def set_clock_rate(self, card, clk_rate=50):
         if not isinstance(clk_rate, int):
             clk_rate = int(clk_rate)
             self.log.warning(f"Given clock rate {clk_rate} is not an integer. Rounding will occurr.")
