@@ -24,6 +24,7 @@ import numpy as np
 
 from core.module import Base
 from core.configoption import ConfigOption
+from collections import defaultdict
 import sys
 from pathlib import Path
 from .spcm_tools import *
@@ -43,6 +44,7 @@ class CardCollection(object):
         self.adc_resolution = None
         self.maxsegments = None
         self.netbox_type = None
+        self.starHub = None
 
     def add_card(self, card, is_master):
         self._cards.append(card)
@@ -100,12 +102,14 @@ class SpectrumNetbox(Base):
     __amplitude_chans = [SPC_AMP0, SPC_AMP1, SPC_AMP2, SPC_AMP3]
     __filter_chans = [SPC_FILTER0, SPC_FILTER1, SPC_FILTER2, SPC_FILTER3]
     __stoplevel_chans = [SPC_CH0_STOPLEVEL, SPC_CH1_STOPLEVEL, SPC_CH2_STOPLEVEL, SPC_CH3_STOPLEVEL]
+    __output_chan_enable = [SPC_ENABLEOUT0, SPC_ENABLEOUT1, SPC_ENABLEOUT2, SPC_ENABLEOUT3]
 
     def on_activate(self):
         #FIXME: maybe implement a network discovery. If so, it should be fast.
         if self._netbox_type == 'DN2.663-04':
             self._card_num = 2
             self._ao_chans_percard = 2
+            self._min_clock_rate = MEGA(50)
         else:
             self.log.error("Unknown digitizerNETBOX/generatorNETBOX.")
             return -1
@@ -137,7 +141,7 @@ class SpectrumNetbox(Base):
             self.log.warning("No card with starhub found.")
         self._get_device_info()
 
-        self.starHub = spcm_hOpen(create_string_buffer(b"sync0"))
+        self._netbox.starHub = spcm_hOpen(create_string_buffer(b"sync0"))
 
         if self._netbox.netbox_type != self._netbox_type:
             self.log.error(f"The expected netbox type is {self._netbox_type}, "
@@ -197,6 +201,144 @@ class SpectrumNetbox(Base):
         self._chan_enable(*chans_to_activate)
         pass
 
+    def set_chan_amplitude(self, channels, amplitudes):
+        """
+        Set the channel max output amplitude (i.e., set the gain of the amplifier).
+        @param list channels: the list of the channels, numbered from 0 to 3
+        @param list amplitudes: the list of the amplitudes in mV required for each channel.
+
+        @return int: -1 if errors occured, 0 otherwise
+        """
+        # Make sure everything is sorted
+        channels, amplitudes = (list(srlist) for srlist in zip(*sorted(zip(channels, amplitudes))))
+        for channel, amplitude in zip(channels, amplitudes):
+            card_idx = channel // self._card_num
+            # TODO: this is not general. Apply the clipping only to the channels that need it (e.g., the channels
+            #  used for IQ modulation on the SRS.
+            if amplitude > self._max_ao_voltage:
+                amplitude = self._max_ao_voltage
+                self.log.warning(f"Requested an ao voltage exceeding the {self._max_ao_voltage} bound."
+                                 "Clipping applied.")
+            command = self.__amplitude_chans[channel % self._card_num]
+            errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx),
+                                           command,
+                                           int64(amplitude))
+            errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
+            if errorout:
+                return -1
+        return 0
+
+    def set_output_filters(self, channels, filter_active):
+        """
+       Set the output filters.
+       @param list channels: the list of channels, numbered from 0 to 3
+       @param list filter_active: 0 or 1, specifies if the filter needs to be activated or not.
+
+       @return int: -1 if errors occured, 0 otherwise
+       """
+        # Make sure everything is sorted
+        channels, filter_active = (list(srlist) for srlist in zip(*sorted(zip(channels, filter_active))))
+        for channel, value in zip(channels, filter_active):
+            card_idx = channel // self._card_num
+            errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx), self.__filter_chans[channel % self._card_num],
+                                           int64(value))
+            errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
+            if errorout:
+                return -1
+        return 0
+
+    def set_clock_rate(self, card, clk_rate = MEGA(50)):
+        if not isinstance(clk_rate, int):
+            clk_rate = int(clk_rate)
+            self.log.warning(f"Given clock rate {clk_rate} is not an integer. Rounding will occurr.")
+        if clk_rate < self._min_clock_rate:
+            self.log.error(f"Minimum clock rate is {self._min_clock_rate}, you provided {clk_rate}.")
+            return -1
+
+        errorout = spcm_dwSetParam_i64(card, SPC_SAMPLERATE, clk_rate)
+        errorout = self._get_error_msg(card, errorout)
+        if errorout:
+            return -1
+
+    def get_clock_rate(self, card):
+        return self._command_get(card, SPC_SAMPLERATE)
+
+    def activate_outputs(self, *channels):
+        """
+        Enables or disables channels. This affects the maximum available memory that each channel has for the waveforms.
+        *channels represents the list of requested channels, indexed from 0 to n (to stay consistent with python indexing).
+        If the physical channels of each card in the netbox are less than the required channels, but if there are enough
+        outputs in the rest of the netbox, the analog output is adjusted accordingly.
+
+        @params int channels: unpacked list of channel integers, from 0 to n.
+
+        @return int: -1 if errors occured, 0 otherwise
+        """
+
+        # Assuming here that all cards have the same number of channels.
+        all_channels = range(self._netbox.get_chan_num(0) * self._netbox.card_amount())
+        for channel in all_channels:
+            card_idx = channel // self._card_num
+            ch_idx = channel % self._card_num
+            command = self.__output_chan_enable[ch_idx]
+            value = 1 if channel in channels else 0
+            spcm_dwSetParam_i64(self._netbox.card(card_idx), command, value)
+        return 0
+
+    def play_single_waveform(self, analog_waveforms = dict(), digital_waveforms = dict(), clk_rate = MEGA(50)):
+
+        cards = self._get_required_cards(analog_waveforms, digital_waveforms)
+        if len(cards) > 1:
+            synchmaster = self._netbox.starHub
+            spcm_dwSetParam_i64(synchmaster, SPC_SYNC_ENABLEMASK, 0x3)
+        else:
+            synchmaster = cards[0]
+
+        for card in cards:
+            spcm_dwSetParam_i64(card, SPC_CARDMODE, SPC_REP_STD_SINGLE)
+
+    def simple_test(self, mseconds_play, loops, clk_rate=MEGA(50) ,amps = [100,100]):
+        card = self._netbox.card(1)
+
+        spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_RESET)
+
+        #self.set_clock_rate(card, int(clk_rate))
+
+        samples = self._waveform_padding(mseconds_play * 1e-3 * clk_rate)
+        tax = np.linspace(0, mseconds_play, samples)
+        out = np.zeros((samples,))
+        out[tax < mseconds_play/2] = 1
+
+        out2 = np.zeros((samples,))
+        out2[tax < mseconds_play / 2] = -1
+
+        analog_waveforms = {1: {0: out}}#, 1: out2}}
+        do_out = np.zeros((1, samples), dtype=c_int16) + 1
+        #do_out[0] = np.where(out >= 0.5, 1, 0)
+        digital_waveforms = {0: do_out}
+
+        spcm_dwSetParam_i64(card, SPC_SAMPLERATE, clk_rate)
+        spcm_dwSetParam_i32(card, SPC_CARDMODE, SPC_REP_STD_SINGLE)
+        self._chan_enable(2)
+        spcm_dwSetParam_i32(card, SPC_MEMSIZE, samples)
+        spcm_dwSetParam_i32(card, SPC_LOOPS, loops)
+        self.activate_outputs(2)
+        self.set_chan_amplitude([2], amps)
+
+        #dwXMode = int32(SPCM_XMODE_DIGOUT | SPCM_XMODE_DIGOUTSRC_CH0 | SPCM_XMODE_DIGOUTSRC_BIT15)
+        #spcm_dwSetParam_i32(card, SPCM_X0_MODE, dwXMode)
+
+        spcm_dwSetParam_i64(card, SPC_TRIG_ORMASK, SPC_TMASK_SOFTWARE)  # SPC_TMASK_NONE)
+        error = spcm_dwSetParam_i64(card, SPC_TRIG_ANDMASK, 0)
+        self.log.info("Transferring...")
+        self._create_waveform_buffers(analog_waveforms=analog_waveforms)
+        self.log.info("Finished.")
+
+        self.log.info(self._get_error_msg(card, error))
+
+        spcm_dwSetParam_i32(card, SPC_M2CMD, M2CMD_DATA_STARTDMA | M2CMD_DATA_WAITDMA)
+        spcm_dwSetParam_i32(card, SPC_M2CMD, M2CMD_CARD_START | M2CMD_CARD_ENABLETRIGGER)
+
     def _create_waveform_buffers(self, analog_waveforms=dict(), digital_waveforms=dict()):
         """
         Given a bunch of waveforms, it prepares the buffers for data transfer. Channels have to be activated somewhere
@@ -211,54 +353,118 @@ class SpectrumNetbox(Base):
                                         a device with 16 bits, they will first be assigned to the 15th bit, then the
                                         14th, and so on.
         """
+
         masteridx = self._netbox.masteridx
         maxADC = self._netbox.adc_resolution
 
         #First calculate how many cards are needed.
-        cards_required = []
-        if analog_waveforms:
-            cards_required.append(list(analog_waveforms.keys()))
-        if digital_waveforms:
-            cards_required.append(masteridx)  # The card used for digital output is always the master card.
-        cards_required = sorted(set(cards_required))
+        cards_required = self._get_required_cards(analog_waveforms, digital_waveforms)
 
+        # Now start preparing the buffers
         card_buffers = dict().fromkeys(cards_required)
         for card_idx in cards_required:
-            waveform_size = 0
             card_ao_waveforms = None
             req_ao_channels = []
             req_do_channels = []
-            if analog_waveforms[card_idx]:
+            waveform_ao_size = None
+            waveform_do_size = None
+
+            # First some check on the ao and do waveforms
+            if analog_waveforms and card_idx in analog_waveforms:
                 card_ao_waveforms = analog_waveforms[card_idx]
                 req_ao_channels = list(card_ao_waveforms.keys())
-                waveform_size = len(card_ao_waveforms[req_ao_channels[0]])  # It's the same for all the waveforms in the card
+
+                # Check the lengths of the analog waveforms to be loaded, they need to be the same.
+                ao_sizes = list(map(len, card_ao_waveforms.values()))
+                if len(set(ao_sizes)) > 1:
+                    self.log.error("The analog waveforms loaded on the same card need to have equal length.")
+                    return -1
+                else:
+                    waveform_ao_size = ao_sizes[0]
             if card_idx == masteridx and digital_waveforms:
                 req_do_channels = list(digital_waveforms.keys())
-                waveform_size = len(req_do_channels[req_do_channels[0]])  # It's the same for all the waveforms in the card
 
-            tot_channels = max(len(req_ao_channels), len(req_do_channels))
-            buffer_size = (self._netbox.bytes_persample * waveform_size * tot_channels)
+                # Check the lengths of the digital waveforms to be loaded, they need to be the same.
+                do_sizes = [wform.shape[1] for wform in digital_waveforms.values()]
+                if len(set(do_sizes)) > 1:
+                    self.log.error("The digital waveforms loaded on the same card need to have equal length.")
+                    return -1
+                else:
+                    waveform_do_size = do_sizes[0]
+            # Check that both waveforms sizes match for the same card.
+            if waveform_ao_size is not None and waveform_do_size is not None and (waveform_ao_size != waveform_do_size):
+                self.log.error("The lengh of the analog waveforms must match the length of the digital waveforms on "
+                               "the same card.")
+                return -1
+            waveform_size = waveform_ao_size if waveform_ao_size is not None else waveform_do_size
 
+            tot_channels = sorted(set(req_ao_channels + req_do_channels))
+
+            # Now combine all the waveforms and channels for the same card into one array.
+            channel_matrix = np.zeros((waveform_size, len(tot_channels)), dtype=c_int16)
+            for channel in tot_channels:
+                # By default, use the full resolution of the instrument
+                maxADC_chan = maxADC - 1
+                if card_idx == masteridx and digital_waveforms and channel in digital_waveforms:
+                    # If there are digital channels, you need to sacrifice one bit for each digital channel
+                    maxADC_chan = (maxADC // 2 ** (len(digital_waveforms[channel]))) - 1
+                    channel_do_matrix = (digital_waveforms[channel].T *
+                                         2 ** (15 - np.arange(len(digital_waveforms[channel])))).astype(c_int16)
+                    #                    The line above shifts puts each do signal in its right bit
+                    channel_matrix[:, channel] = np.sum(channel_do_matrix, axis=1)
+                if card_ao_waveforms and channel in card_ao_waveforms:
+                    # Apply mask to avoid overriding the digital output samples
+                    rescaled_ao = self._waveform_16_to_nbits(card_ao_waveforms[channel], maxADC_chan)
+                    channel_matrix[:, channel] = channel_matrix[:, channel] + rescaled_ao
+            # Reshape the matrix to interleave the sample arrays
+            channel_matrix = channel_matrix.reshape(np.prod(channel_matrix.shape))
+
+            buffer_size = (self._netbox.bytes_persample * waveform_size * len(tot_channels))
             pvData = pvAllocMemPageAligned(buffer_size)  # The page-aligned buffer that will be transferred
-            #FIXME: here I'm casting to a 16 bit pointer. This is not general for any netbox.
+            # FIXME: here I'm casting to a 16 bit pointer. This is not general for any netbox.
             pnData = cast(pvData, ptr16)  # The pointer to the buffer, used to fill it up
-            for buff_idx in range(0, waveform_size):
-                for ii, channel in enumerate(tot_channels):
-                    sample = 0
-                    maxADC_chan = maxADC-1 # By default, use the full resolution of the instrument
-                    if card_idx == masteridx and digital_waveforms and channel in digital_waveforms:
-                        # If there are digital channels, you need to sacrifice one bit for each digital channel
-                        maxADC_chan = (maxADC // 2**(len(digital_waveforms[channel]))) - 1
-                        for jj, do_line in digital_waveforms[channel]:
-                            sample |= (do_line[buff_idx] << (15-jj))  # Add the digital samples to the correct bit
-                    if card_ao_waveforms and channel in card_ao_waveforms:
-                        ao_sample = maxADC_chan * int(card_ao_waveforms[channel][buff_idx])
-                        ao_sample &= 2**maxADC_chan  # For safety, to avoid overriding the already written do samples
-                        sample |= ao_sample  # Combine the sample with the ao_sample
 
-                    pnData[buff_idx + ii] = int16(sample)
-            card_buffers[card_idx] = [pvData, pnData]
-        return card_buffers
+            # Here a nice ctypes/C trick to transfer the whole array to the pnData pointer, without using for loops
+            memmove(pnData, channel_matrix.ctypes.data, sizeof(c_int16) * len(channel_matrix))
+
+            spcm_dwDefTransfer_i64(self._netbox.card(card_idx), SPCM_BUF_DATA, SPCM_DIR_PCTOCARD,
+                                   0, pvData, 0, buffer_size)
+
+    def _get_required_cards(self, analog_waveforms = dict(), digital_waveforms = dict()):
+        # TODO: get also the required channels e.g. 0,1,2,3 from the this action
+        masteridx = self._netbox.masteridx
+        cards_required = []
+        if analog_waveforms:
+            cards_required += list(analog_waveforms.keys())
+        if digital_waveforms:
+            cards_required.append(masteridx)  # The card used for digital output is always the master card.
+            for chan, do_waveform in digital_waveforms.items():
+                if len(do_waveform.shape) != 2:
+                    self.log.error(f"Failed at channel {chan}. The digital output waveform matrices need to be "
+                                   f"two-dimensional. ")
+                    return -1
+
+        return sorted(set(cards_required))
+
+    def _waveform_16_to_nbits(self, waveform, max_value):
+        out_waveform = (max_value * waveform).astype(c_int16)
+        if max_value < (2**15-1):
+            sign_waveform = np.zeros(out_waveform.shape, dtype=c_int16)
+            sign_waveform[out_waveform < 0] = 1
+            out_waveform = (out_waveform & max_value) + (sign_waveform * (max_value + 1))
+        return out_waveform
+
+    def _waveform_padding(self, waveform_len):
+        """
+        Calculate the padding required to take the waveform to the correct length. The waveform length needs to be a
+        multiple of 32.
+        """
+        outlen = 0
+        if waveform_len % 32 > 0:
+            outlen = 32 * (waveform_len // 32) + 32
+        else:
+            outlen = waveform_len
+        return int(outlen)
 
     def _get_device_info(self):
         #FIXME: consider moving this to the CardCollection class, rather than doing it here.
@@ -295,63 +501,17 @@ class SpectrumNetbox(Base):
         @return int: -1 if errors occured, 0 otherwise
         """
         channels = sorted(channels)
-        chans_to_activate = [0, ] * self._card_num
+        chans_to_activate = defaultdict(int)
         for channel in channels:
             card_idx = channel // self._card_num
-            chans_to_activate[card_idx] += (channel % self._card_num+1)
-            # The +1 is because the value for the FPGA register goes from 1 to 4, not from 0 to 3
+            chans_to_activate[card_idx] += 2**(channel % self._card_num)
 
-        for ii, chan_value in enumerate(chans_to_activate):
+        for card_idx, chan_value in chans_to_activate.items():
             if chan_value != 0:
-                errorout = spcm_dwSetParam_i64(self._netbox.card(ii), SPC_CHENABLE, chan_value)
-                errorout = self._get_error_msg(self._netbox.card(ii), errorout)
+                errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CHENABLE, chan_value)
+                errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
                 if errorout:
                     return -1
-        return 0
-
-    def set_chan_amplitude(self, channels, amplitudes):
-        """
-        Set the channel max output amplitude (i.e., set the gain of the amplifier).
-        @param list channels: the list of the channels, numbered from 0 to 3
-        @param list amplitudes: the list of the amplitudes required for each channel.
-
-        @return int: -1 if errors occured, 0 otherwise
-        """
-        # Make sure everything is sorted
-        channels, amplitudes = (list(srlist) for srlist in zip(*sorted(zip(channels, amplitudes))))
-        for channel, amplitude in zip(channels, amplitudes):
-            card_idx = channel // self._card_num
-            # TODO: this is not general. Apply the clipping only to the channels that need it (e.g., the channels
-            #  used for IQ modulation on the SRS.
-            if amplitude > self._max_ao_voltage:
-                amplitude = self._max_ao_voltage
-                self.log.warning(f"Requested an ao voltage exceeding the {self._max_ao_voltage} bound."
-                                 "Clipping applied.")
-            errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx),
-                                           self.__amplitude_chans[channel % self._card_num],
-                                           int64(amplitude))
-            errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
-            if errorout:
-                return -1
-        return 0
-
-    def set_output_filters(self, channels, filter_active):
-        """
-       Set the output filters.
-       @param list channels: the list of channels, numbered from 0 to 3
-       @param list filter_active: 0 or 1, specifies if the filter needs to be activated or not.
-
-       @return int: -1 if errors occured, 0 otherwise
-       """
-        # Make sure everything is sorted
-        channels, filter_active = (list(srlist) for srlist in zip(*sorted(zip(channels, filter_active))))
-        for channel, value in zip(channels, filter_active):
-            card_idx = channel // self._card_num
-            errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx), self.__filter_chans[channel % self._card_num],
-                                           int64(value))
-            errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
-            if errorout:
-                return -1
         return 0
 
     def _sequence_max_memory(self, card):
@@ -384,16 +544,6 @@ class SpectrumNetbox(Base):
             if errorout:
                 return -1
         return 0
-
-    def set_clock_rate(self, card, clk_rate=50):
-        if not isinstance(clk_rate, int):
-            clk_rate = int(clk_rate)
-            self.log.warning(f"Given clock rate {clk_rate} is not an integer. Rounding will occurr.")
-
-        errorout = spcm_dwSetParam_i64(card, SPC_SAMPLERATE, clk_rate)
-        errorout = self._get_error_msg(card, errorout)
-        if errorout:
-            return -1
 
     def _count_active_channels(self, card):
         """
