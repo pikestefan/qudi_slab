@@ -324,7 +324,7 @@ class SnvmLogic(GenericLogic):
         y_axis = np.linspace(self.scanning_y_range[0], self.scanning_y_range[1], self.scanning_y_resolution)
 
         #Now generate the matrices to store the data
-        xy_scan_matrix = np.zeros((len(x_axis), len(y_axis)), dtype=np.float64)
+        xy_scan_matrix = np.zeros((len(y_axis), len(x_axis)), dtype=np.float64)
         # FIXME: for now the stack scanner is the one that's assumed to have the ESR sequence. Maybe consider a flexible
         #  way of doing this
         if self._snvm_active:
