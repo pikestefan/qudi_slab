@@ -125,6 +125,8 @@ class SnvmGui(GUIBase):
     stepFreq_multiplier = ConfigOption('stepFreq_multiplier', default=1e6, missing='info')
     xy_range_multiplier = ConfigOption('xy_range_multiplier', default=1e-9, missing='info')
     px_time_multiplier = ConfigOption('px_time_multiplier', default=1e-3, missing='info')
+    cbar_count_multiplier = ConfigOption('cbar_count_multiplier', default = 1e-3, missing='info')
+    cbar_afm_multiplier = ConfigOption('cbar_afm_multplier', default= 20/3, missing='info')
 
     # signals
     sigStartOptimizer = QtCore.Signal()
@@ -575,16 +577,25 @@ class SnvmGui(GUIBase):
         else:
             curr_image = self._scanning_logic.snvm_matrix_retrace.mean(axis=-1)
             curr_image = curr_image[:, :, self._viewIndex]
-        minmax = [curr_image.min(), curr_image.max()]
-        self.snvm_image.setImage(curr_image)
+
+        curr_image *= self.cbar_count_multiplier
+
+        snvm_range = self.get_cb_range(curr_image)
+        self.snvm_image.setImage(curr_image, levels=(snvm_range[0], snvm_range[1]))
+        self.refresh_colorbar(cbar=self.multifreq_cb, cbar_range=snvm_range)
 
     def refresh_afm_image(self):
         if self._mainwindow.viewtracesample:
-            curr_image = self._scanning_logic.xy_scan_matrix
+            curr_image = self._scanning_logic.xy_scan_matrix[:]
         else:
-            curr_image = self._scanning_logic.xy_scan_matrix_retrace
-        minmax = [curr_image.min(), curr_image.max()]
-        self.afm_image.setImage(curr_image)
+            curr_image = self._scanning_logic.xy_scan_matrix_retrace[:]
+
+        afm_image = curr_image * self.cbar_afm_multiplier
+
+        afm_range = self.get_cb_range(afm_image)
+
+        self.afm_image.setImage(afm_image, levels=(afm_range[0], afm_range[1]))
+        self.refresh_colorbar(cbar=self.afm_cb, cbar_range=afm_range)
 
     def refresh_odmr_plot(self, odmr_rep_index):
         curr_freq_matrix = self._scanning_logic.temp_freq_matrix[odmr_rep_index]
@@ -597,12 +608,15 @@ class SnvmGui(GUIBase):
 
     def refresh_confocal_image(self):
         if self._mainwindow.viewtracetip:
-            curr_image = self._scanning_logic.xy_scan_matrix
+            curr_image = self._scanning_logic.xy_scan_matrix[:]
         else:
-            curr_image = self._scanning_logic.xy_scan_matrix_retrace
+            curr_image = self._scanning_logic.xy_scan_matrix_retrace[:]
 
-        minmax = [curr_image.min(), curr_image.max()]
-        self.cfc_image.setImage(curr_image)
+        curr_image = self.cbar_count_multiplier
+
+        cfc_range = self.get_cb_range(curr_image)
+        self.cfc_image.setImage(curr_image, levels=(cfc_range[0], cfc_range[1]))
+        self.refresh_cfc_colorbar(cbar=self.cfc_cb, cbar_range=cfc_range)
 
     def refresh_optimizer_image(self):
         curr_image = self._optimizer_logic.xy_refocus_image[:, :, 2]
@@ -661,6 +675,18 @@ class SnvmGui(GUIBase):
     def update_snvm_settings(self):
         self._scanning_logic.set_motion_speed(self._snvm_dialog.slowspeedSpinBox.value())
         self._scanning_logic.set_slowmotion_clockrate(self._snvm_dialog.motionClockRate_Spinbox.value())
+
+    def get_cb_range(self, image):
+        imrange = [0, 1]
+        image_nonzero = image[image != 0]
+        if len(image_nonzero) > 0:
+            imrange = [image_nonzero.min(), image_nonzero.max()]
+        if imrange[0] == imrange[1]:
+            imrange[1] = imrange[0]+0.1
+        return imrange
+
+    def refresh_colorbar(self, cbar, cbar_range):
+        cbar.refresh_colorbar(*cbar_range)
 
     def keep_former_snvm_settings(self):
         self._snvm_dialog.slowspeedSpinBox.setValue(self._scanning_logic.backward_speed)
