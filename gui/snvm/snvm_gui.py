@@ -624,7 +624,7 @@ class SnvmGui(GUIBase):
         opt_image = curr_image * self.cbar_count_multiplier
         opt_range = self.get_cb_range(opt_image)
 
-        self.optimizer_image.setImage(opt_range, levels=(opt_range[0], opt_range[1]))
+        self.optimizer_image.setImage(opt_image, levels=(opt_range[0], opt_range[1]))
         self.refresh_colorbar(cbar=self.opt_cb, cbar_range=opt_range)
 
     def set_snvm_im_range(self):
