@@ -612,15 +612,20 @@ class SnvmGui(GUIBase):
         else:
             curr_image = self._scanning_logic.xy_scan_matrix_retrace[:]
 
-        curr_image = self.cbar_count_multiplier
+        cfc_image = curr_image * self.cbar_count_multiplier
 
-        cfc_range = self.get_cb_range(curr_image)
-        self.cfc_image.setImage(curr_image, levels=(cfc_range[0], cfc_range[1]))
-        self.refresh_cfc_colorbar(cbar=self.cfc_cb, cbar_range=cfc_range)
+        cfc_range = self.get_cb_range(cfc_image)
+        self.cfc_image.setImage(cfc_image, levels=(cfc_range[0], cfc_range[1]))
+        self.refresh_colorbar(cbar=self.cfc_cb, cbar_range=cfc_range)
 
     def refresh_optimizer_image(self):
         curr_image = self._optimizer_logic.xy_refocus_image[:, :, 2]
-        self.optimizer_image.setImage(curr_image)
+
+        opt_image = curr_image * self.cbar_count_multiplier
+        opt_range = self.get_cb_range(opt_image)
+
+        self.optimizer_image.setImage(opt_range, levels=(opt_range[0], opt_range[1]))
+        self.refresh_colorbar(cbar=self.opt_cb, cbar_range=opt_range)
 
     def set_snvm_im_range(self):
         im_range = self._scanning_logic.get_xy_image_range(multiplier=1/self.xy_range_multiplier)
@@ -682,7 +687,7 @@ class SnvmGui(GUIBase):
         if len(image_nonzero) > 0:
             imrange = [image_nonzero.min(), image_nonzero.max()]
         if imrange[0] == imrange[1]:
-            imrange[1] = imrange[0]+0.1
+            imrange[1] = imrange[0] * 1.01
         return imrange
 
     def refresh_colorbar(self, cbar, cbar_range):
