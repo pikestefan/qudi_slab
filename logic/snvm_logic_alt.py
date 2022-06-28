@@ -270,7 +270,6 @@ class SnvmLogic(GenericLogic):
         self._x_index_step = 1 #This coefficient is decided to decide the direction of the x scanning
         self._freq_scanning_index = 0
         self._odmr_rep_index = 0 #To keep track of the averages
-        self.mw_power = -1000
         self._is_retracing = False
         self.stopRequested = False
 
