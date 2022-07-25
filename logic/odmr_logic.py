@@ -1157,13 +1157,21 @@ class ODMRLogic(GenericLogic):
 
         return self.odmr_plot_x, self.odmr_plot_y, fit_params
 
-class OMDRPxLogic(GenericLogic):
+class ODMRPxLogic(GenericLogic):
 
     photon_counter = Connector(interface='SnvmScannerInterface')
     fitlogic = Connector(interface='FitLogic')
     mw_source = Connector(interface='MicrowaveInterface')
     #savelogic = Connector(interface='SaveLogic')
 
+    # config option
+    mw_scanmode = ConfigOption(
+        'scanmode',
+        'LIST',
+        missing='warn',
+        converter=lambda x: MicrowaveMode[x.upper()])
+
+    ranges = StatusVar('ranges', 1)
     mw_frequency = StatusVar('cw_mw_frequency', 2870e6)
     mw_power = StatusVar('cw_mw_power', -30)
     mw_start = StatusVar('mw_start', 2820e6)
@@ -1171,7 +1179,7 @@ class OMDRPxLogic(GenericLogic):
     mw_step = StatusVar('mw_steps', 1e6)
     integration_time = StatusVar('integration_time', 30e-3) #In ms
     averages = StatusVar('averages', 5) #Averages
-    number_of_lines = StatusVar('number_of_lines', 1) #Number of line to define a moving average (for 2D plots)
+    # number_of_lines = StatusVar('number_of_lines', 1) #Number of line to define a moving average (for 2D plots)
     _oversampling = StatusVar('oversampling', default=10)
 
     # Internal signals
@@ -1210,11 +1218,18 @@ class OMDRPxLogic(GenericLogic):
         self.stopRequested = False
 
         self.sigContinueOdmr.connect(self.continue_odmr, QtCore.Qt.QueuedConnection)
-        self.sigFreqPxAcquired.connect(self.next_freq_pixel, QtCore.Qt.QueuedConnection)
+        self.sigFreqPxAcquired.connect(self._next_freq_pixel, QtCore.Qt.QueuedConnection)
         self.sigStopOdmr.connect(self.stop_scanning)
 
     def on_deactivate(self):
         pass
+
+    def get_hw_constraints(self):
+        """ Return the names of all ocnfigured fit functions.
+        @return object: Hardware constraints object
+        """
+        constraints = self._mw_source.get_limits()
+        return constraints
 
     def _prepare_count_matrix(self):
         # Here it is assumed that the GUI has already ensured that the frequency step fits an integer amount of times
@@ -1265,7 +1280,7 @@ class OMDRPxLogic(GenericLogic):
 
     def continue_odmr(self):
         if not self.stopRequested:
-            counts, _ = self.acquire_pixel()
+            counts, _ = self._acquire_pixel()
             self.count_matrix[self._average_index, self._freq_scanning_index] = counts
 
             if self._average_index > 0:
