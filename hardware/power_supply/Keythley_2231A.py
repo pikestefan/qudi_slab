@@ -1,12 +1,12 @@
 import time
 import visa
-
+import numpy as np
 from core.module import Base
 from core.configoption import ConfigOption
 from interface.process_control_interface import ProcessControlInterface
 from interface.power_supply_interface import PowerSupplyInterface
 
-class PowerSupplyDummy(Base, PowerSupplyInterface):
+class KeythleyPowerSupply(Base, PowerSupplyInterface):
     """
     Example config:
         voltage_generator:
@@ -36,48 +36,32 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
         Initialisation performed during activation of the module.
         """
         self.rm = visa.ResourceManager()
-        try:
-            self._usb_connection = self.rm.open_resource(
+        self._usb_connection = self.rm.open_resource(
                 self._usb_address,
                 timeout=self._usb_timeout * 1000)
-            print(self._ask('*IDN?'))
-            self._write('SYSTem:REMote')
-            self._write('Outp ON')
-            #To set the voltage limits. This is saved in the settings
-            """
-            self._write('INST:NSEL 1')
-            self._write('Volt:limit 5')
-            self._write('Volt:LIMit:STATe 1')
-            self._write('Appl ch1,max,min')
-            self._write('INST:NSEL 2')
-            self._write('Volt:limit 5')
-            self._write('Volt:LIMit:STATe 1')
-            self._write('Appl ch3,max,min')
-            self._write('INST:NSEL 3')
-            self._write('Volt:limit 5')
-            self._write('Volt:LIMit:STATe 1')
-            self._write('Appl ch3,max,min')
-            """
-        except:
-            self.log.error('Could not connect to the usb address "{}". Check '
-                           'whether address exists and reload '
-                           'module!'.format(self._usb_address))
-            raise
+        #print(self._ask('*IDN?'))
+        self._usb_connection.write('SYST:REM')
+        self._write('OUTP ON')
+        # To set the voltage limits. This is saved in the settings
+        self.set_Vlimit(5)
 
+
+        # except:
+        #     self.log.error('Could not connect to the usb address "{}". Check '
+        #                    'whether address exists and reload '
+        #                    'module!'.format(self._usb_address))
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
         """
         self._write('APP:CURR {},{},{}'.format(0, 0, 0))
-        print("0 current")
+        self._write('OUTP OFF')
+        self._usb_connection.close()
 
-    def set_current_all(self, setcurrent_x, setcurrent_y, setcurrent_z):
-        #when currents are negative, call arduino to switch
-        print('x set to ', setcurrent_x, ' A')
-        print('y set to ', setcurrent_y, ' A')
-        print('z set to ', setcurrent_z, ' A')
-
-        self._write('APP:CURR {},{},{}'.format(setcurrent_z, 0, 0))
+    def set_current_all(self, setcurrent):
+        # when currents are negative, call arduino to switch
+        print('[x,y,z] set to [', round(setcurrent[0], 4), ', ', round(setcurrent[1], 4), ', ', round(setcurrent[2], 4), '] A')
+        self._write('APP:CURR {},{},{}'.format(np.absolute(setcurrent[0]),np.absolute(setcurrent[1]),np.absolute(setcurrent[2])))
 
 
 
@@ -93,9 +77,9 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
         """
         K_xyz include device dependent parameters, that need to be characterized, as well as the physical parameters
         """
-        K_x = 1
-        K_y = 1
-        K_z = 1
+        K_x = 2.939
+        K_y = 2.802
+        K_z = 3.019
         setcurrent_x = field_x / K_x
         setcurrent_y = field_y / K_y
         setcurrent_z = field_z / K_z
@@ -146,19 +130,36 @@ class PowerSupplyDummy(Base, PowerSupplyInterface):
         self._write('INST:NSEL 1')
         self._write('Volt:limit {}'.format(Vlimit))
         self._write('Volt:LIMit:STATe 1')
+        self._write('Appl ch1,max,min')
         self._write('INST:NSEL 2')
         self._write('Volt:limit {}'.format(Vlimit))
         self._write('Volt:LIMit:STATe 1')
+        self._write('Appl ch2,max,min')
         self._write('INST:NSEL 3')
         self._write('Volt:limit {}'.format(Vlimit))
         self._write('Volt:LIMit:STATe 1')
+        self._write('Appl ch3,max,min')
 
     ##### these two functions need to be here!
     def set_current(self, setcurrent, channel):
         """
 
         """
+
     def set_voltage(self, setvoltage, channel):
         """
 
         """
+# if __name__ == '__main__':
+    # print("Called Power Supply")
+    # rm = visa.ResourceManager()
+    # print(rm.list_resources())
+    # usb = rm.open_resource(
+    #     'ASRL6::INSTR',
+    #     timeout=10*1000
+    # )
+    # print(usb)
+    # print(usb.write('SYSTem:REMote'))
+    # usb.write('*WAI')
+    # print(usb.write('Outp ON'))
+    # usb.write('*WAI')
