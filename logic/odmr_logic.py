@@ -1157,12 +1157,12 @@ class ODMRLogic(GenericLogic):
 
         return self.odmr_plot_x, self.odmr_plot_y, fit_params
 
-class ODMRPxLogic(GenericLogic):
 
+class ODMRPxLogic(GenericLogic):
     photon_counter = Connector(interface='SnvmScannerInterface')
     fitlogic = Connector(interface='FitLogic')
     mw_source = Connector(interface='MicrowaveInterface')
-    #savelogic = Connector(interface='SaveLogic')
+    savelogic = Connector(interface='HDF5SaveLogic')
 
     # config option
     mw_scanmode = ConfigOption(
@@ -1171,20 +1171,24 @@ class ODMRPxLogic(GenericLogic):
         missing='warn',
         converter=lambda x: MicrowaveMode[x.upper()])
 
-    ranges = StatusVar('ranges', 1)
+    # ranges = StatusVar('ranges', 1)
+    ranges = 1
     mw_frequency = StatusVar('cw_mw_frequency', 2870e6)
     mw_power = StatusVar('cw_mw_power', -30)
-    mw_start = StatusVar('mw_start', 2820e6)
-    mw_stop = StatusVar('mw_stop', 2920e6)
-    mw_step = StatusVar('mw_steps', 1e6)
-    integration_time = StatusVar('integration_time', 30e-3) #In ms
-    averages = StatusVar('averages', 5) #Averages
-    # number_of_lines = StatusVar('number_of_lines', 1) #Number of line to define a moving average (for 2D plots)
+    # mw_starts = StatusVar('mw_start', [2820e6])
+    # mw_stops = StatusVar('mw_stop', [2920e6])
+    # mw_steps = StatusVar('mw_steps', [1e6])
+    mw_starts = [2820e6]
+    mw_stops = [2920e6]
+    mw_steps = [1e6]
+    averages = StatusVar('averages', 5)  # Averages
+    integration_time = StatusVar('integration_time', 30e-3)  # In ms
     _oversampling = StatusVar('oversampling', default=10)
 
     # Internal signals
     sigContinueOdmr = QtCore.Signal()
     sigFreqPxAcquired = QtCore.Signal()
+    sigOdmrTraceAcquired = QtCore.Signal()
     sigStopOdmr = QtCore.Signal()
     sigOdmrFinished = QtCore.Signal()
 
@@ -1196,6 +1200,7 @@ class ODMRPxLogic(GenericLogic):
     def on_activate(self):
         self._mw_source = self.mw_source()
         self._photon_counter = self.photon_counter()
+        self._savelogic = self.savelogic()
 
         self._mw_source.off()
 
@@ -1210,6 +1215,7 @@ class ODMRPxLogic(GenericLogic):
         self.freq_axis = None
         self._freq_axis_length = None  # Same here
         self.average_odmr_trace = None
+        self.curr_odmr_trace = None
 
         self.invalid = np.nan  # Number corresponding to invalid data points.
 
@@ -1219,7 +1225,7 @@ class ODMRPxLogic(GenericLogic):
 
         self.sigContinueOdmr.connect(self.continue_odmr, QtCore.Qt.QueuedConnection)
         self.sigFreqPxAcquired.connect(self._next_freq_pixel, QtCore.Qt.QueuedConnection)
-        self.sigStopOdmr.connect(self.stop_scanning)
+        self.sigStopOdmr.connect(self.stop_odmr)
 
     def on_deactivate(self):
         pass
@@ -1234,9 +1240,13 @@ class ODMRPxLogic(GenericLogic):
     def _prepare_count_matrix(self):
         # Here it is assumed that the GUI has already ensured that the frequency step fits an integer amount of times
         # in the desired range.
-        step_number = 1 + round((self.mw_stop - self.mw_start) / self.mw_step)
-        freq_axis = np.linspace(self.mw_start, self.mw_stop, step_number)
+        freq_axis_list = []
 
+        for i in range(self.ranges):
+            step_number = 1 + round((self.mw_stops[i] - self.mw_starts[i]) / self.mw_steps[i])
+            freq_axis_piece = np.linspace(self.mw_starts[i], self.mw_stops[i], step_number)
+            freq_axis_list.append(freq_axis_piece)
+        freq_axis = np.concatenate(freq_axis_list)
         count_matrix = np.full((self.averages, len(freq_axis)), self.invalid)
 
         self._freq_scanning_index = 0
@@ -1252,7 +1262,7 @@ class ODMRPxLogic(GenericLogic):
         """
 
         self._photon_counter.module_state.lock()
-        self._photon_samples = self.pxtime_to_samples()
+        self._photon_samples = self._pxtime_to_samples()
 
         self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
 
@@ -1280,8 +1290,13 @@ class ODMRPxLogic(GenericLogic):
 
     def continue_odmr(self):
         if not self.stopRequested:
-            counts, _ = self._acquire_pixel()
-            self.count_matrix[self._average_index, self._freq_scanning_index] = counts
+            counts = self._acquire_pixel()
+            # FIXME: Why is counts sometimes empty?
+            if len(counts) == 0:
+                return
+
+            self.count_matrix[self._average_index, self._freq_scanning_index] = counts / self.integration_time
+            self.curr_odmr_trace = self.count_matrix[self._average_index]
 
             if self._average_index > 0:
                 self.average_odmr_trace = np.nanmean(self.count_matrix, axis=0)
@@ -1293,6 +1308,8 @@ class ODMRPxLogic(GenericLogic):
         if self._freq_scanning_index == self._freq_axis_length:
             self._average_index += 1
             self._freq_scanning_index = 0
+            self.sigOdmrTraceAcquired.emit()
+
         self._mw_source.set_frequency(self.freq_axis[self._freq_scanning_index])
         if (self._average_index == self.averages) or self.stopRequested:
             self.stopRequested = True
@@ -1300,7 +1317,7 @@ class ODMRPxLogic(GenericLogic):
         else:
             self.sigContinueOdmr.emit()
 
-    def stop_scanning(self):
+    def stop_odmr(self):
         if self.stopRequested:
             with self.threadlock:
                 self._mw_source.off()
@@ -1317,9 +1334,18 @@ class ODMRPxLogic(GenericLogic):
             self.stopRequested = False
             self.sigOdmrFinished.emit()
 
+    def save_odmr(self):
+        data = {
+            'odmr/frequency_axis': self.freq_axis,
+            'odmr/averages': self.averages,
+            'odmr/odmr_traces': self.count_matrix,
+            'odmr/odmr_average_trace': self.average_odmr_trace,
+        }
+        self._savelogic.save_hdf5_data(data)
+
     def _acquire_pixel(self):
-        data = self._photon_counter.read_pixel(self._photon_samples)
-        return data
+        counts, _ = self._photon_counter.read_pixel(self._photon_samples)
+        return counts
 
     def _pxtime_to_samples(self):
         return round(self.integration_time * self._photon_counter.get_counter_clock_frequency())
