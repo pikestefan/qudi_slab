@@ -102,6 +102,7 @@ class ODMRLogic(GenericLogic):
         self.cw_mw_frequency = limits.frequency_in_range(self.cw_mw_frequency)
         self.cw_mw_power = limits.power_in_range(self.cw_mw_power)
         self.sweep_mw_power = limits.power_in_range(self.sweep_mw_power)
+        print(f'set mw power to {self.sweep_mw_power}')
         self._odmr_counter.oversampling = self._oversampling
         self._odmr_counter.lock_in_active = self._lock_in_active
 
@@ -1173,6 +1174,7 @@ class ODMRPxLogic(GenericLogic):
 
     # ranges = StatusVar('ranges', 1)
     ranges = 1
+    range_to_fit = 0
     mw_frequency = StatusVar('cw_mw_frequency', 2870e6)
     mw_power = StatusVar('cw_mw_power', -30)
     # mw_starts = StatusVar('mw_start', [2820e6])
@@ -1182,6 +1184,7 @@ class ODMRPxLogic(GenericLogic):
     mw_stops = [2920e6]
     mw_steps = [1e6]
     averages = StatusVar('averages', 5)  # Averages
+    fc = StatusVar('fits', None)
     integration_time = StatusVar('integration_time', 30e-3)  # In ms
     _oversampling = StatusVar('oversampling', default=10)
 
@@ -1193,6 +1196,8 @@ class ODMRPxLogic(GenericLogic):
     sigOdmrFinished = QtCore.Signal()
 
     # Update signals, e.g. for GUI module
+    sigOdmrFitUpdated = QtCore.Signal(np.ndarray, np.ndarray, dict, str)
+
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
         self.threadlock = Mutex()
@@ -1201,6 +1206,7 @@ class ODMRPxLogic(GenericLogic):
         self._mw_source = self.mw_source()
         self._photon_counter = self.photon_counter()
         self._savelogic = self.savelogic()
+        self._fitlogic = self.fitlogic()
 
         self._mw_source.off()
 
@@ -1209,6 +1215,9 @@ class ODMRPxLogic(GenericLogic):
         ####
         self._freq_scanning_index = 0
         self._average_index = 0
+
+        self.range_to_fit = 0
+        self.fits_performed = {}
 
         # Initalize the attributes that will be the scan data containers
         self.count_matrix = None  # This matrix is used to store the ODMR traces to be averaged.
@@ -1241,6 +1250,7 @@ class ODMRPxLogic(GenericLogic):
         # Here it is assumed that the GUI has already ensured that the frequency step fits an integer amount of times
         # in the desired range.
         freq_axis_list = []
+        range_indices_list = []
 
         for i in range(self.ranges):
             step_number = 1 + round((self.mw_stops[i] - self.mw_starts[i]) / self.mw_steps[i])
@@ -1249,9 +1259,17 @@ class ODMRPxLogic(GenericLogic):
         freq_axis = np.concatenate(freq_axis_list)
         count_matrix = np.full((self.averages, len(freq_axis)), self.invalid)
 
+        # Populate the range_indices_list. This list will be used to access part of the data if it is split into
+        # different mw frequency ranges
+        for freq_axis_piece in freq_axis_list:
+            range_indices_list.append(np.isin(freq_axis, freq_axis_piece))
+        print(range_indices_list)
+
         self._freq_scanning_index = 0
         self._average_index = 0
         self.freq_axis = freq_axis
+        self.freq_axis_list = freq_axis_list
+        self.range_indices_list = range_indices_list
         self.count_matrix = count_matrix
         self.average_odmr_trace = np.zeros(freq_axis.shape)
         self._freq_axis_length = len(freq_axis) if isinstance(self.freq_axis, np.ndarray) else None
@@ -1283,7 +1301,7 @@ class ODMRPxLogic(GenericLogic):
         self._prepare_devices()
 
         self._mw_source.set_frequency(self.freq_axis[self._freq_scanning_index])
-        # FIXME: forgot to set the mw power here, add it before start
+        self._mw_source.set_power(self.sweep_mw_power)
         self._mw_source.on()
 
         self.sigContinueOdmr.emit()
@@ -1334,14 +1352,119 @@ class ODMRPxLogic(GenericLogic):
             self.stopRequested = False
             self.sigOdmrFinished.emit()
 
-    def save_odmr(self):
-        data = {
+    def save_data(self):
+        odmr = {
             'odmr/frequency_axis': self.freq_axis,
             'odmr/averages': self.averages,
             'odmr/odmr_traces': self.count_matrix,
             'odmr/odmr_average_trace': self.average_odmr_trace,
         }
-        self._savelogic.save_hdf5_data(data)
+
+        # Check if fits have been performed. If yes, then store them
+        fit = {}
+        fit_attributes = {}
+        for key, fit_record in self.fits_performed.items():
+            odmr_fit_x, odmr_fit_y, result, current_fit = fit_record
+            odmr_fit = np.stack((odmr_fit_x, odmr_fit_y))
+            name = f'fit/{key}/odmr_fit'
+            fit[name] = odmr_fit
+
+            result_dict = result.params.valuesdict()
+            # convert dict to contain only floats
+            for k, v in result_dict.items():
+                result_dict[k] = float(v)
+            fit_attributes[name] = result_dict
+
+
+
+
+        print('fit_attributes')
+        print(fit_attributes)
+        data = {**odmr, **fit}
+        self._savelogic.save_hdf5_data(data, attributes=fit_attributes)
+
+    @fc.constructor
+    def sv_set_fits(self, val):
+        # Setup fit container
+        fc = self.fitlogic().make_fit_container('ODMR sum', '1d')
+        fc.set_units(['Hz', 'c/s'])
+        if isinstance(val, dict) and len(val) > 0:
+            fc.load_from_dict(val)
+        else:
+            d1 = OrderedDict()
+            d1['Lorentzian dip'] = {
+                'fit_function': 'lorentzian',
+                'estimator': 'dip'
+            }
+            d1['Two Lorentzian dips'] = {
+                'fit_function': 'lorentziandouble',
+                'estimator': 'dip'
+            }
+            d1['N14'] = {
+                'fit_function': 'lorentziantriple',
+                'estimator': 'N14'
+            }
+            d1['N15'] = {
+                'fit_function': 'lorentziandouble',
+                'estimator': 'N15'
+            }
+            d1['Two Gaussian dips'] = {
+                'fit_function': 'gaussiandouble',
+                'estimator': 'dip'
+            }
+            default_fits = OrderedDict()
+            default_fits['1d'] = d1
+            fc.load_from_dict(default_fits)
+        return fc
+
+    @fc.representer
+    def sv_get_fits(self, val):
+        """ save configured fits """
+        if len(val.fit_list) > 0:
+            return val.save_to_dict()
+        else:
+            return None
+
+    def do_fit(self, fit_function=None, x_data=None, y_data=None, fit_range=0):
+        """
+        Execute the currently configured fit on the measurement data. Optionally on passed data
+        """
+        if (x_data is None) or (y_data is None):
+            x_data = self.freq_axis_list[fit_range]
+            # Pick y_data according to the chosen fit range
+            range_indices = self.range_indices_list[fit_range]
+            y_data = self.average_odmr_trace[range_indices]
+
+        if fit_function is not None and isinstance(fit_function, str):
+            if fit_function in self.get_fit_functions():
+                self.fc.set_current_fit(fit_function)
+            else:
+                self.fc.set_current_fit('No Fit')
+                if fit_function != 'No Fit':
+                    self.log.warning('Fit function "{0}" not available in ODMRLogic fit container.'
+                                     ''.format(fit_function))
+
+        self.odmr_fit_x, self.odmr_fit_y, result = self.fc.do_fit(x_data, y_data)
+        key = f'range: {fit_range}'
+        if fit_function != 'No Fit':
+            self.fits_performed[key] = (self.odmr_fit_x, self.odmr_fit_y, result, self.fc.current_fit)
+        else:
+            if key in self.fits_performed:
+                self.fits_performed.pop(key)
+
+        if result is None:
+            result_str_dict = {}
+        else:
+            result_str_dict = result.result_str_dict
+        self.sigOdmrFitUpdated.emit(
+            self.odmr_fit_x, self.odmr_fit_y, result_str_dict, self.fc.current_fit)
+        return
+
+    def get_fit_functions(self):
+        """ Return the hardware constraints/limits
+        @return list(str): list of fit function names
+        """
+        return list(self.fc.fit_list)
 
     def _acquire_pixel(self):
         counts, _ = self._photon_counter.read_pixel(self._photon_samples)

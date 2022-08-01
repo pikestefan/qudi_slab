@@ -90,12 +90,9 @@ class ODMRGui(GUIBase):
     sigFitChanged = QtCore.Signal(str)
     sigNumberOfLinesChanged = QtCore.Signal(int)
     sigRuntimeChanged = QtCore.Signal(float)
-    sigDoFit = QtCore.Signal(str, object, object, int, int)
+    sigDoFit = QtCore.Signal(str, object, object, int)
     sigSaveMeasurement = QtCore.Signal(str, list, list)
     sigAverageLinesChanged = QtCore.Signal(int)
-
-    startstopFreq_multiplier = ConfigOption('startstopFreq_multiplier', default=1e9, missing='info')
-    stepFreq_multiplier = ConfigOption('stepFreq_multiplier', default=1e6, missing='info')
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -268,7 +265,12 @@ class ODMRGui(GUIBase):
         self._mw.toolBar.addWidget(self._mw.clear_odmr_PushButton)
 
         # Set up the ODMR plot
-        self.curr_odmr_trace = pg.PlotDataItem(skipFiniteCheck=False, pen=pg.mkPen(color='w'))
+        self.odmr_fit_image = pg.PlotDataItem(pen=pg.mkPen(palette.c2))
+        self.curr_odmr_trace = pg.PlotDataItem(pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+                                          symbol='o',
+                                          symbolPen=palette.c1,
+                                          symbolBrush=palette.c1,
+                                          symbolSize=7)
         self.average_odmr_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
         self._mw.odmr_PlotWidget.addItem(self.curr_odmr_trace)
         self._mw.odmr_PlotWidget.addItem(self.average_odmr_trace)
@@ -296,10 +298,10 @@ class ODMRGui(GUIBase):
         # self._sd.lock_in_CheckBox.setChecked(self._odmr_logic.lock_in)
 
         # fit settings
-        # self._fsd = FitSettingsDialog(self._odmr_logic.fc)
-        # self._fsd.sigFitsUpdated.connect(self._mw.fit_methods_ComboBox.setFitFunctions)
-        # self._fsd.applySettings()
-        # self._mw.action_FitSettings.triggered.connect(self._fsd.show)
+        self._fsd = FitSettingsDialog(self._odmr_logic.fc)
+        self._fsd.sigFitsUpdated.connect(self._mw.fit_methods_ComboBox.setFitFunctions)
+        self._fsd.applySettings()
+        self._mw.action_FitSettings.triggered.connect(self._fsd.show)
 
     def _setup_connections(self):
         ########################################################################
@@ -330,7 +332,7 @@ class ODMRGui(GUIBase):
         self.sigStopOdmrScan.connect(self._odmr_logic.stop_odmr, QtCore.Qt.QueuedConnection)
         self.sigContinueOdmrScan.connect(self._odmr_logic.continue_odmr,
                                          QtCore.Qt.QueuedConnection)
-        # self.sigDoFit.connect(self._odmr_logic.do_fit, QtCore.Qt.QueuedConnection)
+        self.sigDoFit.connect(self._odmr_logic.do_fit, QtCore.Qt.QueuedConnection)
         # self.sigMwCwParamsChanged.connect(self._odmr_logic.set_cw_parameters,
         #                                   QtCore.Qt.QueuedConnection)
         # self.sigMwSweepParamsChanged.connect(self._odmr_logic.set_sweep_parameters,
@@ -357,7 +359,7 @@ class ODMRGui(GUIBase):
         # self._odmr_logic.sigOutputStateUpdated.connect(self.update_status,
         #                                                QtCore.Qt.QueuedConnection)
         # self._odmr_logic.sigOdmrPlotsUpdated.connect(self.update_plots, QtCore.Qt.QueuedConnection)
-        # self._odmr_logic.sigOdmrFitUpdated.connect(self.update_fit, QtCore.Qt.QueuedConnection)
+        self._odmr_logic.sigOdmrFitUpdated.connect(self.update_fit, QtCore.Qt.QueuedConnection)
         # self._odmr_logic.sigOdmrElapsedTimeUpdated.connect(self.update_elapsedtime,
         #                                                    QtCore.Qt.QueuedConnection)
 
@@ -441,6 +443,7 @@ class ODMRGui(GUIBase):
         self._mw.cw_frequency_DoubleSpinBox.setEnabled(val)
         self._mw.average_level_SpinBox.setEnabled(val)
         self._mw.integration_time_doubleSpinBox.setEnabled(val)
+        self._mw.do_fit_PushButton.setEnabled(val)
         dspinbox_dict = self.get_all_dspinboxes_from_groupbox()
         for identifier_name in dspinbox_dict:
             dspinbox_type_list = dspinbox_dict[identifier_name]
@@ -458,7 +461,7 @@ class ODMRGui(GUIBase):
             # change the axes appearance according to input values:
             # self._mw.action_run_stop.setEnabled(False)
             # self._mw.action_resume_odmr.setEnabled(False)
-            # self._mw.odmr_PlotWidget.removeItem(self.odmr_fit_image)
+            self._mw.odmr_PlotWidget.removeItem(self.odmr_fit_image)
 
             # Disable the ui
             self._set_enabled_odmr_ui(False)
@@ -492,7 +495,7 @@ class ODMRGui(GUIBase):
         self._odmr_logic.mw_starts = starts
         self._odmr_logic.mw_stops = stops
         self._odmr_logic.mw_steps = steps
-        self._odmr_logic.mw_power = power
+        self._odmr_logic.sweep_mw_power = power
         self._odmr_logic.averages = average_level
         self._odmr_logic.integration_time = integration_time
 
@@ -970,8 +973,8 @@ class ODMRGui(GUIBase):
 
     def do_fit(self):
         fit_function = self._mw.fit_methods_ComboBox.getCurrentFit()[0]
-        self.sigDoFit.emit(fit_function, None, None, self._mw.odmr_channel_ComboBox.currentIndex(),
-                           self._mw.fit_range_SpinBox.value())
+        print(f'sending fit range {self._mw.fit_range_SpinBox.value()}')
+        self.sigDoFit.emit(fit_function, None, None, self._mw.fit_range_SpinBox.value())
         return
 
     def update_fit(self, x_data, y_data, result_str_dict, current_fit):
@@ -1160,4 +1163,4 @@ class ODMRGui(GUIBase):
         return
 
     def save_data(self):
-        self._odmr_logic.save_odmr()
+        self._odmr_logic.save_data()

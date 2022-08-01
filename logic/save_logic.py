@@ -737,7 +737,7 @@ class HDF5SaveLogic(SaveLogic):
                         self.log.info("The attributes need to be a dictionary, the saving of the attributes of {}"
                                       "has been aborted".format(dset_name))
                     else:
-                        for attr_name, attr in attributes.items():
+                        for attr_name, attr in attributes[dset_name].items():
                             dset.attrs[attr_name] = attr
 
         if plotfig is not None:
