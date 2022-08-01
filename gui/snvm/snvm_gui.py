@@ -125,8 +125,9 @@ class SnvmGui(GUIBase):
     stepFreq_multiplier = ConfigOption('stepFreq_multiplier', default=1e6, missing='info')
     xy_range_multiplier = ConfigOption('xy_range_multiplier', default=1e-9, missing='info')
     px_time_multiplier = ConfigOption('px_time_multiplier', default=1e-3, missing='info')
-    cbar_count_multiplier = ConfigOption('cbar_count_multiplier', default = 1e-3, missing='info')
-    cbar_afm_multiplier = ConfigOption('cbar_afm_multplier', default= 20/3, missing='info')
+    cbar_count_multiplier = ConfigOption('cbar_count_multiplier', default=1e-3, missing='info')
+    cbar_afm_multiplier = ConfigOption('cbar_afm_multplier', default=20/3, missing='info')
+    mwspinbox_float_resolution = ConfigOption('mwspinbox_float_resolution', default=6)
 
     # signals
     sigStartOptimizer = QtCore.Signal()
@@ -276,6 +277,17 @@ class SnvmGui(GUIBase):
         self._afm_widgets['fwpxTime'].setValue(self._scanning_logic.px_time /
                                                self.px_time_multiplier)
         self._afm_widgets['storeRetrace'].setChecked(self._scanning_logic.store_retrace)
+
+        self.sample_ranges = self._scanning_logic.x_maxrange['sample'] / self.xy_range_multiplier, \
+                             self._scanning_logic.y_maxrange['sample'] / self.xy_range_multiplier
+        self.tip_ranges = self._scanning_logic.x_maxrange['tip'] / self.xy_range_multiplier, \
+                          self._scanning_logic.y_maxrange['tip'] / self.xy_range_multiplier
+
+        self._mainwindow.sampleXSliderSpinBox.setRange(self.sample_ranges[0][0], self.sample_ranges[0][1])
+        self._mainwindow.sampleYSliderSpinBox.setRange(self.sample_ranges[1][0], self.sample_ranges[1][1])
+        self._mainwindow.tipXSliderSpinBox.setRange(self.tip_ranges[0][0], self.sample_ranges[0][1])
+        self._mainwindow.tipYSliderSpinBox.setRange(self.tip_ranges[1][0], self.sample_ranges[1][1])
+
         #########
 
         #######
@@ -289,10 +301,9 @@ class SnvmGui(GUIBase):
         self._odmr_widgets[self._mainwindow.mwPower.objectName()] = self._mainwindow.mwPower
         self._odmr_widgets[self._mainwindow.mwAverages.objectName()] = self._mainwindow.mwAverages
 
-        #TODO: maybe turn the freq resolution of the GUI into a settable value
-        self._mainwindow.mwStart.setDecimals(6)
-        self._mainwindow.mwEnd.setDecimals(6)
-        self._mainwindow.mwStep.setDecimals(6)
+        self._mainwindow.mwStart.setDecimals(self.mwspinbox_float_resolution)
+        self._mainwindow.mwEnd.setDecimals(self.mwspinbox_float_resolution)
+        self._mainwindow.mwStep.setDecimals(self.mwspinbox_float_resolution)
 
         #########
         self._odmr_widgets['mwStart'].setValue(self._scanning_logic.start_freq /
@@ -331,6 +342,10 @@ class SnvmGui(GUIBase):
         self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_snvm_image)
         self._mainwindow.sampleTraceViewSpinBox.valueChanged.connect(self.refresh_afm_image)
         self._mainwindow.tipTraceViewSpinBox.valueChanged.connect(self.refresh_confocal_image)
+        self._mainwindow.sampleXSlider.sliderMoved.connect(self.slider_move_sample_crosshair)
+        self._mainwindow.sampleYSlider.sliderMoved.connect(self.slider_move_sample_crosshair)
+        self._mainwindow.tipXSlider.sliderMoved.connect(self.slider_move_tip_crosshair)
+        self._mainwindow.tipYSlider.sliderMoved.connect(self.slider_move_tip_crosshair)
 
         ##############
         # Connect the actions to their slots
@@ -724,6 +739,22 @@ class SnvmGui(GUIBase):
         """ This method opens the settings menu. """
         self.keep_former_snvm_settings()
         self._snvm_dialog.exec_()
+
+    def slider_move_sample_crosshair(self):
+        x_coeff = self.sample_ranges[0][1] - self.sample_ranges[0][0]
+        y_coeff = self.sample_ranges[1][1] - self.sample_ranges[1][0]
+
+        pos_slider_x, pos_slider_y = self._mainwindow.sampleXSlider.value, self._mainwindow.sampleYSlider.value
+        new_x, new_y = pos_slider_x * x_coeff / 100., pos_slider_y * y_coeff / 100.
+
+        self._mainwindow.sampleXSliderSpinBox.setValue(new_x)
+        self._mainwindow.sampleYSliderSpinBox.setValue(new_y)
+
+        self._mainwindow.afmPlotView.set_crosshair_pos( new_x, new_y)
+        self._mainwindow.multiFreqPlotView.set_crosshair_pos(new_x, new_y)
+
+    def slider_move_tip_crosshair(self):
+        pass
 
     def go_to_point(self, scanner):
         if scanner == 'snvm':
