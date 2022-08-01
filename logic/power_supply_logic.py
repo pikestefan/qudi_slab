@@ -13,7 +13,7 @@ class PowerSupplyLogic(GenericLogic):
         """
         Initialisation performed during activation of the module.
         """
-        self._powersupply = self.powersupply() #access interface functions
+        self._powersupply = self.powersupply()  # access interface functions
         self._arduino = self.arduino()  # access interface functions
         # variable containers for the currents and the field components
         self.field_x = 0
@@ -25,8 +25,9 @@ class PowerSupplyLogic(GenericLogic):
         self.current_x = 0
         self.current_y = 0
         self.current_z = 0
-        self.Vswitch_state = [0, 0, 0] #for all three axes, 0=off, 1=on
+        self.Vswitch_state = [0, 0, 0]  # for all three axes, 0=off, 1=on
         self.applied_current = [0, 0, 0]
+        self.polarity = [1, 1, 1]
 
     def on_deactivate(self):
         """ Deinitialisation performed during deactivation of the module.
@@ -37,7 +38,7 @@ class PowerSupplyLogic(GenericLogic):
         """
         # transform field coordinates
         self.field_x = self.field_mag * np.cos(self.field_phi*2*np.pi/360) * np.sin(self.field_theta*2*np.pi/360)
-        self.field_y = self.field_mag * np.sin(self.field_phi*2*np.pi/360) * np.cos(self.field_theta*2*np.pi/360)
+        self.field_y = self.field_mag * np.sin(self.field_phi*2*np.pi/360) * np.sin(self.field_theta*2*np.pi/360)
         self.field_z = self.field_mag * np.cos(self.field_theta*2*np.pi/360)
         current = self._powersupply.get_theo_current_all(self.field_x, self.field_y, self.field_z)
         self.current_x = current[0]
@@ -61,41 +62,38 @@ class PowerSupplyLogic(GenericLogic):
         Check, if hardware allows negative outputs, otherwise call V-switch (default: off)
         """
         if self._powersupply._negative_polarity == False:
-            sign_init = self.sign_func(self.applied_current)
-            sign_final = self.sign_func([self.current_x, self.current_y, self.current_z])
-            self._arduino.write_and_read('{:d},{:d},{:d}'.format(*sign_init != sign_final))
-            """
-            for i in [0, 1, 2]:
-                if sign_final[i] != sign_init[i]:
-                    self._arduino.write_and_read(str(i)+",on")
-                    #print('switched')
-                elif sign_final[i] == sign_init[i]:
-                    self._arduino.write_and_read(str(i)+",off")
-                    #print('not switched')
-                else:
-                    self.log.error('Could not evaluate the expected V-switch state!')
-                    raise
-                #time.sleep(1.5)
-            """
-        #1 = use current containers, 0=reset currents to 0
+            final_current = [self.current_x, self.current_y, self.current_z]
+            sign_init = self.sign_func(np.multiply(self.applied_current, self.polarity))
+            sign_final = self.sign_func(final_current)
+            self.polarity = sign_final
+
+        # 1 = use current containers, 0=reset currents to 0
         if task == 1:
-            self._powersupply.set_current_all(self.current_x, self.current_y, self.current_z)
+            pol_change = sign_init != sign_final
+            if 1 in pol_change:
+                flip_current = np.where(pol_change == 0, 1, 0)
+                self._powersupply.set_current_all(np.multiply(final_current,flip_current)) #before triggering the switch, set those channels to 0
+                self._arduino.write_and_read('{:d},{:d},{:d}'.format(*[task, task, task] != sign_final))    # #False = 0 = pos. pol., True = 1 = neg.pol.
+                time.sleep(1.2)
+            self._powersupply.set_current_all(final_current) # set to final current
         elif task == 0:
-            self._powersupply.set_current_all(0, 0, 0)
+            print('reset to 0!')
+            self._powersupply.set_current_all([0, 0, 0])
+            self._arduino.write_and_read('{:d},{:d},{:d}'.format(*[task, task, task]))
         else:
             self.log.error('task for power supplied not given. Must be 0 or 1!')
             raise
 
-def get_real_currents(self, channel):
-    # updates the current containers directly from the power supply
-    current= self._powersupply.get_real_current(channel)
-    return current
+    def get_real_current(self, channel):
+        # updates the current containers directly from the power supply
+        current = self._powersupply.get_real_current(channel)
+        return current
 
 
-def shut_down_channels(self, state):
-    # state = 2 :disable all outputs; state = 0 : enable all outputs
-    self._powersupply.set_device_state(state)
+    def shut_down_channels(self, state):
+        # state = 2 :disable all outputs; state = 0 : enable all outputs
+        self._powersupply.set_device_state(state)
 
-def set_Vlimit(self, Vlimit):
-    #call the hardware and set limit to value
-    self._powersupply.set_Vlimit(Vlimit)
+    def set_Vlimit(self, Vlimit):
+        #call the hardware and set limit to value
+        self._powersupply.set_Vlimit(Vlimit)

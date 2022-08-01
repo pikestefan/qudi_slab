@@ -59,9 +59,9 @@ applications it is sensible to redefine the Lorentzian like that:
                     pi * sigma
 
 
-                                 _                            _
+                                 _                           _
                                 |         (sigma)^2          |
-    L(x; I, x_0, sigma) =   I * |  --------------------------  |
+    L(x; I, x_0, sigma) =   I * |  --------------------------|
                                 |_ (x_0 - x)^2 + (sigma)^2  _|
 
 We will call this notation the physical definition of the Lorentzian, with I as
