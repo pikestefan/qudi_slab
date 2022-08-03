@@ -328,8 +328,7 @@ class OptimizerLogicPxScan(GenericLogic):
         # print(result_2D_gaus.fit_report())
 
         if result_2D_gaus.success is False:
-            self.log.error('Error: 2D Gaussian Fit was not successfull!.')
-            print('2D gaussian fit not successfull')
+            self.log.error('Error: 2D Gaussian Fit was not successful!.')
             self.optim_pos_x = self._initial_pos_x
             self.optim_pos_y = self._initial_pos_y
             self.optim_sigma_x = 0.

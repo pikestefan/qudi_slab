@@ -1263,7 +1263,6 @@ class ODMRPxLogic(GenericLogic):
         # different mw frequency ranges
         for freq_axis_piece in freq_axis_list:
             range_indices_list.append(np.isin(freq_axis, freq_axis_piece))
-        print(range_indices_list)
 
         self._freq_scanning_index = 0
         self._average_index = 0
@@ -1361,25 +1360,20 @@ class ODMRPxLogic(GenericLogic):
         }
 
         # Check if fits have been performed. If yes, then store them
+        # The fit parameters, like dip position and width will be stored as .h5 attributes to the fit data
         fit = {}
         fit_attributes = {}
         for key, fit_record in self.fits_performed.items():
-            odmr_fit_x, odmr_fit_y, result, current_fit = fit_record
+            odmr_fit_x, odmr_fit_y, result, fit_type = fit_record
             odmr_fit = np.stack((odmr_fit_x, odmr_fit_y))
             name = f'fit/{key}/odmr_fit'
             fit[name] = odmr_fit
 
             result_dict = result.params.valuesdict()
-            # convert dict to contain only floats
-            for k, v in result_dict.items():
-                result_dict[k] = float(v)
+            # Add the fit type to the saved attributes
+            result_dict['fit_type'] = fit_type
             fit_attributes[name] = result_dict
 
-
-
-
-        print('fit_attributes')
-        print(fit_attributes)
         data = {**odmr, **fit}
         self._savelogic.save_hdf5_data(data, attributes=fit_attributes)
 

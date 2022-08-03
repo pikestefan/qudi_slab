@@ -134,7 +134,6 @@ class ODMRGui(GUIBase):
         groupBox.setAlignment(QtCore.Qt.AlignLeft)
         groupBox.setTitle('Scanning Ranges')
         gridLayout = QtWidgets.QGridLayout(groupBox)
-        print(f'ranges = {self._odmr_logic.ranges}')
         for row in range(self._odmr_logic.ranges):
             # start
             start_label = QtWidgets.QLabel(groupBox)
@@ -145,7 +144,6 @@ class ODMRGui(GUIBase):
             start_freq_DoubleSpinBox.setMaximum(constraints.max_frequency)
             start_freq_DoubleSpinBox.setMinimum(constraints.min_frequency)
             start_freq_DoubleSpinBox.setMinimumSize(QtCore.QSize(80, 0))
-            print(f'starts = {self._odmr_logic.mw_starts[row]}')
             start_freq_DoubleSpinBox.setValue(self._odmr_logic.mw_starts[row])
             start_freq_DoubleSpinBox.setMinimumWidth(75)
             start_freq_DoubleSpinBox.setMaximumWidth(100)
@@ -266,11 +264,12 @@ class ODMRGui(GUIBase):
 
         # Set up the ODMR plot
         self.odmr_fit_image = pg.PlotDataItem(pen=pg.mkPen(palette.c2))
-        self.curr_odmr_trace = pg.PlotDataItem(pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+        self.curr_odmr_trace = pg.PlotDataItem(
+                                          pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
                                           symbol='o',
                                           symbolPen=palette.c1,
                                           symbolBrush=palette.c1,
-                                          symbolSize=7)
+                                          symbolSize=7,)
         self.average_odmr_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
         self._mw.odmr_PlotWidget.addItem(self.curr_odmr_trace)
         self._mw.odmr_PlotWidget.addItem(self.average_odmr_trace)
@@ -384,50 +383,45 @@ class ODMRGui(GUIBase):
         self._sd.accepted.disconnect()
         self._sd.rejected.disconnect()
         self._mw.action_Settings.triggered.disconnect()
-        self._odmr_logic.sigParameterUpdated.disconnect()
-        self._odmr_logic.sigOutputStateUpdated.disconnect()
-        self._odmr_logic.sigOdmrPlotsUpdated.disconnect()
-        self._odmr_logic.sigOdmrFitUpdated.disconnect()
-        self._odmr_logic.sigOdmrElapsedTimeUpdated.disconnect()
-        self.sigCwMwOn.disconnect()
-        self.sigMwOff.disconnect()
-        self.sigClearData.disconnect()
+        # self.sigCwMwOn.disconnect()
+        # self.sigMwOff.disconnect()
+        # self.sigClearData.disconnect()
         self.sigStartOdmrScan.disconnect()
         self.sigStopOdmrScan.disconnect()
         self.sigContinueOdmrScan.disconnect()
         self.sigDoFit.disconnect()
-        self.sigMwCwParamsChanged.disconnect()
-        self.sigMwSweepParamsChanged.disconnect()
-        self.sigRuntimeChanged.disconnect()
-        self.sigNumberOfLinesChanged.disconnect()
-        self.sigClockFreqChanged.disconnect()
-        self.sigOversamplingChanged.disconnect()
-        self.sigLockInChanged.disconnect()
-        self.sigSaveMeasurement.disconnect()
-        self.sigAverageLinesChanged.disconnect()
-        self._mw.odmr_cb_manual_RadioButton.clicked.disconnect()
-        self._mw.odmr_cb_centiles_RadioButton.clicked.disconnect()
-        self._mw.clear_odmr_PushButton.clicked.disconnect()
+        # self.sigMwCwParamsChanged.disconnect()
+        # self.sigMwSweepParamsChanged.disconnect()
+        # self.sigRuntimeChanged.disconnect()
+        # self.sigNumberOfLinesChanged.disconnect()
+        # self.sigClockFreqChanged.disconnect()
+        # self.sigOversamplingChanged.disconnect()
+        # self.sigLockInChanged.disconnect()
+        # self.sigSaveMeasurement.disconnect()
+        # self.sigAverageLinesChanged.disconnect()
+        # self._mw.odmr_cb_manual_RadioButton.clicked.disconnect()
+        # self._mw.odmr_cb_centiles_RadioButton.clicked.disconnect()
+        # self._mw.clear_odmr_PushButton.clicked.disconnect()
         self._mw.action_run_stop.triggered.disconnect()
-        self._mw.action_resume_odmr.triggered.disconnect()
+        # self._mw.action_resume_odmr.triggered.disconnect()
         self._mw.action_Save.triggered.disconnect()
-        self._mw.action_toggle_cw.triggered.disconnect()
-        self._mw.action_toggle_cw.triggered.disconnect()
-        self._mw.action_RestoreDefault.triggered.disconnect()
+        # self._mw.action_toggle_cw.triggered.disconnect()
+        # self._mw.action_toggle_cw.triggered.disconnect()
+        # self._mw.action_RestoreDefault.triggered.disconnect()
         self._mw.do_fit_PushButton.clicked.disconnect()
-        self._mw.cw_frequency_DoubleSpinBox.editingFinished.disconnect()
+        # self._mw.cw_frequency_DoubleSpinBox.editingFinished.disconnect()
         dspinbox_dict = self.get_all_dspinboxes_from_groupbox()
         for identifier_name in dspinbox_dict:
             dspinbox_type_list = dspinbox_dict[identifier_name]
             [dspinbox_type.editingFinished.disconnect() for dspinbox_type in dspinbox_type_list]
 
-        self._mw.cw_power_DoubleSpinBox.editingFinished.disconnect()
-        self._mw.sweep_power_DoubleSpinBox.editingFinished.disconnect()
-        self._mw.runtime_DoubleSpinBox.editingFinished.disconnect()
-        self._mw.odmr_cb_max_DoubleSpinBox.valueChanged.disconnect()
-        self._mw.odmr_cb_min_DoubleSpinBox.valueChanged.disconnect()
-        self._mw.odmr_cb_high_percentile_DoubleSpinBox.valueChanged.disconnect()
-        self._mw.odmr_cb_low_percentile_DoubleSpinBox.valueChanged.disconnect()
+        # self._mw.cw_power_DoubleSpinBox.editingFinished.disconnect()
+        # self._mw.sweep_power_DoubleSpinBox.editingFinished.disconnect()
+        # self._mw.runtime_DoubleSpinBox.editingFinished.disconnect()
+        # self._mw.odmr_cb_max_DoubleSpinBox.valueChanged.disconnect()
+        # self._mw.odmr_cb_min_DoubleSpinBox.valueChanged.disconnect()
+        # self._mw.odmr_cb_high_percentile_DoubleSpinBox.valueChanged.disconnect()
+        # self._mw.odmr_cb_low_percentile_DoubleSpinBox.valueChanged.disconnect()
         self._mw.average_level_SpinBox.valueChanged.disconnect()
         self._fsd.sigFitsUpdated.disconnect()
         self._mw.fit_range_SpinBox.editingFinished.disconnect()
@@ -854,9 +848,6 @@ class ODMRGui(GUIBase):
     def update_plots(self, odmr_data_x, odmr_data_y, odmr_matrix):
         """ Refresh the plot widgets with new data. """
         # Update mean signal plot
-        #print(odmr_data_x)
-        #print("and")
-        #print(odmr_data_y)
         self.odmr_image.setData(odmr_data_x, odmr_data_y[self.display_channel])
         # Update raw data matrix plot
         cb_range = self.get_matrix_cb_range()
@@ -973,7 +964,6 @@ class ODMRGui(GUIBase):
 
     def do_fit(self):
         fit_function = self._mw.fit_methods_ComboBox.getCurrentFit()[0]
-        print(f'sending fit range {self._mw.fit_range_SpinBox.value()}')
         self.sigDoFit.emit(fit_function, None, None, self._mw.fit_range_SpinBox.value())
         return
 

@@ -21,7 +21,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 """
 
 from pyqtgraph import PlotWidget, ImageItem, ViewBox, InfiniteLine, ROI
-from qtpy import QtCore
+from qtpy import QtCore, QtWidgets
 from core.util.filters import scan_blink_correction
 
 __all__ = ['ScanImageItem', 'ScanPlotWidget', 'ScanViewBox']
@@ -462,11 +462,21 @@ class ScanViewBox(ViewBox):
         """
         if self.rectangle_selection and ev.button() == QtCore.Qt.LeftButton:
             ev.accept()
-            self.updateScaleBox(ev.buttonDownPos(), ev.pos())
+
+            downPos = ev.buttonDownPos()
+            currPos = ev.pos()
+
+            keymods = QtWidgets.QApplication.keyboardModifiers()
+            if keymods and QtCore.Qt.ShiftModifier:
+                square_size = currPos.x() - downPos.x()
+                currPos.setX(downPos.x() + square_size)
+                currPos.setY(downPos.y() + square_size)
+
+            self.updateScaleBox(downPos, currPos)
             if ev.isFinish():
                 self.rbScaleBox.hide()
-                start = self.mapToView(ev.buttonDownPos())
-                stop = self.mapToView(ev.pos())
+                start = self.mapToView(downPos)
+                stop = self.mapToView(currPos)
                 rect = QtCore.QRectF(start, stop)
                 if self.zoom_by_selection:
                     # AutoRange needs to be disabled by hand because of a pyqtgraph bug.

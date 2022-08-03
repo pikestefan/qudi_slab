@@ -177,6 +177,8 @@ class SnvmGui(GUIBase):
         self._mainwindow.multiFreqPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.multiFreqPlotView.set_crosshair_size((1,1))
         self._mainwindow.multiFreqPlotView.sigCrosshairDraggedPosChanged.connect(self.move_afm_crosshair)
+        self._mainwindow.multiFreqPlotView.toggle_selection(True)
+        self._mainwindow.multiFreqPlotView.sigMouseAreaSelected.connect(self.update_scanning_range)
 
         snvm_im_vb = self.get_image_viewbox(self.snvm_image)
         snvm_im_vb.setAspectLocked(True)
@@ -196,6 +198,8 @@ class SnvmGui(GUIBase):
         self._mainwindow.afmPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.afmPlotView.set_crosshair_size((1, 1))
         self._mainwindow.afmPlotView.sigCrosshairDraggedPosChanged.connect(self.move_multifreq_crosshair)
+        self._mainwindow.afmPlotView.toggle_selection(True)
+        self._mainwindow.afmPlotView.sigMouseAreaSelected.connect(self.update_scanning_range)
 
         afm_im_vb = self.get_image_viewbox(self.afm_image)
         afm_im_vb.setAspectLocked(True)
@@ -213,6 +217,8 @@ class SnvmGui(GUIBase):
         self._mainwindow.confocalScannerView.setLabel('left', 'Y (nm)')
         self._mainwindow.confocalScannerView.toggle_crosshair(True, movable=True)
         self._mainwindow.confocalScannerView.set_crosshair_size((1, 1))
+        self._mainwindow.confocalScannerView.toggle_selection(True)
+        self._mainwindow.confocalScannerView.sigMouseAreaSelected.connect(self.update_scanning_range)
 
         cfc_im_vb = self.get_image_viewbox(self.cfc_image)
         cfc_im_vb.setAspectLocked(True)
@@ -278,10 +284,14 @@ class SnvmGui(GUIBase):
                                                self.px_time_multiplier)
         self._afm_widgets['storeRetrace'].setChecked(self._scanning_logic.store_retrace)
 
-        self.sample_ranges = self._scanning_logic.x_maxrange['sample'] / self.xy_range_multiplier, \
-                             self._scanning_logic.y_maxrange['sample'] / self.xy_range_multiplier
-        self.tip_ranges = self._scanning_logic.x_maxrange['tip'] / self.xy_range_multiplier, \
-                          self._scanning_logic.y_maxrange['tip'] / self.xy_range_multiplier
+        self.sample_ranges = [self._scanning_logic.x_maxrange['sample'][0] / self.xy_range_multiplier,
+                              self._scanning_logic.x_maxrange['sample'][1] / self.xy_range_multiplier], \
+                             [self._scanning_logic.y_maxrange['sample'][0] / self.xy_range_multiplier,
+                              self._scanning_logic.y_maxrange['sample'][1] / self.xy_range_multiplier]
+        self.tip_ranges = [self._scanning_logic.x_maxrange['tip'][0] / self.xy_range_multiplier,
+                           self._scanning_logic.x_maxrange['tip'][1] / self.xy_range_multiplier], \
+                          [self._scanning_logic.y_maxrange['tip'][0] / self.xy_range_multiplier,
+                           self._scanning_logic.y_maxrange['tip'][1] / self.xy_range_multiplier]
 
         self._mainwindow.sampleXSliderSpinBox.setRange(self.sample_ranges[0][0], self.sample_ranges[0][1])
         self._mainwindow.sampleYSliderSpinBox.setRange(self.sample_ranges[1][0], self.sample_ranges[1][1])
@@ -346,6 +356,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.sampleYSlider.sliderMoved.connect(self.slider_move_sample_crosshair)
         self._mainwindow.tipXSlider.sliderMoved.connect(self.slider_move_tip_crosshair)
         self._mainwindow.tipYSlider.sliderMoved.connect(self.slider_move_tip_crosshair)
+
 
         ##############
         # Connect the actions to their slots
@@ -696,6 +707,21 @@ class SnvmGui(GUIBase):
         self._scanning_logic.set_motion_speed(self._snvm_dialog.slowspeedSpinBox.value())
         self._scanning_logic.set_slowmotion_clockrate(self._snvm_dialog.motionClockRate_Spinbox.value())
 
+    def update_scanning_range(self, rect):
+        x, y, width, height = rect.getRect()
+        print('x, y, width, height = ', x, y, width, height)
+        x_end = x + width
+        y_end = y + height
+        if x > x_end:
+            x, x_end = x_end, x
+        if y > y_end:
+            y, y_end = y_end, y
+
+        self._afm_widgets['xMinRange'].setValue(x)
+        self._afm_widgets['yMinRange'].setValue(y)
+        self._afm_widgets['xMaxRange'].setValue(x_end)
+        self._afm_widgets['yMaxRange'].setValue(y_end)
+
     def get_cb_range(self, image):
         imrange = [0, 1]
         image_nonzero = image[image != 0]
@@ -744,17 +770,29 @@ class SnvmGui(GUIBase):
         x_coeff = self.sample_ranges[0][1] - self.sample_ranges[0][0]
         y_coeff = self.sample_ranges[1][1] - self.sample_ranges[1][0]
 
-        pos_slider_x, pos_slider_y = self._mainwindow.sampleXSlider.value, self._mainwindow.sampleYSlider.value
-        new_x, new_y = pos_slider_x * x_coeff / 100., pos_slider_y * y_coeff / 100.
+        pos_slider_x, pos_slider_y = self._mainwindow.sampleXSlider.value(), self._mainwindow.sampleYSlider.value()
+        new_x = pos_slider_x * x_coeff / self._mainwindow.sampleXSlider.maximum()
+        new_y = pos_slider_y * y_coeff / self._mainwindow.sampleYSlider.maximum()
 
-        self._mainwindow.sampleXSliderSpinBox.setValue(new_x)
-        self._mainwindow.sampleYSliderSpinBox.setValue(new_y)
+        #self._mainwindow.sampleXSliderSpinBox.setValue(new_x)
+        #self._mainwindow.sampleYSliderSpinBox.setValue(new_y)
 
-        self._mainwindow.afmPlotView.set_crosshair_pos( new_x, new_y)
-        self._mainwindow.multiFreqPlotView.set_crosshair_pos(new_x, new_y)
+        self._mainwindow.multiFreqPlotView.set_crosshair_pos((new_x, new_y))
+        self._mainwindow.afmPlotView.set_crosshair_pos((new_x, new_y))
 
     def slider_move_tip_crosshair(self):
-        pass
+        x_coeff = self.tip_ranges[0][1] - self.tip_ranges[0][0]
+        y_coeff = self.tip_ranges[1][1] - self.tip_ranges[1][0]
+
+
+        pos_slider_x, pos_slider_y = self._mainwindow.tipXSlider.value(), self._mainwindow.tipYSlider.value()
+        new_x = pos_slider_x * x_coeff / self._mainwindow.tipXSlider.maximum()
+        new_y = pos_slider_y * y_coeff / self._mainwindow.tipYSlider.maximum()
+
+        self._mainwindow.tipXSliderSpinBox.setValue(new_x)
+        self._mainwindow.tipYSliderSpinBox.setValue(new_y)
+
+        self._mainwindow.confocalScannerView.set_crosshair_pos((new_x, new_y))
 
     def go_to_point(self, scanner):
         if scanner == 'snvm':
