@@ -6,17 +6,21 @@ import PyDAQmx as daq
 from core.module import Base
 from core.configoption import ConfigOption
 
+
 class NationalInstrumentsUSB6000x(Base):
 
     # config options
-    _laser_ao_channel = ConfigOption('laser_ao_channel', missing='error')
-    _laser_ao_voltage_range = ConfigOption('laser_ao_voltage_range', missing='error')
+    _laser_ao_channel = ConfigOption("laser_ao_channel", missing="error")
+    _laser_ao_voltage_range = ConfigOption("laser_ao_voltage_range", missing="error")
 
-    _RWTimeout = ConfigOption('read_write_timeout', default=10)
+    _RWTimeout = ConfigOption("read_write_timeout", default=10)
+
     def on_activate(self):
         self._laser_ao_task = None
 
         self.active_ao_tasks = []
+        self._reset_hardware()
+        self._start_analog_output()
 
     def on_deactivate(self):
         self._stop_analog_output()
@@ -24,7 +28,7 @@ class NationalInstrumentsUSB6000x(Base):
             daq.DAQmxClearTask(self._laser_ao_task)
             self._scanner_ao_task = None
         except:
-            self.log.exception('Could not clear AO output task.')
+            self.log.exception("Could not clear AO output task.")
 
         self._reset_hardware()
 
@@ -36,23 +40,24 @@ class NationalInstrumentsUSB6000x(Base):
         for channel in chan_list:
             if channel is None:
                 continue
-            match = re.match('^/(?P<dev>[0-9A-Za-z\- ]+[0-9A-Za-z\-_ ]*)/(?P<chan>[0-9A-Za-z]+)',
-                             channel)
+            match = re.match(
+                "^/(?P<dev>[0-9A-Za-z\- ]+[0-9A-Za-z\-_ ]*)/(?P<chan>[0-9A-Za-z]+)",
+                channel,
+            )
             if match:
-                deviceList.append(match.group('dev'))
+                deviceList.append(match.group("dev"))
             else:
-                self.log.error('Did not find device name in {0}'.format(channel)
-                               )
+                self.log.error("Did not find device name in {0}".format(channel))
 
+        print('deviceList ', deviceList)
         for device in set(deviceList):
-            self.log.info('Reset device {0}'.format(device))
+            self.log.info("Reset device {0}".format(device))
             try:
                 daq.DAQmxResetDevice(device)
             except:
-                self.log.exception('Could not reset NI device {0}'.format(device))
+                self.log.exception("Could not reset NI device {0}".format(device))
                 retval = -1
         return retval
-
 
     def _start_analog_output(self):
         try:
@@ -65,17 +70,18 @@ class NationalInstrumentsUSB6000x(Base):
 
             self._laser_ao_task = daq.TaskHandle()
 
-            daq.DAQmxCreateTask('usbAO', daq.byref(self._laser_ao_task))
+            daq.DAQmxCreateTask("usbAO", daq.byref(self._laser_ao_task))
             daq.DAQmxCreateAOVoltageChan(
                 self._laser_ao_task,
                 self._laser_ao_channel,
-                'Scanner AO channel 0',
+                "Scanner AO channel 0",
                 self._laser_ao_voltage_range[0],
                 self._laser_ao_voltage_range[1],
                 daq.DAQmx_Val_Volts,
-                '')
+                "",
+            )
         except:
-            self.log.exception('Error starting analog output task.')
+            self.log.exception("Error starting analog output task.")
             return -1
         return 0
 
@@ -86,16 +92,16 @@ class NationalInstrumentsUSB6000x(Base):
         try:
             daq.DAQmxStopTask(self._laser_ao_task)
         except:
-            self.log.exception('Error stopping analog output.')
+            self.log.exception("Error stopping analog output.")
             retval = -1
         try:
             daq.DAQmxSetSampTimingType(self._laser_ao_task, daq.DAQmx_Val_OnDemand)
         except:
-            self.log.exception('Error changing the analog output mode.')
+            self.log.exception("Error changing the analog output mode.")
 
         return retval
 
-    def _write_ao(self, voltage, length=1, start=False):
+    def _write_ao(self, voltage, length=1, start=True):
         self._AONWritten = daq.int32()
         try:
             daq.DAQmxWriteAnalogF64(
@@ -106,18 +112,22 @@ class NationalInstrumentsUSB6000x(Base):
                 daq.DAQmx_Val_GroupByChannel,
                 voltage,
                 daq.byref(self._AONWritten),
-                None
+                None,
             )
         except:
-            self.log.exception('Error writing the analog output to the channels.')
+            self.log.exception("Error writing the analog output to the channels.")
 
         return self._AONWritten.value
 
-    def set_up_laser(self, ao_channel = None):
+    def set_voltage(self, voltage):
+        arr = np.array([voltage], dtype='float64')
+        self._write_ao(arr)
+
+    def set_up_laser(self, ao_channel=None):
         retval = 0
         try:
             daq.DAQmxSetSampTimingType(self._scanner_ao_task, daq.DAQmx_Val_OnDemand)
         except:
-            self.log.exception('Error while setting up the channel')
+            self.log.exception("Error while setting up the channel")
             retval = -1
         return retval

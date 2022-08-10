@@ -102,6 +102,10 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     _counter_ai_channels = ConfigOption('counter_ai_channels', list(), missing='info')
     _counter_voltage_range = ConfigOption('counter_voltage_range', [-10, 10], missing='info')
 
+    # Photo diode setting
+    _photo_diode_channel = ConfigOption('photo_diode_channel', missing='error')
+    _photo_diode_voltage_range = ConfigOption('photo_diode_voltage_range', [0, 10], missing='info')
+
     # Sample scanner
     _sample_scanner_ao_channels = ConfigOption('sample_scanner_ao_channels', missing='error')
     _sample_scanner_ai_channels = ConfigOption('sample_scanner_ai_channels', list(), missing='info')
@@ -151,6 +155,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         # the tasks used on that hardware device:
         self._counter_daq_tasks = list()
         self._counter_ai_daq_task = list()
+        self._photo_diode_ai_daq_task = None
 
         self._scanner_ao_tasks = dict().fromkeys(self._stack_names, None)
         self._motion_clock_task = None
@@ -295,6 +300,24 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             return -1
 
         return 0
+
+    def prepare_photo_diode(self):
+        task = daq.TaskHandle()
+        daq.DAQmxCreateTask('PhotoDiode', daq.byref(task))
+
+        daq.DAQmxCreateAIVoltageChan(
+            task,
+            self._photo_diode_channel,
+            'Photo Diode Analog In',
+            daq.DAQmx_Val_RSE,
+            self._photo_diode_voltage_range[0],
+            self._photo_diode_voltage_range[1],
+            daq.DAQmx_Val_Volts,
+            ''
+        )
+
+        self._photo_diode_ai_daq_task = task
+
 
     def close_counters(self):
         """
@@ -603,6 +626,34 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
     def set_motion_clock_frequency(self, frequency):
         self._motion_clock_frequency = frequency
+
+    def read_voltage(self, samples=1):
+        daq.DAQmxStartTask(self._photo_diode_ai_daq_task)
+
+        if self._photo_diode_ai_daq_task is not None:
+            try:
+                analog_data = np.full(samples, 111, dtype=np.float64)
+                analog_read_samples = daq.int32()
+
+                daq.DAQmxReadAnalogF64(
+                    self._photo_diode_ai_daq_task,
+                    samples,
+                    self._RWTimeout,
+                    daq.DAQmx_Val_GroupByChannel,
+                    analog_data,
+                    samples,
+                    daq.byref(analog_read_samples),
+                    None
+                )
+
+                daq.DAQmxStopTask(self._photo_diode_ai_daq_task)
+            except:
+                self.log.exception("Failed reading photo diode.")
+
+        else:
+            analog_data = None
+
+        return analog_data
 
     def read_pixel(self, samples=1):
         for i, task in enumerate(self._counter_daq_tasks):
