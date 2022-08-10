@@ -141,6 +141,8 @@ class SpectrumNetbox(Base):
             if (card_function != SPCM_TYPE_AO) or (cardfeatures & SPCM_FEAT_SEQUENCE) == 0:
                 self.log.error("Something is wrong, you are supposed to have an AO card with sequence mode.")
                 return -1
+
+            # The card with the starhub is also the one that controls the synchronization, do and triggers.
             has_starhub = self._command_get(card, SPCM_FW_MODEXTRA)
             if has_starhub:
                 is_master = True
@@ -154,6 +156,7 @@ class SpectrumNetbox(Base):
             self.log.warning("No card with starhub found.")
         self._get_device_info()
 
+        # Now open the starhub communication
         self._netbox.starHub = spcm_hOpen(create_string_buffer(b"sync0"))
 
         if self._netbox.netbox_type != self._netbox_type:
@@ -168,51 +171,6 @@ class SpectrumNetbox(Base):
         if self._netbox.starHub is not None:
             spcm_vClose(self._netbox.starHub)
             self.log.info("Successfully closed starhub.")
-
-    def load_sequence(self, waveform_sequences=None, digital_sequences=None, step_map=None):
-        """
-        Method that loads the waveforms into the AWG. Assumes that all the different sequences will be played
-        synchronously, meaning that all the requested sequences need to have the same length.
-        @param dict waveform_sequences: A dictionary containing the list of ao waveforms. The keys must be called:
-                                        ch0, ch1, etc... and refer to the ao channels of the AWG.
-        @param dict digital_sequences: A dictionary containing the list of digital waveforms. The keys must be called:
-                                       x0, x1, etc... and refer to the digital I/O channels of the AWG.
-        @param list step_map: A list containing the order of sequence steps to be replayed. For example, if there are
-                              three sequences, step_map = [0,2,1] will play the first, the last and the middle one.
-                              Default is sequential.
-        """
-        # Check that all the requested channels have the same number of steps.
-        seq_lengths = []
-        for dictionary in [waveform_sequences, digital_sequences]:
-            if dictionary is not None:
-                seq_lengths += list(map(len, dictionary.values()))
-        seq_lengths = set(seq_lengths)
-        if len(seq_lengths) > 1:
-            self.log.error("All the requested sequences need to have the same number of segments.")
-            return -1
-
-        if step_map is None:
-            step_map = [ii for ii in range(seq_lengths[0])]
-
-        # Get which channels need to be activated for the ao waveforms.
-        get_chan_num = lambda key: int(key[-1])
-        chans_to_activate = list(map(get_chan_num, waveform_sequences.keys()))
-
-        # Now check also the digital inputs. They will require the activation of the master card. They will first be
-        # distributed on each analog channel to minimize the sacrificed bits.
-        if digital_sequences is not None:
-            masteridx = self._netbox.masteridx
-            if len(digital_sequences.keys()) > 1:
-                do_chans = [masteridx+1 + chnum for chnum in range(self._netbox.get_chan_num(masteridx))]
-            else:
-                do_chans = [masteridx+1]
-        else:
-            do_chans = []
-
-        #Merge and get the unique numbers
-        chans_to_activate = list(set(chans_to_activate + do_chans))
-        self._chan_enable(*chans_to_activate)
-        pass
 
     def set_chan_amplitude(self, channels, amplitudes):
         """
@@ -298,8 +256,79 @@ class SpectrumNetbox(Base):
             spcm_dwSetParam_i64(self._netbox.card(card_idx), command, value)
         return 0
 
-    def play_single_waveform(self, analog_waveforms=dict(), digital_waveforms=dict(), repeats=0, clk_rate=MEGA(50),
-                             channel_amplitudes=[], trigger_or_mask=list(), trigger_and_mask=list()):
+    def load_sequence(self, analog_sequences=None, digital_sequences=None, step_map=list(), loops_list=list(),
+                      digital_output_map=dict()):
+        """
+        Method that loads the waveforms into the AWG. Assumes that all the different sequences will be played
+        synchronously, meaning that all the requested sequences need to have the same length.
+        @param list analog_sequences: A list of dictionaries. Each dictionary containing the subdictionaries of ao waveforms.
+                                        The keys must be called: 0, 1, etc..., and they refer to the AWG cards.
+                                        The subdictionary keys, numbered 0, 1, etc..., refer to the ao channels of the
+                                        single card.
+        @param list digital_sequences: A dictionary containing the list of digital waveforms. The keys must be called:
+                                       0, 1, etc... and refer to the digital I/O channels of the AWG.
+        @param list step_map: A list containing the order of sequence steps to be replayed. For example, if there are
+                              three sequences, step_map = [0,2,1] will play the first, the last and the middle one.
+                              Default is sequential.
+        @param list loops_list: A list containing the number of times each sequence step will be repeated.
+        @param dict digital_output_map: optional dictionary that maps the source of the waveforms (i.e. the ao channels)
+                                        to the physical do channels. I.e., digital_output_map = {0: [2,0]}, assigns
+                                        the two waveforms that will be contained in ch0 waveform to the physical do x2
+                                        and x0 channels, in this order.
+        """
+        # Here I assume that all the sequence steps use the same cards
+        cards = self._get_required_cards(analog_sequences[0], digital_sequences[0])
+
+        # Check the requested sequences
+        len_ao, len_do = len(analog_sequences), len(digital_sequences)
+        if (len_ao > 0 and len_do > 0) and (len_ao != len_do):
+            self.log.error("The number of AO steps and DO steps must be the same.")
+            return -1
+
+        if len_ao > 0:
+            steps_num = len_ao
+        elif len_do > 0:
+            steps_num = len_do
+
+        if steps_num > self._netbox.maxsegments:
+            self.log.error("The requested steps exceed the maximum allowed segmentation.")
+            return -1
+
+        # Get the memory requirements for each segment, then set up the sequence settings
+        segment_memory_requirements = dict()
+        for card_idx in cards:
+            current_card = self._netbox.card(card_idx)
+            active_chans = self._count_active_channels(current_card)
+            min_segment_memory = 384 // active_chans
+            max_segment_memory = int(self._netbox.memsize / active_chans / steps_num)
+
+            segment_memory_requirements[card_idx] = [min_segment_memory, max_segment_memory]
+
+            # Set up the sequence settings
+            spcm_dwSetParam_i64(current_card, SPC_CARDMODE, SPC_REP_STD_SEQUENCE)
+            spcm_dwSetParam_i64(current_card, SPC_SEQMODE_MAXSEGMENTS, steps_num)
+
+        for step in range(steps_num):
+            if len_ao:
+                current_ao_waveform = analog_sequences[step]
+            else:
+                current_ao_waveform = dict()
+            if len_do:
+                current_do_waveform = digital_sequences[step]
+            else:
+                current_ao_waveform = dict()
+
+            self._create_waveform_buffers(analog_waveforms=current_ao_waveform,
+                                          digital_waveforms=current_do_waveform,
+                                          sequence_step=step)
+
+
+
+
+
+    def play_single_waveform(self, analog_waveforms=dict(), digital_waveforms=dict(), digital_output_map=dict(),
+                             repeats=0, clk_rate=MEGA(50), channel_amplitudes=[], trigger_or_mask=list(),
+                             trigger_and_mask=list()):
 
         card_indices = self._get_required_cards(analog_waveforms, digital_waveforms)
         channels_required = self._get_required_channels(analog_waveforms, digital_waveforms)
@@ -359,38 +388,42 @@ class SpectrumNetbox(Base):
                 self.configure_ORmask(card, *[])
                 self.configure_ANDmask(card, *[])
 
-        self._assign_digital_output_channels(digital_waveforms=digital_waveforms)
+        self._assign_digital_output_channels(digital_waveforms=digital_waveforms, digital_output_map=digital_output_map)
 
         self._create_waveform_buffers(analog_waveforms=analog_waveforms, digital_waveforms=digital_waveforms)
 
         self.start_card(synchmaster)
         self.arm_trigger(synchmaster)
 
-    def simple_test(self, mseconds_play, loops, clk_rate=MEGA(50), amps = [500,500]):
-        card = self._netbox.card(1)
+    def simple_test(self, mseconds_play, loops, clk_rate=MEGA(50), amps=[500, 500]):
 
-        spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_RESET)
+        spcm_dwSetParam_i64(self._netbox.card(0), SPC_M2CMD, M2CMD_CARD_RESET)
+        spcm_dwSetParam_i64(self._netbox.card(1), SPC_M2CMD, M2CMD_CARD_RESET)
 
-        #self.set_clock_rate(card, int(clk_rate))
+        #self.set_clock_rate(self._netbox.card(1), int(clk_rate))
 
         samples = self.waveform_padding(mseconds_play * 1e-3 * clk_rate)
         tax = np.linspace(0, mseconds_play, samples)
         out = np.zeros((samples,))
-        out[tax < mseconds_play/2] = 1
 
-        out2 = np.zeros((samples,))
-        out2[tax < mseconds_play / 2] = -1
+        halftime = len(tax[tax < mseconds_play/2])
+        tinterval = tax[-1] - tax[halftime]
+        out = np.cos(tax * 2*np.pi/tinterval)
+        out2 = np.sin(tax * 2 * np.pi / tinterval)
 
-        analog_waveforms = {1: {0: out}}
+        analog_waveforms = {1:{0:out2}}
         do_out = np.zeros((1, samples), dtype=c_int16)
-        do_out[0:len(tax)//2] = 1
+        #do_out[0:len(tax)//2] = 1
+        do_out[:, out2<=0] = 1
 
-        dout2 = np.zeros((1, samples), dtype=c_int16)
-        digital_waveforms = {0: do_out}
+        do_out2 = ~do_out
+        digital_waveforms = {1: do_out}
 
-        self.play_single_waveform(digital_waveforms=digital_waveforms,
+        self.play_single_waveform(analog_waveforms=analog_waveforms, digital_waveforms=digital_waveforms,
                                   repeats=loops, channel_amplitudes=amps, trigger_or_mask=['immediate'],
+                                  digital_output_map={1:[2]},
                                   trigger_and_mask=[None], clk_rate=clk_rate)
+
 
     def configure_ORmask(self, card, *masks_to_enable):
         final_mask = 0
@@ -422,6 +455,15 @@ class SpectrumNetbox(Base):
         spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_ENABLETRIGGER)
 
     def _assign_digital_output_channels(self, digital_waveforms=dict(), digital_output_map=dict()):
+        """
+        Function that assigns the digital waveforms to their correct AO source in the master card, and also assigns
+        them to the physical output channels.
+        @param dict digital_waveforms: the dictionary containing the do waveforms, ordered as in _create_waveform_buffers
+        @param dict digital_output_map: optional dictionary that maps the source of the waveforms (i.e. the ao channels)
+                                        to the physical do channels. I.e., digital_output_map = {0: [2,0]}, assigns
+                                        the two waveforms that will be contained in ch0 waveform to the physical do x2
+                                        and x0 channels, in this order.
+        """
         if digital_waveforms:
             mastercard = self._netbox.master()
             if not digital_output_map:
@@ -436,19 +478,21 @@ class SpectrumNetbox(Base):
                     x_chan_mode = SPCM_XMODE_DIGOUT | self.__chan_digout_sources[channel] | self.__bit_digout_sources[ii]
                     spcm_dwSetParam_i64(mastercard, self.__digout_channels[xoutput], x_chan_mode)
 
-    def _create_waveform_buffers(self, analog_waveforms=dict(), digital_waveforms=dict()):
+    def _create_waveform_buffers(self, analog_waveforms=dict(), digital_waveforms=dict(),
+                                 sequence_step=None):
         """
         Given a bunch of waveforms, it prepares the buffers for data transfer. Channels have to be activated somewhere
         else, this function just prepares and returns the buffers for data transfer.
-        @param dict waveform_sequences: A dictionary containing subdictionaries. The keys of the dictionary need to be
+        @param dict analog_waveforms: A dictionary containing subdictionaries. The keys of the dictionary need to be
                                         integer numbers, and they describe which is the required card. Each
                                         subdictionary is indexed with the channels indices (i.e. 0,1,2...)
-        @param dict digital_sequences:  A dictionary containing the digital waveforms. The keys are 0,1,2,...
+        @param dict digital_waveforms:  A dictionary containing the digital waveforms. The keys are 0,1,2,...
                                         corresponding to which digital channels the digital waveforms will be assigned
                                         to. Each element of the dictionary is a numpy array with shape MxN, where M
                                         corresponds to number of digital waveforms assigned to the channel. If you have
                                         a device with 16 bits, they will first be assigned to the 15th bit, then the
                                         14th, and so on.
+        @param int sequence_step: Optional parameter to be fed when loading sequences. Defines the segment nummber.
         """
 
         masteridx = self._netbox.masteridx
@@ -524,10 +568,15 @@ class SpectrumNetbox(Base):
             # Here a nice ctypes/C trick to transfer the whole array to the pnData pointer, without using for loops
             memmove(pnData, channel_matrix.ctypes.data, sizeof(c_int16) * len(channel_matrix))
 
-            error = spcm_dwDefTransfer_i64(self._netbox.card(card_idx), SPCM_BUF_DATA, SPCM_DIR_PCTOCARD,
-                                   0, pvData, 0, buffer_size)
-            error = spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_DATA_STARTDMA | M2CMD_DATA_WAITDMA)
+            if sequence_step is not None:
+                spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_SEQMODE_WRITESEGMENT, sequence_step)
+                spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_SEQMODE_SEGMENTSIZE,
+                                    waveform_size * len(tot_channels))
 
+            error = spcm_dwDefTransfer_i64(self._netbox.card(card_idx), SPCM_BUF_DATA, SPCM_DIR_PCTOCARD,
+                                           0, pvData, 0, buffer_size)
+            error = spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD,
+                                        M2CMD_DATA_STARTDMA | M2CMD_DATA_WAITDMA)
 
     def _get_required_cards(self, analog_waveforms=dict(), digital_waveforms=dict()):
         masteridx = self._netbox.masteridx
