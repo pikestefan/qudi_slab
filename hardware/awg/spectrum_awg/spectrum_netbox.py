@@ -19,7 +19,6 @@ along with Qudi. If not, see <http://www.gnu.org/licenses/>.
 
 Copyright (c) the Qudi Developers. See the COPYRIGHT.txt file at the
 top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi/>
-Test Push
 """
 import numpy as np
 
@@ -277,6 +276,8 @@ class SpectrumNetbox(Base):
                                         the two waveforms that will be contained in ch0 waveform to the physical do x2
                                         and x0 channels, in this order.
         """
+        # TODO: clean up the error checks so that error handling is done in a sensible way. Also check if the bitwise or
+        #  can be reverted to the vectorized numpy matrix, rather than doing it element by element in the for loop.
         # Here it is assumed that all the sequence steps use the same cards
         if not analog_sequences:
             first_ao = dict()
