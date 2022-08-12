@@ -27,6 +27,7 @@ from core.configoption import ConfigOption
 from collections import defaultdict
 from .spcm_tools import *
 from .pyspcm import *
+from math import log2
 
 class CardCollection(object):
     """
@@ -125,6 +126,8 @@ class SpectrumNetbox(Base):
             self.log.error("Unknown digitizerNETBOX/generatorNETBOX.")
             return -1
 
+        self._error_msg = create_string_buffer(ERRORTEXTLEN)
+
         self._netbox = CardCollection()
 
         for ii in range(self._card_num):
@@ -189,10 +192,8 @@ class SpectrumNetbox(Base):
                 self.log.warning(f"Requested an ao voltage exceeding the {self._max_ao_voltage} bound."
                                  "Clipping applied.")
             command = self.__amplitude_chans[channel % self._card_num]
-            errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx),
-                                           command,
-                                           int64(amplitude))
-            errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
+            spcm_dwSetParam_i64(self._netbox.card(card_idx), command, int64(amplitude))
+            errorout = self._get_error_msg(self._netbox.card(card_idx))
             if errorout:
                 return -1
         return 0
@@ -209,9 +210,9 @@ class SpectrumNetbox(Base):
         channels, filter_active = (list(srlist) for srlist in zip(*sorted(zip(channels, filter_active))))
         for channel, value in zip(channels, filter_active):
             card_idx = channel // self._card_num
-            errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx), self.__filter_chans[channel % self._card_num],
-                                           int64(value))
-            errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
+            spcm_dwSetParam_i64(self._netbox.card(card_idx), self.__filter_chans[channel % self._card_num],
+                                int64(value))
+            errorout = self._get_error_msg(self._netbox.card(card_idx))
             if errorout:
                 return -1
         return 0
@@ -224,8 +225,8 @@ class SpectrumNetbox(Base):
             self.log.error(f"Minimum clock rate is {self._min_clock_rate}, you provided {clk_rate}.")
             return -1
 
-        errorout = spcm_dwSetParam_i64(card, SPC_SAMPLERATE, clk_rate)
-        errorout = self._get_error_msg(card, errorout)
+        spcm_dwSetParam_i64(card, SPC_SAMPLERATE, clk_rate)
+        errorout = self._get_error_msg(card)
         if errorout:
             return -1
 
@@ -254,30 +255,30 @@ class SpectrumNetbox(Base):
             spcm_dwSetParam_i64(self._netbox.card(card_idx), command, value)
         return 0
 
-    def load_sequence(self, analog_sequences=[], digital_sequences=[], step_map=list(), loops_list=list(),
-                      stop_condition_list=list(), digital_output_map=dict()):
+    def load_sequence(self, analog_sequences=[], digital_sequences=[], segment_map=np.array([]),
+                      loops_list=np.array([]), stop_condition_list=np.array([]), digital_output_map=dict()):
         """
         Method that loads the waveforms into the AWG. Assumes that all the different sequences will be played
         synchronously, meaning that all the requested sequences need to have the same length.
-        @param list analog_sequences: A list of dictionaries. Each dictionary containing the subdictionaries of ao waveforms.
-                                        The keys must be called: 0, 1, etc..., and they refer to the AWG cards.
-                                        The subdictionary keys, numbered 0, 1, etc..., refer to the ao channels of the
-                                        single card.
-        @param list digital_sequences: A dictionary containing the list of digital waveforms. The keys must be called:
-                                       0, 1, etc... and refer to the digital I/O channels of the AWG.
-        @param list step_map: A list containing the order of sequence steps to be replayed. For example, if there are
-                              three sequences, step_map = [0,2,1] will play the first, the last and the middle one.
-                              Default is sequential.
-        @param list loops_list: A list containing the number of times each sequence step will be repeated.
-        @param list stop_condition_list: A list setting the stop condition for each sequence step. The default finishes
-                                         each time the
+        @param list analog_sequences: A list of dictionaries. Each dictionary containing the subdictionaries of
+                                      ao waveforms. The keys must be called: 0, 1, etc..., and they refer to the AWG
+                                      cards. The subdictionary keys, numbered 0, 1, etc..., refer to the ao channels
+                                      of the single card.
+        @param np.ndarray digital_sequences: A dictionary containing the list of digital waveforms. The keys must be
+                                             called: 0, 1, etc... and refer to the digital I/O channels of the AWG.
+        @param np.ndarray segment_map: A list containing the order of the memory segments associated with the sequence
+                                       steps. E.g. for three sequences, segment_map = [0,2,1] will associate step 0 to
+                                       segment 0, step 1 to segment 2, step 2 to segment 1. Default is sequential.
+        @param np.ndarray loops_list: A list containing the number of times each sequence step will be repeated.
+        @param np.ndarray stop_condition_list: A list setting the stop condition for each sequence step. The default
+                                               waits for each step to finish the loops, until the last one which stops
+                                               the whole sequence.
         @param dict digital_output_map: optional dictionary that maps the source of the waveforms (i.e. the ao channels)
                                         to the physical do channels. I.e., digital_output_map = {0: [2,0]}, assigns
                                         the two waveforms that will be contained in ch0 waveform to the physical do x2
                                         and x0 channels, in this order.
         """
-        # TODO: clean up the error checks so that error handling is done in a sensible way. Also check if the bitwise or
-        #  can be reverted to the vectorized numpy matrix, rather than doing it element by element in the for loop.
+
         # Here it is assumed that all the sequence steps use the same cards
         if not analog_sequences:
             first_ao = dict()
@@ -304,14 +305,8 @@ class SpectrumNetbox(Base):
         elif len_do > 0:
             steps_num = len_do
 
-        """
-        if steps_num > self._netbox.maxsegments:
-            self.log.error("The requested steps exceed the maximum allowed segmentation.")
-            return -1
-        """
-
-        if not len(step_map) > 0:
-            step_map = np.arange(0, steps_num, dtype=np.int64)
+        if not len(segment_map) > 0:
+            segment_map = np.arange(0, steps_num, dtype=np.int64)
         if not len(loops_list) > 0:
             loops_list = np.ones((steps_num,), dtype=np.int64)
         if not len(stop_condition_list) > 0:
@@ -319,23 +314,28 @@ class SpectrumNetbox(Base):
             stop_condition_list[:-1] = SPCSEQ_ENDLOOPALWAYS
             stop_condition_list[-1] = SPCSEQ_END
 
+        # The segments in the memory need to be a power of 2.
+        max_segments = 1 << (int(log2(steps_num - 1)) + 1)
+        if max_segments > self._netbox.maxsegments:
+            self.log.error("The requested steps exceed the maximum allowed segmentation.")
+            return -1
+
         # Get the memory requirements for each segment, then set up the sequence settings
+        # TODO: for now, I'm not using the segment_memory_requirements to do the error checking on the length of each
+        #  segment. Implement it in the near future.
         segment_memory_requirements = dict()
         for card_idx in cards:
             current_card = self._netbox.card(card_idx)
             active_chans = self._count_active_channels(current_card)
             min_segment_memory = 384 // active_chans
-            max_segment_memory = int(self._netbox.memsize / active_chans / steps_num)
+            max_segment_memory = int(self._netbox.memsize / active_chans / max_segments)
 
             segment_memory_requirements[card_idx] = [min_segment_memory, max_segment_memory]
 
             # Set up the sequence settings
-            error = spcm_dwSetParam_i64(current_card, SPC_CARDMODE, SPC_REP_STD_SEQUENCE)
-            self._get_error_msg(current_card, error)
-            error = spcm_dwSetParam_i64(current_card, SPC_SEQMODE_MAXSEGMENTS, int64(steps_num))
-            self._get_error_msg(current_card, error)
-            error = spcm_dwSetParam_i64(current_card, SPC_SEQMODE_STARTSTEP, int64(step_map[0]))
-            self._get_error_msg(current_card, error)
+            spcm_dwSetParam_i64(current_card, SPC_CARDMODE, SPC_REP_STD_SEQUENCE)
+            spcm_dwSetParam_i64(current_card, SPC_SEQMODE_MAXSEGMENTS, int64(max_segments))
+            spcm_dwSetParam_i64(current_card, SPC_SEQMODE_STARTSTEP, 0)
 
         for step in range(steps_num):
             if len_ao:
@@ -359,22 +359,21 @@ class SpectrumNetbox(Base):
 
         # The steps map should always start with the first step to be played. With this, it is assumed that if no stop
         # event occurs, the sequence will start replaying from the first step after going through the rest of the steps
-        next_steps = np.roll(step_map, -1).astype(np.int64)
+        next_steps = np.roll(step_array, -1)
         # Now combine all the step, next step, loops and stop conditions into a single value
-        #values_for_stepmem = np.stack((step_array, next_steps << 16,
-        #                               loops_list << 32, stop_condition_list << 32)
-        #                              )
-        #values_for_stepmem = np.bitwise_or.reduce(values_for_stepmem, axis=0)
+        values_for_stepmem = np.stack((segment_map, next_steps << 16,
+                                       loops_list << 32, stop_condition_list << 32)
+                                      )
+        values_for_stepmem = np.bitwise_or.reduce(values_for_stepmem, axis=0, dtype=np.int64)
 
         # Write the value to the card
-        for step, next_step, loop_num, stop_condition in zip(step_array, next_steps, loops_list, stop_condition_list):
-            segment = step
-            step = int64(step).value
-            value = int64((segment) | (next_step << 16) | (loop_num << 32) | (stop_condition << 32))
+        for step, value in zip(step_array, values_for_stepmem):
             for card_idx in cards:
                 current_card = self._netbox.card(card_idx)
-                error = spcm_dwSetParam_i64(current_card, SPC_SEQMODE_STEPMEM0 + step, value)
-                self._get_error_msg(current_card, error)
+                spcm_dwSetParam_i64(current_card, SPC_SEQMODE_STEPMEM0 + int(step), int64(value))
+                errorout = self._get_error_msg(current_card)
+                if errorout:
+                    return -1
 
         for card_idx in cards:
             current_card = self._netbox.card(card_idx)
@@ -382,10 +381,21 @@ class SpectrumNetbox(Base):
             # This step is fundamental. Without it, the card won't be able to apply the settings properly.
             spcm_dwSetParam_i64(current_card, SPC_M2CMD, M2CMD_CARD_WRITESETUP)
 
-    def sequence_test(self, msecondsplay, loops):
+    def sequence_test(self, msecondsplay, loops, segment_map=[0, 1, 2]):
+        """
+        Function for early debugging of the awg. Remove from the final class.
+
+        The steps to a successful initialization of a sequence are:
+        - Define the clock rate
+        - create the arrays that will represent the sequences
+        - configure the trigger masks
+        - load the sequence
+        - start the card
+        - arm the trigger
+        """
         msecondsplay *= 1e-3
 
-        clk_rate = MEGA(50)
+        clk_rate = MEGA(100)
 
         card_idx = 1
         card_used = self._netbox.card(card_idx)
@@ -401,25 +411,36 @@ class SpectrumNetbox(Base):
         first_seq_ch1 = np.linspace(0, 1, len(time_ax))
 
         sigma = (time_ax[-1])/20
-        second_seq_ch1 = np.exp(-( time_ax - time_ax[-1]/2 )**2/(2*sigma**2))
+        second_seq_ch1 = np.exp(-( time_ax - time_ax[-1]/2 )**2/(2*sigma**2)) * np.sin(20 * 2*np.pi * time_ax / msecondsplay)
 
-        channel = 1
+        aosequence = [{card_idx: {0: first_seq_ch0, 1:  first_seq_ch1}},
+                      {card_idx: {0: second_seq_ch0, 1: second_seq_ch1}},
+                      {card_idx: {0: first_seq_ch1, 1: second_seq_ch0}}]
 
-        aosequence = [{card_idx: {0: first_seq_ch0, 1:first_seq_ch1}},
-                      {card_idx: {0: second_seq_ch0, 1: second_seq_ch1}}]
+        do_chan = 1
         do1 = np.zeros((1,) + first_seq_ch0.shape)
         do2 = np.zeros((1,) + second_seq_ch0.shape)
+        do3 = np.zeros((1,) + first_seq_ch1.shape)
         do1[0, first_seq_ch0 > 0] = 1
         do2[0, second_seq_ch0 > 0] = 1
-        dosequence = [{channel: do1}, {channel: do2}]
+        do3[0] = 1
+        dosequence = [{do_chan: do1}, {do_chan: do2}, {do_chan: do3}]
 
-        loops = loops * np.ones((2,), dtype=np.int64)
-
+        """
+        # This sequence immediately starts after the sequences are loaded
         self.configure_ORmask(card_used, 'immediate')
         self.configure_ANDmask(card_used, None)
+        stop_condition_list = np.array([])
+        """
+        #This sequence waits for a software trigger to start playing and moving to the next step.
+        self.configure_ORmask(card_used, None)
+        self.configure_ANDmask(card_used, None)
+        loops = np.ones((len(aosequence)), dtype=np.int64)
+        stop_condition_list = np.array([SPCSEQ_ENDLOOPONTRIG, SPCSEQ_ENDLOOPONTRIG, SPCSEQ_ENDLOOPONTRIG], dtype=np.int64)
 
-        self.load_sequence(analog_sequences=aosequence, #digital_sequences=dosequence, digital_output_map={0: [2]},
-                           loops_list=loops, step_map=[1, 0], stop_condition_list=[SPCSEQ_ENDLOOPALWAYS, SPCSEQ_END])
+
+        self.load_sequence(analog_sequences=aosequence, digital_sequences=dosequence, digital_output_map={do_chan: [1]},
+                           loops_list=loops, segment_map=segment_map, stop_condition_list=stop_condition_list)
 
         self.start_card(card_used)
         self.arm_trigger(card_used)
@@ -496,36 +517,6 @@ class SpectrumNetbox(Base):
         self.start_card(synchmaster)
         self.arm_trigger(synchmaster)
 
-    def simple_test(self, mseconds_play, loops, clk_rate=MEGA(50), amps=[500, 500]):
-
-        spcm_dwSetParam_i64(self._netbox.card(0), SPC_M2CMD, M2CMD_CARD_RESET)
-        spcm_dwSetParam_i64(self._netbox.card(1), SPC_M2CMD, M2CMD_CARD_RESET)
-
-        #self.set_clock_rate(self._netbox.card(1), int(clk_rate))
-
-        samples = self.waveform_padding(mseconds_play * 1e-3 * clk_rate)
-        tax = np.linspace(0, mseconds_play, samples)
-        out = np.zeros((samples,))
-
-        halftime = len(tax[tax < mseconds_play/2])
-        tinterval = tax[-1] - tax[halftime]
-        out = np.cos(tax * 2*np.pi/tinterval)
-        out2 = np.sin(tax * 2 * np.pi / tinterval)
-
-        analog_waveforms = {1:{0:out2, 1:out}}
-        do_out = np.zeros((1, samples), dtype=c_int16)
-        #do_out[0:len(tax)//2] = 1
-        do_out[:, out2<=0] = 1
-
-        do_out2 = ~do_out
-        digital_waveforms = {1: do_out}
-
-        self.play_single_waveform(analog_waveforms=analog_waveforms, digital_waveforms=digital_waveforms,
-                                  repeats=loops, channel_amplitudes=amps, trigger_or_mask=['immediate'],
-                                  digital_output_map={1:[2]},
-                                  trigger_and_mask=[None], clk_rate=clk_rate)
-
-
     def configure_ORmask(self, card, *masks_to_enable):
         final_mask = 0
         for mask in masks_to_enable:
@@ -560,6 +551,9 @@ class SpectrumNetbox(Base):
 
     def configuration_single_mode(self, card):
         spcm_dwSetParam_i64(card, SPC_CARDMODE, SPC_REP_STD_SINGLE)
+
+    def stop_replay(self, card):
+        spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_STOP)
 
     def _assign_digital_output_channels(self, digital_waveforms=dict(), digital_output_map=dict()):
         """
@@ -675,17 +669,12 @@ class SpectrumNetbox(Base):
             memmove(pnData, channel_matrix.ctypes.data, sizeof(c_int16) * len(channel_matrix))
 
             if sequence_step is not None:
-                error =spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_SEQMODE_WRITESEGMENT, int64(sequence_step))
-                self._get_error_msg(self._netbox.card(card_idx), error)
-                error =spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_SEQMODE_SEGMENTSIZE, int64(waveform_size))
-                self._get_error_msg(self._netbox.card(card_idx), error)
+                spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_SEQMODE_WRITESEGMENT, int64(sequence_step))
+                spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_SEQMODE_SEGMENTSIZE, int64(waveform_size))
 
-            error = spcm_dwDefTransfer_i64(self._netbox.card(card_idx), SPCM_BUF_DATA, SPCM_DIR_PCTOCARD,
-                                           0, pvData, 0, int64(buffer_size))
-            self._get_error_msg(self._netbox.card(card_idx), error)
-            error = spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD,
-                                        M2CMD_DATA_STARTDMA | M2CMD_DATA_WAITDMA)
-            self._get_error_msg(self._netbox.card(card_idx), error)
+            spcm_dwDefTransfer_i64(self._netbox.card(card_idx), SPCM_BUF_DATA, SPCM_DIR_PCTOCARD,
+                                   0, pvData, 0, int64(buffer_size))
+            spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_DATA_STARTDMA | M2CMD_DATA_WAITDMA)
 
     def _get_required_cards(self, analog_waveforms=dict(), digital_waveforms=dict()):
         masteridx = self._netbox.masteridx
@@ -751,7 +740,7 @@ class SpectrumNetbox(Base):
         self._netbox.memsize = self._command_get(card, SPC_PCIMEMSIZE)
         self._netbox.bytes_persample = self._command_get(card, SPC_MIINST_BYTESPERSAMPLE)
         self._netbox.adc_resolution = self._command_get(card, SPC_MIINST_MAXADCVALUE)
-        self._netbox.maxsegments = self._command_get(card, SPC_SEQMODE_MAXSEGMENTS)
+        self._netbox.maxsegments = self._command_get(card, SPC_SEQMODE_AVAILMAXSEGMENT)
 
         card_type = self._command_get(card, SPC_NETBOX_TYPE)
         if card_type != 0:
@@ -780,8 +769,8 @@ class SpectrumNetbox(Base):
 
         for card_idx, chan_value in chans_to_activate.items():
             if chan_value != 0:
-                errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CHENABLE, chan_value)
-                errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
+                spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CHENABLE, chan_value)
+                errorout = self._get_error_msg(self._netbox.card(card_idx))
                 if errorout:
                     return -1
         return 0
@@ -808,11 +797,10 @@ class SpectrumNetbox(Base):
 
         for channel, stoplevel in zip(channels, stoplevels):
             card_idx = channel // self._card_num
-            errorout = spcm_dwSetParam_i64(self._netbox.card(card_idx),
-                                           self.__stoplevel_chans[channel % self._card_num],
-                                           int64(stoplevel))
+            spcm_dwSetParam_i64(self._netbox.card(card_idx), self.__stoplevel_chans[channel % self._card_num],
+                                int64(stoplevel))
 
-            errorout = self._get_error_msg(self._netbox.card(card_idx), errorout)
+            errorout = self._get_error_msg(self._netbox.card(card_idx))
             if errorout:
                 return -1
         return 0
@@ -836,15 +824,16 @@ class SpectrumNetbox(Base):
     def _card_reset(card):
         spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_RESET)
 
-    def _get_error_msg(self, card, err):
-        if err == ERR_OK:
-            return 0
-        else:
-            error_text_buffer = create_string_buffer(ERRORTEXTLEN)
-            spcm_dwGetErrorInfo_i32(card, 0, 0, byref(error_text_buffer))
-            message = error_text_buffer.value
-            self.log.error("Spectrum Netbox error." + message.decode("utf-8"))
+    def _get_error_msg(self, card):
+
+        error_reg, error_val = uint32(0), int32(0)
+        error_code = spcm_dwGetErrorInfo_i32(card, byref(error_reg), byref(error_val), byref(self._error_msg))
+        if error_code != ERR_OK:
+            message_values = card, error_reg, error_val, self._error_msg.decode("utf-8")
+            self.log.error("Error occured on card {}, at register {} with value {}: {}.".format(*message_values))
             return -1
+        else:
+            return 0
 
 
 
