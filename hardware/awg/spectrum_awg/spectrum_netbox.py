@@ -829,7 +829,7 @@ class SpectrumNetbox(Base):
         error_reg, error_val = uint32(0), int32(0)
         error_code = spcm_dwGetErrorInfo_i32(card, byref(error_reg), byref(error_val), byref(self._error_msg))
         if error_code != ERR_OK:
-            message_values = card, error_reg, error_val, self._error_msg.decode("utf-8")
+            message_values = card, error_reg.value, error_val.value, self._error_msg.value.decode("utf-8")
             self.log.error("Error occured on card {}, at register {} with value {}: {}.".format(*message_values))
             return -1
         else:
