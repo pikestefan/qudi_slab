@@ -34,7 +34,7 @@ class CardCollection(object):
     Small class that is used for code readability of the loaded spectrum cards.
     """
     def __init__(self):
-        self.masteridx = None
+        self._masteridx = None
         self._cards = []
         self._chans_per_card = []
         self.max_samprate = None
@@ -48,13 +48,13 @@ class CardCollection(object):
     def add_card(self, card, is_master):
         self._cards.append(card)
         if is_master:
-            self.masteridx = len(self._cards) - 1
+            self._masteridx = len(self._cards) - 1
 
     def master(self):
         """
         Return the master card.
         """
-        return self._cards[self.masteridx] if self.masteridx else None
+        return self._cards[self._masteridx] if self._masteridx else None
 
     def card(self, index):
         """
@@ -66,8 +66,8 @@ class CardCollection(object):
         """
         Return the slave card
         """
-        if index==self.masteridx:
-            self.log.info("Requested the index of the master card. Aborted.")
+        if index == self._masteridx:
+            self.log.info("Requested the index of the master card.")
             return -1
         else:
             return self._cards[index]
@@ -83,6 +83,10 @@ class CardCollection(object):
 
     def get_chan_num(self, card_idx):
         return self._chans_per_card[card_idx]
+
+    @property
+    def masteridx(self):
+        return self._masteridx
 
 
 # FIXME: for now, the inheritance gets only Base. Once everything is settled, check the pulser interface class and see
@@ -217,7 +221,11 @@ class SpectrumNetbox(Base):
                 return -1
         return 0
 
-    def set_clock_rate(self, card, clk_rate=MEGA(50)):
+    def set_clock_rate(self, card_idx, clk_rate=MEGA(50)):
+        """
+        Card is the clock index
+        """
+        card = self._netbox.card(card_idx)
         if not isinstance(clk_rate, int):
             clk_rate = int(clk_rate)
             self.log.warning(f"Given clock rate {clk_rate} is not an integer. Rounding will occurr.")
@@ -230,7 +238,8 @@ class SpectrumNetbox(Base):
         if errorout:
             return -1
 
-    def get_clock_rate(self, card):
+    def get_clock_rate(self, card_idx):
+        card = self._netbox.card(card_idx)
         return self._command_get(card, SPC_SAMPLERATE)
 
     def activate_outputs(self, *channels):
@@ -398,10 +407,7 @@ class SpectrumNetbox(Base):
         clk_rate = MEGA(100)
 
         card_idx = 1
-        card_used = self._netbox.card(card_idx)
-
-        for ii in range(2):
-            self.set_clock_rate(card_used, clk_rate)
+        self.set_clock_rate(card_idx, clk_rate)
 
         samples = self.waveform_padding(msecondsplay * clk_rate)
         time_ax = np.linspace(0, samples/clk_rate, samples)
@@ -428,13 +434,13 @@ class SpectrumNetbox(Base):
 
         """
         # This sequence immediately starts after the sequences are loaded
-        self.configure_ORmask(card_used, 'immediate')
-        self.configure_ANDmask(card_used, None)
+        self.configure_ORmask(card_idx, 'immediate')
+        self.configure_ANDmask(card_idx, None)
         stop_condition_list = np.array([])
         """
         #This sequence waits for a software trigger to start playing and moving to the next step.
-        self.configure_ORmask(card_used, None)
-        self.configure_ANDmask(card_used, None)
+        self.configure_ORmask(card_idx, None)
+        self.configure_ANDmask(card_idx, None)
         loops = np.ones((len(aosequence)), dtype=np.int64)
         stop_condition_list = np.array([SPCSEQ_ENDLOOPONTRIG, SPCSEQ_ENDLOOPONTRIG, SPCSEQ_ENDLOOPONTRIG], dtype=np.int64)
 
@@ -442,8 +448,8 @@ class SpectrumNetbox(Base):
         self.load_sequence(analog_sequences=aosequence, digital_sequences=dosequence, digital_output_map={do_chan: [1]},
                            loops_list=loops, segment_map=segment_map, stop_condition_list=stop_condition_list)
 
-        self.start_card(card_used)
-        self.arm_trigger(card_used)
+        self.start_card(card_idx)
+        self.arm_trigger(card_idx)
 
     def play_single_waveform(self, analog_waveforms=dict(), digital_waveforms=dict(), digital_output_map=dict(),
                              repeats=0, clk_rate=MEGA(50), channel_amplitudes=[], trigger_or_mask=list(),
@@ -479,10 +485,10 @@ class SpectrumNetbox(Base):
             return -1
 
         if len(card_indices) > 1:
-            synchmaster = self._netbox.starHub
-            spcm_dwSetParam_i64(synchmaster, SPC_SYNC_ENABLEMASK, 0x3) # Harcoded, connects by default the only two cards we have
+            spcm_dwSetParam_i64(self._netbox.starHub, SPC_SYNC_ENABLEMASK, 0x3) # Harcoded, connects by default the only two cards we have
+            synchmaster = self._netbox.masteridx
         else:
-            synchmaster = self._netbox.card(card_indices[0])
+            synchmaster = card_indices[0]
 
         if self._netbox.masteridx in card_indices:
             mask_card = self._netbox.master()
@@ -498,17 +504,17 @@ class SpectrumNetbox(Base):
 
         for card_idx in card_indices:
             card = self._netbox.card(card_idx)
-            self.set_clock_rate(card, clk_rate=clk_rate)
-            self.configuration_single_mode(card)
+            self.set_clock_rate(card_idx, clk_rate=clk_rate)
+            self.configuration_single_mode(card_idx)
             spcm_dwSetParam_i64(card, SPC_MEMSIZE, memsize)
             spcm_dwSetParam_i64(card, SPC_LOOPS, repeats)
 
             if card == mask_card:
-                self.configure_ORmask(card, *trigger_or_mask)
-                self.configure_ANDmask(card, *trigger_and_mask)
+                self.configure_ORmask(card_idx, *trigger_or_mask)
+                self.configure_ANDmask(card_idx, *trigger_and_mask)
             else:
-                self.configure_ORmask(card, *[])
-                self.configure_ANDmask(card, *[])
+                self.configure_ORmask(card_idx, *[])
+                self.configure_ANDmask(card_idx, *[])
 
         self._assign_digital_output_channels(digital_waveforms=digital_waveforms, digital_output_map=digital_output_map)
 
@@ -517,7 +523,7 @@ class SpectrumNetbox(Base):
         self.start_card(synchmaster)
         self.arm_trigger(synchmaster)
 
-    def configure_ORmask(self, card, *masks_to_enable):
+    def configure_ORmask(self, card_idx, *masks_to_enable):
         final_mask = 0
         for mask in masks_to_enable:
             if mask not in self.__card_ormask_trigger_dict:
@@ -525,9 +531,9 @@ class SpectrumNetbox(Base):
                 return -1
             final_mask |= self.__card_ormask_trigger_dict[mask]
 
-        spcm_dwSetParam_i64(card, SPC_TRIG_ORMASK, final_mask)
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_TRIG_ORMASK, final_mask)
 
-    def configure_ANDmask(self, card, *masks_to_enable):
+    def configure_ANDmask(self, card_idx, *masks_to_enable):
         final_mask = 0
         for mask in masks_to_enable:
             if mask not in self.__card_andmask_trigger_dict:
@@ -535,25 +541,37 @@ class SpectrumNetbox(Base):
                 return -1
             final_mask |= self.__card_ormask_trigger_dict[mask]
 
-        spcm_dwSetParam_i64(card, SPC_TRIG_ANDMASK, final_mask)
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_TRIG_ANDMASK, final_mask)
 
-    def send_software_trig(self, card):
-        spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_FORCETRIGGER)
+    def send_software_trig(self, card_idx):
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_FORCETRIGGER)
 
-    def start_card(self, card):
-        spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_START)
+    def start_card(self, card_idx):
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_START)
 
-    def arm_trigger(self, card):
-        spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_ENABLETRIGGER)
+    def arm_trigger(self, card_idx):
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_ENABLETRIGGER)
 
-    def configuration_sequence_mode(self, card):
-        spcm_dwSetParam_i64(card, SPC_CARDMODE, SPC_REP_STD_SEQUENCE)
+    def configuration_sequence_mode(self, card_idx):
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CARDMODE, SPC_REP_STD_SEQUENCE)
 
-    def configuration_single_mode(self, card):
-        spcm_dwSetParam_i64(card, SPC_CARDMODE, SPC_REP_STD_SINGLE)
+    def configuration_single_mode(self, card_idx):
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CARDMODE, SPC_REP_STD_SINGLE)
 
-    def stop_replay(self, card):
-        spcm_dwSetParam_i64(card, SPC_M2CMD, M2CMD_CARD_STOP)
+    def stop_replay(self, card_idx):
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_STOP)
+
+    @staticmethod
+    def waveform_padding(waveform_len):
+        """
+        Calculate the padding required to take the waveform to the correct length. The waveform length needs to be a
+        multiple of 32.
+        """
+        if waveform_len % 32 > 0:
+            outlen = 32 * (waveform_len // 32) + 32
+        else:
+            outlen = waveform_len
+        return int(outlen)
 
     def _assign_digital_output_channels(self, digital_waveforms=dict(), digital_output_map=dict()):
         """
@@ -714,18 +732,6 @@ class SpectrumNetbox(Base):
             sign_waveform[out_waveform < 0] = 1
             out_waveform = (out_waveform & max_value) + (sign_waveform * (max_value + 1))
         return out_waveform
-
-    def waveform_padding(self, waveform_len):
-        """
-        Calculate the padding required to take the waveform to the correct length. The waveform length needs to be a
-        multiple of 32.
-        """
-        outlen = 0
-        if waveform_len % 32 > 0:
-            outlen = 32 * (waveform_len // 32) + 32
-        else:
-            outlen = waveform_len
-        return int(outlen)
 
     def _get_device_info(self):
         #FIXME: consider moving this to the CardCollection class, rather than doing it here.
