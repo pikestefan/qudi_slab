@@ -28,80 +28,19 @@ from collections import defaultdict
 from .spcm_tools import *
 from .pyspcm import *
 from math import log2
-
-class CardCollection(object):
-    """
-    Small class that is used for code readability of the loaded spectrum cards.
-    """
-    def __init__(self):
-        self._masteridx = None
-        self._cards = []
-        self._chans_per_card = []
-        self.max_samprate = None
-        self.memsize = None
-        self.bytes_persample = None
-        self.adc_resolution = None
-        self.maxsegments = None
-        self.netbox_type = None
-        self.starHub = None
-
-    def add_card(self, card, is_master):
-        self._cards.append(card)
-        if is_master:
-            self._masteridx = len(self._cards) - 1
-
-    def master(self):
-        """
-        Return the master card.
-        """
-        return self._cards[self._masteridx] if self._masteridx else None
-
-    def card(self, index):
-        """
-        Return any card
-        """
-        return self._cards[index] if index < len(self._cards) else None
-
-    def slavecard(self, index):
-        """
-        Return the slave card
-        """
-        if index == self._masteridx:
-            self.log.info("Requested the index of the master card.")
-            return -1
-        else:
-            return self._cards[index]
-
-    def card_amount(self):
-        """
-        Return number of loaded cards
-        """
-        return len(self._cards)
-
-    def set_chan_num(self, num):
-        self._chans_per_card.append(num)
-
-    def get_chan_num(self, card_idx):
-        return self._chans_per_card[card_idx]
-
-    @property
-    def masteridx(self):
-        return self._masteridx
+from interface.pulser_interface import PulserInterface, PulserConstraints
 
 
-# FIXME: for now, the inheritance gets only Base. Once everything is settled, check the pulser interface class and see
-#  if the commands are -or can be made- compatible with this module.
-class SpectrumNetbox(Base):
+class SpectrumNetbox(Base, PulserInterface):
     # TODO: one day, maybe implement an autodetection if the ip is not provided.
     _card_ip = ConfigOption('card_ip', missing='error')
     _netbox_type = ConfigOption('netbox_type', 'DN2.663-04', missing='info')
     _max_frequency = ConfigOption('max_frequency', 100e6, missing='info')
-    _max_ao_voltage = ConfigOption('max_ao_voltage_mV', 500, missing='info')
+    _max_ao_voltages = ConfigOption('max_ao_voltage_mV', [500, 500, 500, 500], missing='info')
 
     _ip_addon = '::inst{}::INSTR'
 
-
-    #Initalize some lists of parameters that are going to be used in the methods
+    # Initalize some lists of parameters that are going to be used in the methods
     __amplitude_chans = [SPC_AMP0, SPC_AMP1, SPC_AMP2, SPC_AMP3]
     __filter_chans = [SPC_FILTER0, SPC_FILTER1, SPC_FILTER2, SPC_FILTER3]
     __stoplevel_chans = [SPC_CH0_STOPLEVEL, SPC_CH1_STOPLEVEL, SPC_CH2_STOPLEVEL, SPC_CH3_STOPLEVEL]
@@ -159,7 +98,7 @@ class SpectrumNetbox(Base):
         self.log.info("Loaded all the cards successfully.")
         if self._netbox.master() is None:
             self.log.warning("No card with starhub found.")
-        self._get_device_info()
+        self._netbox.get_info()
 
         # Now open the starhub communication
         self._netbox.starHub = spcm_hOpen(create_string_buffer(b"sync0"))
@@ -168,6 +107,9 @@ class SpectrumNetbox(Base):
             self.log.error(f"The expected netbox type is {self._netbox_type}, "
                            f"but the device returned {self._netbox.netbox_type}. Aborting.")
             self.on_deactivate()
+
+        self._waveform_container = []
+        self._sequence_container = dict()
 
     def on_deactivate(self):
         for ii in range(self._netbox.card_amount()):
@@ -187,13 +129,11 @@ class SpectrumNetbox(Base):
         """
         # Make sure everything is sorted
         channels, amplitudes = (list(srlist) for srlist in zip(*sorted(zip(channels, amplitudes))))
-        for channel, amplitude in zip(channels, amplitudes):
+        for channel, amplitude, max_ao_voltage in zip(channels, amplitudes, self._max_ao_voltages):
             card_idx = channel // self._card_num
-            # TODO: this is not general. Apply the clipping only to the channels that need it (e.g., the channels
-            #  used for IQ modulation on the SRS.
-            if amplitude > self._max_ao_voltage:
-                amplitude = self._max_ao_voltage
-                self.log.warning(f"Requested an ao voltage exceeding the {self._max_ao_voltage} bound."
+            if amplitude > max_ao_voltage:
+                amplitude = max_ao_voltage
+                self.log.warning(f"Requested an ao voltage exceeding the {max_ao_voltage} bound."
                                  "Clipping applied.")
             command = self.__amplitude_chans[channel % self._card_num]
             spcm_dwSetParam_i64(self._netbox.card(card_idx), command, int64(amplitude))
@@ -221,7 +161,7 @@ class SpectrumNetbox(Base):
                 return -1
         return 0
 
-    def set_clock_rate(self, card_idx, clk_rate=MEGA(50)):
+    def set_sample_rate(self, card_idx, clk_rate=MEGA(50)):
         """
         Card is the clock index
         """
@@ -238,14 +178,14 @@ class SpectrumNetbox(Base):
         if errorout:
             return -1
 
-    def get_clock_rate(self, card_idx):
+    def get_sample_rate(self, card_idx):
         card = self._netbox.card(card_idx)
         return self._command_get(card, SPC_SAMPLERATE)
 
-    def activate_outputs(self, *channels):
+    def set_active_channels(self, *channels):
         """
-        Enables or disables channels. This affects the maximum available memory that each channel has for the waveforms.
-        *channels represents the list of requested channels, indexed from 0 to n (to stay consistent with python indexing).
+        Activates or deactivates disables the physical output channels. *channels represents the list of requested channels,
+        indexed from 0 to n (to stay consistent with python indexing).
         If the physical channels of each card in the netbox are less than the required channels, but if there are enough
         outputs in the rest of the netbox, the analog output is adjusted accordingly.
 
@@ -264,12 +204,24 @@ class SpectrumNetbox(Base):
             spcm_dwSetParam_i64(self._netbox.card(card_idx), command, value)
         return 0
 
-    def load_sequence(self, analog_sequences=[], digital_sequences=[], segment_map=np.array([]),
-                      loops_list=np.array([]), stop_condition_list=np.array([]), digital_output_map=dict()):
+    def get_active_channels(self, ch=None):
+        if ch is None:
+            ch = range(self._netbox.get_chan_num(0) * self._netbox.card_amount())
+
+        channels_active = [0,] * len(ch)
+        for ii, channel in enumerate(ch):
+            card_idx = channel // self._card_num
+            ch_idx = channel % self._card_num
+            command = self.__output_chan_enable[ch_idx]
+            channels_active[ii] = self._command_get(self._netbox.card(card_idx), command)
+        return channels_active
+
+    def load_sequence(self, waveform_list=None, segment_map=np.array([]), loops_list=np.array([]),
+                      stop_condition_list=np.array([])):
         """
         Method that loads the waveforms into the AWG. Assumes that all the different sequences will be played
         synchronously, meaning that all the requested sequences need to have the same length.
-        @param list analog_sequences: A list of dictionaries. Each dictionary containing the subdictionaries of
+        @param list waveform_list: A list of dictionaries. Each dictionary containing the subdictionaries of
                                       ao waveforms. The keys must be called: 0, 1, etc..., and they refer to the AWG
                                       cards. The subdictionary keys, numbered 0, 1, etc..., refer to the ao channels
                                       of the single card.
@@ -288,31 +240,18 @@ class SpectrumNetbox(Base):
                                         and x0 channels, in this order.
         """
 
-        # Here it is assumed that all the sequence steps use the same cards
-        if not analog_sequences:
-            first_ao = dict()
-        else:
-            first_ao = analog_sequences[0]
-        if not digital_sequences:
-            first_do = dict()
-        else:
-            first_do = digital_sequences[0]
-        cards = self._get_required_cards(first_ao, first_do)
-        required_channels = self._get_required_channels(first_ao, first_do)
+        if waveform_list is None:
+            waveform_list = self._waveform_container
 
-        self.activate_outputs(*required_channels)
+        # Here it is assumed that all the sequence steps use the same cards
+        first_wform = waveform_list[0]
+        cards = first_wform.required_cards()
+        required_channels = first_wform.required_channels()
+
+        self.set_active_channels(*required_channels)
         self._chan_enable(*required_channels)
 
-        # Check the requested sequences
-        len_ao, len_do = len(analog_sequences), len(digital_sequences)
-        if (len_ao > 0 and len_do > 0) and (len_ao != len_do):
-            self.log.error("The number of AO steps and DO steps must be the same.")
-            return -1
-
-        if len_ao > 0:
-            steps_num = len_ao
-        elif len_do > 0:
-            steps_num = len_do
+        steps_num = len(waveform_list)
 
         if not len(segment_map) > 0:
             segment_map = np.arange(0, steps_num, dtype=np.int64)
@@ -347,14 +286,8 @@ class SpectrumNetbox(Base):
             spcm_dwSetParam_i64(current_card, SPC_SEQMODE_STARTSTEP, 0)
 
         for step in range(steps_num):
-            if len_ao:
-                current_ao_waveform = analog_sequences[step]
-            else:
-                current_ao_waveform = dict()
-            if len_do:
-                current_do_waveform = digital_sequences[step]
-            else:
-                current_do_waveform = dict()
+            current_waveform = waveform_list[step]
+            current_ao_waveform, current_do_waveform, digital_output_map = current_waveform.generate_awg_waveform()
 
             self._assign_digital_output_channels(digital_waveforms=current_do_waveform,
                                                  digital_output_map=digital_output_map)
@@ -407,7 +340,7 @@ class SpectrumNetbox(Base):
         clk_rate = MEGA(100)
 
         card_idx = 1
-        self.set_clock_rate(card_idx, clk_rate)
+        self.set_sample_rate(card_idx, clk_rate)
 
         samples = self.waveform_padding(msecondsplay * clk_rate)
         time_ax = np.linspace(0, samples/clk_rate, samples)
@@ -419,18 +352,25 @@ class SpectrumNetbox(Base):
         sigma = (time_ax[-1])/20
         second_seq_ch1 = np.exp(-( time_ax - time_ax[-1]/2 )**2/(2*sigma**2)) * np.sin(20 * 2*np.pi * time_ax / msecondsplay)
 
-        aosequence = [{card_idx: {0: first_seq_ch0, 1:  first_seq_ch1}},
-                      {card_idx: {0: second_seq_ch0, 1: second_seq_ch1}},
-                      {card_idx: {0: first_seq_ch1, 1: second_seq_ch0}}]
+        aosequence = [{2: first_seq_ch0, 3:first_seq_ch1},
+                      {2: second_seq_ch0, 3: second_seq_ch1},
+                      {2: first_seq_ch1, 3: second_seq_ch0}]
 
         do_chan = 1
-        do1 = np.zeros((1,) + first_seq_ch0.shape)
-        do2 = np.zeros((1,) + second_seq_ch0.shape)
-        do3 = np.zeros((1,) + first_seq_ch1.shape)
-        do1[0, first_seq_ch0 > 0] = 1
-        do2[0, second_seq_ch0 > 0] = 1
-        do3[0] = 1
-        dosequence = [{do_chan: do1}, {do_chan: do2}, {do_chan: do3}]
+        do1 = np.zeros(first_seq_ch0.shape)
+        do2 = np.zeros(second_seq_ch0.shape)
+        do3 = np.zeros(first_seq_ch1.shape)
+        do1[first_seq_ch0 > 0] = 1
+        do2[second_seq_ch0 > 0] = 1
+        do3[:] = 1
+
+        outchan = 0
+        dosequence = [{outchan: do1}, {outchan: do2}, {outchan: do3}]
+
+        digital_output_map = {1: [outchan]}
+        for aos, dos in zip(aosequence, dosequence):
+            self.load_waveform(ao_waveform_dictionary=aos, do_waveform_dictionary=dos,
+                               digital_output_map=digital_output_map)
 
         """
         # This sequence immediately starts after the sequences are loaded
@@ -445,7 +385,7 @@ class SpectrumNetbox(Base):
         stop_condition_list = np.array([SPCSEQ_ENDLOOPONTRIG, SPCSEQ_ENDLOOPONTRIG, SPCSEQ_ENDLOOPONTRIG], dtype=np.int64)
 
 
-        self.load_sequence(analog_sequences=aosequence, digital_sequences=dosequence, digital_output_map={do_chan: [1]},
+        self.load_sequence(#digital_sequences=dosequence,
                            loops_list=loops, segment_map=segment_map, stop_condition_list=stop_condition_list)
 
         self.start_card(card_idx)
@@ -497,14 +437,14 @@ class SpectrumNetbox(Base):
             trigger_or_mask = [trig for trig in trigger_or_mask if trig in [None, 'immediate']]
             trigger_and_mask = [None]
 
-        self.activate_outputs(*channels_required)
+        self.set_active_channels(*channels_required)
 
         self._chan_enable(*channels_required)
         self.set_chan_amplitude(channels_required, channel_amplitudes)
 
         for card_idx in card_indices:
             card = self._netbox.card(card_idx)
-            self.set_clock_rate(card_idx, clk_rate=clk_rate)
+            self.set_sample_rate(card_idx, clk_rate=clk_rate)
             self.configuration_single_mode(card_idx)
             spcm_dwSetParam_i64(card, SPC_MEMSIZE, memsize)
             spcm_dwSetParam_i64(card, SPC_LOOPS, repeats)
@@ -561,6 +501,15 @@ class SpectrumNetbox(Base):
     def stop_replay(self, card_idx):
         spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_STOP)
 
+    def reset(self):
+        for card_idx in range(self._netbox.card_amount()):
+            self._card_reset(self._netbox.card(card_idx))
+
+    def get_interleave(self):
+        return False
+    def set_interleave(self, state=False):
+        pass
+
     @staticmethod
     def waveform_padding(waveform_len):
         """
@@ -572,6 +521,71 @@ class SpectrumNetbox(Base):
         else:
             outlen = waveform_len
         return int(outlen)
+
+    def get_constraints(self):
+        return self._netbox.constraints
+
+    def pulser_on(self):
+        all_chans = self._netbox.get_chan_num(0) * self._netbox.card_amount()
+        self.set_active_channels([ii for ii in range(all_chans)])
+
+    def pulser_off(self):
+        self.set_active_channels([])
+
+    def load_waveform(self, ao_waveform_dictionary=dict(), do_waveform_dictionary=dict(), digital_output_map=dict()):
+        waveform = AbstractWaveform(self._netbox.card_amount(), self._netbox.masteridx)
+        waveform.assign_ao_waveforms(ao_waveform_dictionary)
+        waveform.assign_do_waveforms(do_waveform_dictionary, digital_output_map)
+        self._waveform_container.append(waveform)
+
+    def get_loaded_assets(self):
+        return {}, ''
+
+    def clear_all(self):
+        self._waveform_container = None
+        return 0
+
+    def get_status(self):
+        return 0, {}
+
+    def get_analog_level(self):
+        return {}, {}
+
+    def set_analog_level(self):
+        pass
+
+    def get_digital_level(self):
+        return {}, {}
+
+    def set_digital_level(self):
+        pass
+
+    def write_waveform(self):
+        self.log.error("Write waveform not implemented.")
+
+    def write_sequence(self):
+        self.log.error("Write sequence not implemented.")
+
+    def get_waveform_names(self):
+        return []
+
+    def get_sequence_names(self):
+        return []
+
+    def delete_waveform(self):
+        self.log.error("delete_waveform not implemented.")
+        return []
+
+    def delete_sequence(self):
+        self.log.error("delete_sequence not implemented.")
+        return []
+
+    def get_interleave(self):
+        self.log.error("Interleave not available on this device.")
+        return False
+
+    def set_interleave(self):
+        self.log.error("Interleave not available on this device.")
 
     def _assign_digital_output_channels(self, digital_waveforms=dict(), digital_output_map=dict()):
         """
@@ -672,7 +686,7 @@ class SpectrumNetbox(Base):
                     #                    The line above shifts puts each do signal in its right bit
                     channel_matrix[:, channel] = np.sum(channel_do_matrix, axis=1)
                 if card_ao_waveforms and channel in card_ao_waveforms:
-                    # Apply rescaling and adjust depending if the waveforms has 16, 15, or 14 usable bits
+                    # Apply rescaling and adjust depending on whether the waveforms have 16, 15, or 14 usable bits
                     rescaled_ao = self._waveform_16_to_nbits(card_ao_waveforms[channel], maxADC_chan)
                     channel_matrix[:, chan_idx] = channel_matrix[:, chan_idx] + rescaled_ao
             # Reshape the matrix to interleave the sample arrays
@@ -732,29 +746,6 @@ class SpectrumNetbox(Base):
             sign_waveform[out_waveform < 0] = 1
             out_waveform = (out_waveform & max_value) + (sign_waveform * (max_value + 1))
         return out_waveform
-
-    def _get_device_info(self):
-        #FIXME: consider moving this to the CardCollection class, rather than doing it here.
-        if self._netbox.master():
-            card = self._netbox.master()
-        elif self._netbox.card(0):
-            card = self._netbox.card(0)
-        else:
-            self.log.error("No cards are loaded.")
-            return -1
-        self._netbox.max_samprate = self._command_get(card, SPC_PCISAMPLERATE)
-        self._netbox.memsize = self._command_get(card, SPC_PCIMEMSIZE)
-        self._netbox.bytes_persample = self._command_get(card, SPC_MIINST_BYTESPERSAMPLE)
-        self._netbox.adc_resolution = self._command_get(card, SPC_MIINST_MAXADCVALUE)
-        self._netbox.maxsegments = self._command_get(card, SPC_SEQMODE_AVAILMAXSEGMENT)
-
-        card_type = self._command_get(card, SPC_NETBOX_TYPE)
-        if card_type != 0:
-            series, family, speed_grade, channels = (card_type >> 24) & 0xff, (card_type >> 16) & 0xff, \
-                                                    (card_type >> 8) & 0xff, card_type & 0xff
-            series = hex(series)[2:]
-            family = hex(family)[2:]
-            self._netbox.netbox_type = f"DN{series}.{family}{speed_grade}-{str(channels).zfill(2)}"
 
     def _chan_enable(self, *channels):
         """
@@ -842,4 +833,158 @@ class SpectrumNetbox(Base):
             return 0
 
 
+class AbstractWaveform(object):
+    def __init__(self, awg_card_num, mastercard_idx):
+        self._awg_card_num = awg_card_num
+        self._mastercard_idx = mastercard_idx
+        self._analog_waveforms = dict()
+        self._digital_waveforms = dict()
+        self._digital_map = dict()
+        self._required_channels = []
 
+    def assign_ao_waveforms(self, waveform_dict):
+        """
+        A dictionary of waveforms. The keys 0,1,2,... correspond to the output channels.
+        """
+        self._analog_waveforms.update(waveform_dict)
+        self._required_channels += list(self._analog_waveforms.keys())
+
+    def assign_do_waveforms(self, waveform_dict, digital_out_map):
+        self._digital_waveforms.update(waveform_dict)
+        self._digital_map = digital_out_map
+        self._required_channels += [self._mastercard_idx + ao_chan + 1 for ao_chan in self._digital_map.keys()]
+
+    def generate_awg_waveform(self):
+        if self._analog_waveforms:
+            analog_out = defaultdict(dict)
+            for key, waveform in self._analog_waveforms.items():
+                card_index, channel_index = key // self._awg_card_num, key % self._awg_card_num
+                analog_out[card_index].update({channel_index: waveform})
+        else:
+            analog_out = dict()
+
+        digital_out = dict()
+        if self._digital_waveforms and self._digital_map:
+            for channel, do_out_list in self._digital_map.items():
+                # All the do waveforms assigned to the same channel need to have the same length
+                do_matrix = np.zeros((len(do_out_list), len(self._digital_waveforms[do_out_list[0]])), dtype=np.int64)
+                for ii, do_out in enumerate(do_out_list):
+                    do_matrix[ii, :] = self._digital_waveforms[do_out]
+                digital_out[channel] = do_matrix
+
+        return analog_out, digital_out, self._digital_map
+
+    def required_cards(self):
+        cardifier = lambda chan: chan // self._awg_card_num
+        return sorted(set(map(cardifier, self._required_channels)))
+
+    def required_channels(self):
+        return sorted(set(self._required_channels))
+
+    def analog_waveforms(self):
+        return self._analog_waveforms
+
+    def digital_waveforms(self):
+        return self._digital_waveforms
+
+class CardCollection(object):
+    """
+    Small class that is used for code readability of the loaded spectrum cards.
+    """
+    def __init__(self):
+        self._masteridx = None
+        self._cards = []
+        self._chans_per_card = []
+        self.max_samprate = None
+        self.memsize = None
+        self.bytes_persample = None
+        self.adc_resolution = None
+        self.maxsegments = None
+        self.netbox_type = None
+        self.starHub = None
+        self._constraints = None
+
+    def add_card(self, card, is_master):
+        self._cards.append(card)
+        if is_master:
+            self._masteridx = len(self._cards) - 1
+
+    def master(self):
+        """
+        Return the master card.
+        """
+        return self._cards[self._masteridx] if self._masteridx else None
+
+    def card(self, index):
+        """
+        Return any card
+        """
+        return self._cards[index] if index < len(self._cards) else None
+
+    def slavecard(self, index):
+        """
+        Return the slave card
+        """
+        if index == self._masteridx:
+            self.log.info("Requested the index of the master card.")
+            return -1
+        else:
+            return self._cards[index]
+
+    def card_amount(self):
+        """
+        Return number of loaded cards
+        """
+        return len(self._cards)
+
+    def set_chan_num(self, num):
+        self._chans_per_card.append(num)
+
+    def get_chan_num(self, card_idx):
+        return self._chans_per_card[card_idx]
+
+    def get_info(self):
+        if self.master():
+            card = self.master()
+        elif self.card(0):
+            card = self.card(0)
+        else:
+            self.log.error("No cards are loaded.")
+            return -1
+        self.max_samprate = self._command_get(card, SPC_PCISAMPLERATE)
+        self.memsize = self._command_get(card, SPC_PCIMEMSIZE)
+        self.bytes_persample = self._command_get(card, SPC_MIINST_BYTESPERSAMPLE)
+        self.adc_resolution = self._command_get(card, SPC_MIINST_MAXADCVALUE)
+        self.maxsegments = self._command_get(card, SPC_SEQMODE_AVAILMAXSEGMENT)
+
+        card_type = self._command_get(card, SPC_NETBOX_TYPE)
+        if card_type != 0:
+            series, family, speed_grade, channels = (card_type >> 24) & 0xff, (card_type >> 16) & 0xff, \
+                                                    (card_type >> 8) & 0xff, card_type & 0xff
+            series = hex(series)[2:]
+            family = hex(family)[2:]
+            self.netbox_type = f"DN{series}.{family}{speed_grade}-{str(channels).zfill(2)}"
+
+    @staticmethod
+    def _command_get(card, command):
+        """
+        Function to stop keeping to write numbers and passing their pointers to the dwGetParam.
+        """
+        output = int64(0)
+        spcm_dwGetParam_i64(card, command, byref(output))
+        return output.value
+
+    def _set_constraints(self):
+        self._constraints = PulserConstraints()
+        self._constraints.sample_rate.min = 50e6
+        self._constraints.sample_rate.max = self.max_samprate
+        self._constraints.a_ch_amplitude.min = 80e-3
+        self._constraints.a_ch_amplitude.max = 2.5
+
+    @property
+    def constraints(self):
+        return self._constraints
+
+    @property
+    def masteridx(self):
+        return self._masteridx
