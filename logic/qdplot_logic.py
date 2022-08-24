@@ -129,9 +129,17 @@ class QDPlotLogic(GenericLogic):
         """ Set up fit container """
         fc = self.fit_logic().make_fit_container('Plot QDPlotterLogic', '1d')
         fc.set_units(['', 'a.u.'])
-        if not (isinstance(val, dict) and len(val) > 0):
-            val = dict()
-        fc.load_from_dict(val)
+        if isinstance(val, dict) and len(val) > 0:
+            fc.load_from_dict(val)
+        else:
+            d1 = OrderedDict()
+            d1['Saturation'] = {
+                'fit_function': 'hyperbolicsaturation',
+                'estimator': 'generic'
+            }
+            default_fits = OrderedDict()
+            default_fits['1d'] = d1
+            fc.load_from_dict(default_fits)
         return fc
 
     @fit_container.representer

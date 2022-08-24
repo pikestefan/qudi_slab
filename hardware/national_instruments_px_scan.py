@@ -318,6 +318,13 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         self._photo_diode_ai_daq_task = task
 
+    def close_photo_diode(self):
+
+        try:
+            daq.DAQmxStopTask(self._photo_diode_ai_daq_task)
+            daq.DAQmxClearTask(self._photo_diode_ai_daq_task)
+        except:
+            self.log.exception('Could not close counter.')
 
     def close_counters(self):
         """
@@ -715,7 +722,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         return final_counts, analog_data
 
-
     def write_voltage(self, ao_task, voltages=[], autostart=True):
         AONwritten = daq.int32()
         if ao_task is None:
@@ -779,6 +785,18 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         except:
             return -1
         return 0
+
+    def set_voltage(self, voltage_x, voltage_y):
+        self.create_ao_task(self._tip_stack_name)
+        scanning_task = self._scanner_ao_tasks[self._tip_stack_name]
+        voltages = np.zeros((2, 1), dtype='float64')
+        voltages[0] = voltage_x
+        voltages[1] = voltage_y
+        self.write_voltage(
+            scanning_task,
+            voltages=voltages,
+            autostart=True)
+        self.clear_ao_task(self._tip_stack_name)
 
     def scanner_slow_motion(self, end_xy, speed=None, stack=None, clear_ao_whenfinished = True):
         """
