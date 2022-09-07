@@ -77,10 +77,16 @@ class Simplepulse(GenericLogic):
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     def set_up_pulser(self,card_idx,channels, clk_rate, filter_active):
     # def set_up_pulser(self):
 
         clk_rate = MEGA(clk_rate)
+=======
+    def set_up_pulser(self, card_idx, channels, clk_rate_raw, filter_active):
+        # def set_up_pulser(self):
+        clk_rate = 10 * 1000 * clk_rate_raw
+>>>>>>> Stashed changes
 =======
     def set_up_pulser(self, card_idx, channels, clk_rate_raw, filter_active):
         # def set_up_pulser(self):
@@ -114,6 +120,7 @@ class Simplepulse(GenericLogic):
         output_sample_rate = self._pulser.get_sample_rate(card_idx)
         return output_sample_rate
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
@@ -159,6 +166,14 @@ class Simplepulse(GenericLogic):
         len_ms:         is the desired duration in ms
         clk_rate:       samples/second of the AWG
 >>>>>>> Stashed changes
+=======
+    ### For digital signals ###
+    def create_d_on(self, samples, clk_rate):
+        """
+        Creates an array of ones for a digital channel
+        len_ms:         is the desired duration in ms
+        clk_rate:       samples/second of the AWG
+>>>>>>> Stashed changes
         """
         clk_rate = 10 * clk_rate
         # samples = self._pulser.waveform_padding(len_ms * clk_rate)
@@ -166,6 +181,9 @@ class Simplepulse(GenericLogic):
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -177,6 +195,7 @@ class Simplepulse(GenericLogic):
         # print('len of d_on=', len(d_on))
         return d_on
 
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
@@ -216,6 +235,13 @@ class Simplepulse(GenericLogic):
         len_ms:         is the desired duration in ms
         clk_rate:       samples/second of the AWG
 >>>>>>> Stashed changes
+=======
+    def create_d_off(self, samples, clk_rate):
+        """
+        Creates an array of zeros for a digital channel
+        len_ms:         is the desired duration in ms
+        clk_rate:       samples/second of the AWG
+>>>>>>> Stashed changes
         """
         clk_rate = 10 * clk_rate
         # samples = self._pulser.waveform_padding(len_ms * clk_rate)
@@ -232,6 +258,7 @@ class Simplepulse(GenericLogic):
         time_ax = np.linspace(0, samples / clk_rate, samples)
         waveform = np.sin(2 * np.pi * time_ax / msplay)
         return waveform
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
@@ -963,6 +990,19 @@ class Simplepulse(GenericLogic):
     #                   ]
 
 >>>>>>> Stashed changes
+=======
+
+    #
+    # # Load analog waveform to the awg and play it
+    #     def load_analog_waveform(self,msplay,clk_rate):
+    #     self.sine_wave()
+    #     aosequence = [{2: first_seq_ch0, 3: first_seq_ch1},
+    #                   {2: first_seq_ch1, 3: first_seq_ch0},
+    #                   {2: first_seq_ch0, 3: first_seq_ch1},
+    #                   {2: first_seq_ch1, 3: first_seq_ch0}
+    #                   ]
+
+>>>>>>> Stashed changes
     def build_block_element(self, clk_rate, len0, len1):
         """
         Creates an array of zeros and ones for a digital channel --> its just one step
@@ -970,6 +1010,7 @@ class Simplepulse(GenericLogic):
         len1:           is the desired duration of ones in ms
         clk_rate:       samples/second of the AWG
         Returns the block_element as an array and the length of the array in units of samples
+<<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
@@ -989,6 +1030,8 @@ class Simplepulse(GenericLogic):
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
         """
         clk_rate = 10 * clk_rate
         block_element = []
@@ -999,6 +1042,9 @@ class Simplepulse(GenericLogic):
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
@@ -1020,10 +1066,13 @@ class Simplepulse(GenericLogic):
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         '''
         msplay *= 1e-3
         clk_rate = MEGA(clk_rate)
 =======
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 =======
@@ -1189,6 +1238,7 @@ class Simplepulse(GenericLogic):
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     # def input_parameters(self, msplay, clk_rate, ao_type=str, rep=100, number):
     #
     #     '''
@@ -1327,6 +1377,8 @@ class Simplepulse(GenericLogic):
 >>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
     # def sequence_test(self, msecondsplay, loops, segment_map=[]):
     #     """
     #     Function for early debugging of the awg. Remove from the final class.
@@ -1392,6 +1444,7 @@ class Simplepulse(GenericLogic):
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     #     self._pulser.sequence_test(msecondsplay, loop_array, segment_map)
 
 
@@ -1401,6 +1454,9 @@ class Simplepulse(GenericLogic):
 
 
 
+=======
+    #     self._pulser.test_seq(msecondsplay, loop_array, segment_map)
+>>>>>>> Stashed changes
 =======
     #     self._pulser.test_seq(msecondsplay, loop_array, segment_map)
 >>>>>>> Stashed changes
