@@ -30,6 +30,33 @@
        <string>General</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0">
+        <widget class="QLabel" name="xy_range_label">
+         <property name="toolTip">
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="text">
+          <string>XY Range (um):</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QLabel" name="xy_res_label">
+         <property name="text">
+          <string>              XY pixels:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="count_freq_label">
+         <property name="toolTip">
+          <string>Frequency at which the scan pixels are acquired.</string>
+         </property>
+         <property name="text">
+          <string>Integration time (ms):</string>
+         </property>
+        </widget>
+       </item>
        <item row="2" column="0">
         <widget class="QLabel" name="label">
          <property name="sizePolicy">
@@ -43,25 +70,18 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="2">
-        <widget class="QLabel" name="xy_res_label">
-         <property name="text">
-          <string>XY pixels:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0">
-        <widget class="QLabel" name="xy_range_label">
+       <item row="0" column="3">
+        <widget class="QSpinBox" name="xy_optimizer_resolution_SpinBox">
          <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;br/&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Specify the distance between two subsequent scanned points for optimizer in xy scan.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
          </property>
-         <property name="text">
-          <string>XY Range (um):</string>
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="value">
+          <number>10</number>
          </property>
         </widget>
-       </item>
-       <item row="2" column="2">
-        <widget class="QComboBox" name="optimScanner_ComboBox"/>
        </item>
        <item row="0" column="1">
         <widget class="QDoubleSpinBox" name="xy_optimizer_range_DoubleSpinBox">
@@ -91,20 +111,34 @@
          </property>
         </widget>
        </item>
-       <item row="0" column="3">
-        <widget class="QSpinBox" name="xy_optimizer_resolution_SpinBox">
-         <property name="toolTip">
-          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-size:10pt;&quot;&gt;Specify the distance between two subsequent scanned points for optimizer in xy scan.&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-         </property>
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="value">
-          <number>10</number>
+       <item row="4" column="0">
+        <widget class="QCheckBox" name="optimizeDuringScanCheckBox">
+         <property name="text">
+          <string>Optimize every N pixels</string>
          </property>
         </widget>
        </item>
-       <item row="3" column="2">
+       <item row="4" column="3">
+        <widget class="QDoubleSpinBox" name="everyNPixelsDoubleSpinBox">
+         <property name="decimals">
+          <number>0</number>
+         </property>
+         <property name="value">
+          <double>10.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="2">
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>                          N:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QComboBox" name="optimScanner_ComboBox"/>
+       </item>
+       <item row="3" column="1">
         <widget class="QSpinBox" name="intTime_SpinBox">
          <property name="toolTip">
           <string>Frequency at which the scan pixels are acquired.</string>
@@ -117,16 +151,6 @@
          </property>
          <property name="value">
           <number>20</number>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="count_freq_label">
-         <property name="toolTip">
-          <string>Frequency at which the scan pixels are acquired.</string>
-         </property>
-         <property name="text">
-          <string>Integration time (ms)</string>
          </property>
         </widget>
        </item>

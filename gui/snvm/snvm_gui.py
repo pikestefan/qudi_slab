@@ -449,6 +449,10 @@ class SnvmGui(GUIBase):
 
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
+        self._scanning_logic.optimize_while_scanning = self._optim_dialog.optimizeDuringScanCheckBox.isChecked()
+        self._scanning_logic.every_N_pixels = self._optim_dialog.everyNPixelsDoubleSpinBox.value()
+        print('optimize during scan')
+        print(self._scanning_logic.optimize_while_scanning, self._scanning_logic.every_N_pixels)
 
         #Set the integration time
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
@@ -591,10 +595,11 @@ class SnvmGui(GUIBase):
         self._optimizer_logic.start_refocus(crosshair_pos)
 
     def _optimization_complete(self, coords):
-        self._scanning_logic.go_to_point(coords, stack=self._optimizer_logic.optimizer_stack)
         self._mainwindow.confocalScannerView.set_crosshair_pos((coords[0]/self.xy_range_multiplier,
-                                                                coords[1]/self.xy_range_multiplier))
-        self.activate_interactions()
+                                                                    coords[1]/self.xy_range_multiplier))
+        if not self._scanning_logic._snvm_active:
+            self._scanning_logic.go_to_point(coords, stack=self._optimizer_logic.optimizer_stack)
+            self.activate_interactions()
 
     def refresh_snvm_image(self):
         if self._mainwindow.viewtracesample:
@@ -693,6 +698,8 @@ class SnvmGui(GUIBase):
         self._optimizer_logic.integration_time = self._optim_dialog.intTime_SpinBox.value()
         value = self._optim_dialog.optimScanner_ComboBox.currentText()
         self._optimizer_logic.optimizer_stack = value
+        self._scanning_logic.optimize_while_scanning = self._optim_dialog.optimizeDuringScanCheckBox.isChecked()
+        self._scanning_logic.every_N_pixels = self._optim_dialog.everyNPixelsDoubleSpinBox.value()
 
     def keep_former_optimizer_settings(self):
         self._optim_dialog.xy_optimizer_range_DoubleSpinBox.setValue(self._optimizer_logic.refocus_XY_size*1e6)
@@ -702,6 +709,11 @@ class SnvmGui(GUIBase):
         opt_stack = self._optimizer_logic.optimizer_stack
         index = self._optim_dialog.optimScanner_ComboBox.findText(opt_stack)
         self._optim_dialog.optimScanner_ComboBox.setCurrentIndex(index)
+
+        self._optim_dialog.optimizeDuringScanCheckBox.setChecked(self._scanning_logic.optimize_while_scanning)
+        self._optim_dialog.everyNPixelsDoubleSpinBox.setValue(self._scanning_logic.every_N_pixels)
+
+
 
     def update_snvm_settings(self):
         self._scanning_logic.set_motion_speed(self._snvm_dialog.slowspeedSpinBox.value())

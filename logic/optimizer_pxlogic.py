@@ -176,6 +176,8 @@ class OptimizerLogicPxScan(GenericLogic):
         ymin = np.clip(y0 - 0.5 * self.refocus_XY_size, self.y_range[0], self.y_range[1])
 
         self.sigGoToPoint.emit([xmin, ymin])
+        # self._move_to_start_pos([xmin, ymin])
+
 
     def _launch_optimizer(self):
         scanner_status = self.start_scanner()
@@ -234,16 +236,21 @@ class OptimizerLogicPxScan(GenericLogic):
 
         @param start_pos float[]: 2-point vector giving x, y position to go to.
         """
+        print(f'_move_to_start_pos: {start_pos}')
         try:
             self._scanning_device.scanner_slow_motion(start_pos, stack=self.optimizer_stack,
-                                                      clear_ao_whenfinished=False)
-        except:
+                                                      clear_ao_whenfinished=False,)
+        except Exception as e:
             self.log.error('Error during move to starting point.')
+            print(e)
             self.stop_refocus()
             self._sigScanNextXyLine.emit()
             return
 
+        print('_launch_optimizer')
         self._launch_optimizer()
+        print('finished _launch_optimizer')
+
 
     def _refocus_xy_line(self):
         """Scanning a line of the xy optimization image.

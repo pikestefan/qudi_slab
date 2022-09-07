@@ -1,6 +1,6 @@
 import time
 import visa
-import serial
+from serial import Serial
 from core.module import Base
 from core.configoption import ConfigOption
 from interface.process_control_interface import ProcessControlInterface
@@ -27,7 +27,7 @@ class ArduinoUnoR3(Base, ArduinoInterface):
         """
         self.rm = visa.ResourceManager()
         try:
-            self._serialcomm = serial.Serial('COM5', 115200)
+            self._serialcomm = Serial(self._usb_address, 115200)
             self._serialcomm.timeout = 0.05
         except:
             self.log.error('Could not connect to port "{}". Check '

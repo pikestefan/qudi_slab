@@ -494,6 +494,7 @@ class ODMRGui(GUIBase):
         self._odmr_logic.integration_time = integration_time
 
         # Setup the odmr plot
+        # The connect parameter controls which points of the plot are drawn connec
         connect = self._calculate_connect(starts, stops, steps)
         self.curr_odmr_trace.opts['connect'] = connect
         self.curr_odmr_trace.setProperty('styleWasChanged', True)

@@ -102,7 +102,8 @@ class SaturationGui(GUIBase):
     sigAutoRangeClicked = QtCore.Signal(int, bool, bool)
     sigDoFit = QtCore.Signal(str, int)
     sigRemovePlotClicked = QtCore.Signal(int)
-    sigStartSaturationMeasurement = QtCore.Signal()
+    # (plot_index, start, stop, steps, integration_time)
+    sigStartSaturationMeasurement = QtCore.Signal(int, float, float, int, float)
 
     # declare connectors
     qdplot_logic = Connector(interface="QDPlotLogic")
@@ -209,6 +210,7 @@ class SaturationGui(GUIBase):
             self._plot_logic.add_plot, QtCore.Qt.QueuedConnection
         )
 
+
         # Connect signals from logic
         self._plot_logic.sigPlotDataUpdated.connect(
             self.update_data, QtCore.Qt.QueuedConnection
@@ -250,6 +252,7 @@ class SaturationGui(GUIBase):
         self.sigDoFit.disconnect()
         self.sigRemovePlotClicked.disconnect()
         self._mw.new_plot_Action.triggered.disconnect()
+        self.sigStartSaturationMeasurement.disconnect()
 
         # Disconnect signals from logic
         self._plot_logic.sigPlotDataUpdated.disconnect(self.update_data)
@@ -263,8 +266,17 @@ class SaturationGui(GUIBase):
         self._fsd.sigFitsUpdated.disconnect()
         self._mw.close()
 
-    # def measure_saturation(self):
-    #     v, c = self._saturation_logic.measure_saturation()
+    def measure_clicked(self, plot_index):
+        # Grab saturation settings from the GUI
+        dockwidget = self._plot_dockwidgets[plot_index].widget()
+        start = dockwidget.startVoltDoubleSpinBox.value()
+        stop = dockwidget.endVoltDoubleSpinBox.value()
+        steps = dockwidget.stepsDoubleSpinBox.value()
+        integration_time = dockwidget.intTimeDoubleSpinBox.value()
+        print(start, stop, steps, integration_time)
+
+        # Send saturation settings to the logic
+        self.sigStartSaturationMeasurement.emit(plot_index, start, stop, steps, integration_time)
 
     @QtCore.Slot(int, np.ndarray, np.ndarray)
     def receive_saturation_data(self, plot_index, photo_diode_volatge, counts):
@@ -345,7 +357,7 @@ class SaturationGui(GUIBase):
             functools.partial(self.remove_clicked, index)
         )
         dockwidget.measure_pushButton.clicked.connect(
-            functools.partial(self._saturation_logic.measure_saturation, index)
+            functools.partial(self.measure_clicked, index)
         )
 
         self._pg_signal_proxys[index][0] = SignalProxy(
@@ -363,6 +375,7 @@ class SaturationGui(GUIBase):
         dockwidget = self._plot_dockwidgets[index].widget()
         self._fsd.sigFitsUpdated.disconnect(dockwidget.fit_comboBox.setFitFunctions)
         dockwidget.fit_pushButton.clicked.disconnect()
+        dockwidget.measure_pushButton.clicked.disconnect()
 
         dockwidget.x_lower_limit_DoubleSpinBox.valueChanged.disconnect()
         dockwidget.x_upper_limit_DoubleSpinBox.valueChanged.disconnect()

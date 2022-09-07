@@ -63,7 +63,7 @@ class VectorMagnetGui(GUIBase):
     #declare connectors
     power_supply_logic = Connector(interface='PowerSupplyLogic')
 
-    def __init__(self,config, **kwargs):
+    def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
 
@@ -100,7 +100,7 @@ class VectorMagnetGui(GUIBase):
         triggers the logic to update the currents
         """
         # update display
-        self._vector_logic.applied_current = np.asarray([self._vector_logic.get_real_currents(1), self._vector_logic.get_real_currents(2), self._vector_logic.get_real_currents(3)], dtype = int)
+        self._vector_logic.applied_current = np.asarray([self._vector_logic.get_real_current(1), self._vector_logic.get_real_current(2), self._vector_logic.get_real_current(3)], dtype = float)
         self._mainwindow.Disp1.display(str(round(self._vector_logic.applied_current[0], 4)))
         self._mainwindow.Disp2.display(str(round(self._vector_logic.applied_current[1], 4)))
         self._mainwindow.Disp3.display(str(round(self._vector_logic.applied_current[2], 4)))
@@ -109,7 +109,6 @@ class VectorMagnetGui(GUIBase):
         """
         apply settings to power supply
         """
-        print('I was here')
         if self._mainwindow.ChannelsOnOffBox.checkState() == 0:
             # call logic
             self._vector_logic.apply_magnetic_field(1)
@@ -128,7 +127,7 @@ class VectorMagnetGui(GUIBase):
         """
         calls logic to transform get currents and updates currents spinboxes
         """
-        #update field containers
+        # update field containers
         self._vector_logic.field_mag = self._mainwindow.Magnitude.value()
         self._vector_logic.field_theta = self._mainwindow.Theta.value()
         self._vector_logic.field_phi = self._mainwindow.Phi.value()
@@ -140,7 +139,7 @@ class VectorMagnetGui(GUIBase):
         self._mainwindow.ChannelV3.setPlainText(str(round(self._vector_logic.current_z, 4)))
 
     def check_channels_off(self):
-        #shut down channel outputs
+        # shut down channel outputs
         if self._mainwindow.ChannelsOnOffBox.checkState() == 2: #0::unchecked, 1::partially checked, 2::checked
             self._vector_logic.shut_down_channels("Off")
             self._mainwindow.Disp1.setStyleSheet("""QLCDNumber { 

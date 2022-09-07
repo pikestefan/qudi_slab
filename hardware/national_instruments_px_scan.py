@@ -301,6 +301,48 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         return 0
 
+    def pause_tasks(self):
+        try:
+            self.close_counters()
+        except Exception as e:
+            self.log.exception('Could not close the scanning tasks.')
+
+        try:
+            self.clear_ao_task('sample')
+        except:
+            self.log.exception("Could not clear the ao task.")
+
+        try:
+            self.module_state.unlock()
+        except Exception as e:
+            self.log.exception('Could not unlock scanning device.')
+
+        if self._motion_clock_task is not None:
+            self.clear_motion_clock()
+
+    def resume_tasks(self):
+        for task in self._counter_daq_tasks:
+            daq.DAQmxStartTask(task)
+
+        # for task in self._counter_ai_daq_task:
+        #     daq.DAQmxStartTask(task)
+
+        for key, task in self._scanner_ao_tasks.items():
+            print(task)
+            if task is not None:
+                daq.DAQmxStartTask(task)
+
+        if self._counter_ai_daq_task is not None:
+            daq.DAQmxStartTask(self._counter_ai_daq_task)
+
+        if self._photo_diode_ai_daq_task is not None:
+            daq.DAQmxStartTask(self._photo_diode_ai_daq_task)
+
+        if self._motion_clock_task is not None:
+            daq.DAQmxStartTask(self._motion_clock_task)
+
+
+
     def prepare_photo_diode(self):
         task = daq.TaskHandle()
         daq.DAQmxCreateTask('PhotoDiode', daq.byref(task))
@@ -437,6 +479,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         """
 
         motion_task = self._scanner_ao_tasks[stack]
+        print(f'motion_task: {motion_task}')
+
         daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_SampClk)
         self.set_up_linemotion(points=position_array.shape[1], stack=stack)
 
@@ -807,9 +851,11 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             close_at_end = True
         else:
             close_at_end = False
+        print('scanner_slow_motion:close_at_end ', close_at_end)
 
         #Create the ao task for the scanning
         self.create_ao_task(stack)
+        print('created task: ', self._scanner_ao_tasks[stack])
 
         #Move first along y coordinate, then x
         start_xy = self.get_scanner_position(stack=stack)

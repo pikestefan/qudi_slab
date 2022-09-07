@@ -199,10 +199,15 @@ class SnvmLogic(GenericLogic):
     doublescanner = Connector(interface='SnvmScannerInterface')
     odmrscanner = Connector(interface='MicrowaveInterface')
     savelogic = Connector(interface='HDF5SaveLogic')
+    optimizer_logic = Connector(interface='OptimizerLogicPxScan')
 
     slow_motion_clock_rate = StatusVar('slow_motion_clock_rate', 10)
     backward_speed = StatusVar('slow_motion_speed', 1)
     max_history_length = StatusVar(default=10)
+
+    # Initialize the optimization-while-scanning settings
+    optimize_while_scanning = StatusVar('optimize_while_scanning', False)
+    every_N_pixels = StatusVar('every_N_pixels', 10)
 
     # signals
     signal_start_snvm = QtCore.Signal()
@@ -210,6 +215,7 @@ class SnvmLogic(GenericLogic):
     signal_start_confocal = QtCore.Signal()
     signal_continue_confocal = QtCore.Signal()
     signal_stop_scan = QtCore.Signal()
+    signal_start_optimizer = QtCore.Signal()
 
     signal_snvm_image_updated = QtCore.Signal()
     signal_xy_image_updated = QtCore.Signal()
@@ -233,6 +239,7 @@ class SnvmLogic(GenericLogic):
         self._scanning_device = self.doublescanner()
         self._odmrscanner = self.odmrscanner()
         self._savelogic = self.savelogic()
+        self._optimizer_logic = self.optimizer_logic()
 
         self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
         self.set_motion_speed(self.backward_speed)
@@ -300,6 +307,8 @@ class SnvmLogic(GenericLogic):
         self.signal_freq_px_acquired.connect(self.move_to_freq_pixel, QtCore.Qt.QueuedConnection)
         self.signal_continue_confocal.connect(self.continue_confocal_scanning, QtCore.Qt.QueuedConnection)
         self.signal_goto_start.connect(self._go_to_point, QtCore.Qt.QueuedConnection)
+        self.signal_start_optimizer.connect(self.start_optimizer, QtCore.Qt.QueuedConnection)
+        self._optimizer_logic.sigRefocusFinished.connect(self._optimization_complete)
 
     def on_deactivate(self):
         """ Reverse steps of activation
@@ -515,6 +524,7 @@ class SnvmLogic(GenericLogic):
                 self._odmr_rep_index = 0
                 self.temp_freq_matrix[:] = self.invalid
                 self.average_odmr_trace[:] = self.invalid
+
                 self.signal_snvm_image_updated.emit()
                 self.signal_xy_px_acquired.emit()
 
@@ -570,11 +580,46 @@ class SnvmLogic(GenericLogic):
             self._scanning_device.scanner_set_position([new_x_pos, new_y_pos], stack=self._active_stack)
 
             if self._snvm_active:
-                self.signal_continue_snvm.emit()
+                # Check if an optimization needs to be done
+                total_scanning_index = self._x_scanning_index + len(self._x_scanning_axis) * self._y_scanning_index
+                print(f'total_scanning_index: {total_scanning_index}')
+
+                if self.optimize_while_scanning and total_scanning_index % self.every_N_pixels == 0:
+                    self.signal_start_optimizer.emit()
+                else:
+                    self.signal_continue_snvm.emit()
             else:
                 self.signal_continue_confocal.emit()
         else:
             self.signal_stop_scan.emit()
+
+    def start_optimizer(self):
+        print('optimizing...')
+        print('pausing tasks')
+        self._scanning_device.pause_tasks()
+
+        print('starting refocus')
+        self._optimizer_logic.start_refocus()
+
+    def _optimization_complete(self, coords):
+        if self.stopRequested:
+            self.signal_stop_scan.emit()
+
+        elif self._snvm_active:
+            self.go_to_point(coords, stack=self._optimizer_logic.optimizer_stack)
+
+            print(f'self._odmrscanner.module_state: {self._odmrscanner.module_state()}')
+            if self._odmrscanner.module_state() == 'locked':
+                print('unlocking odmrscanner')
+                self._odmrscanner.module_state.unlock()
+
+            if self._scanning_device.module_state() == 'locked':
+                print('unlocking scanner')
+                self._scanning_device.module_state.unlock()
+
+            print('_optimization_complete repreparing devices')
+            self.prepare_devices()
+            self.signal_continue_snvm.emit()
 
     def move_to_freq_pixel(self):
         if not self.stopRequested:
@@ -612,6 +657,7 @@ class SnvmLogic(GenericLogic):
 
             self._store_data_matrices(self._snvm_active)
             self.signal_scan_finished.emit(self._snvm_active)
+            self._snvm_active = False
 
     def stop_xy_scanner(self):
         """Closing the scanner device.
@@ -627,6 +673,7 @@ class SnvmLogic(GenericLogic):
         except:
             self.log.exception("Could not clear the ao task.")
         try:
+            if self._sca.module_state() == 'locked':
             self._scanning_device.module_state.unlock()
         except Exception as e:
             self.log.exception('Could not unlock scanning device.')

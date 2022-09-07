@@ -42,10 +42,9 @@ class SaturationLogic(GenericLogic):
     plotlogic = Connector(interface='QDPlotLogic')
 
     # Status Vars
-    integration_time = ConfigOption('integration_time', 30e-3)
     max_laser_voltage = ConfigOption('max_laser_voltage', 0.95)
     laser_voltage = StatusVar('laser_voltage', 0)
-    measurement_points = ConfigOption('measurement_points', default=50)
+    integration_time = StatusVar('intgration_time', default=30e-3)
 
     sigMeasuredSaturation = QtCore.Signal(int, np.ndarray, np.ndarray)
 
@@ -61,13 +60,14 @@ class SaturationLogic(GenericLogic):
     def on_deactivate(self):
         pass
 
-    def measure_saturation(self, plot_index):
+    @QtCore.Slot(int, float, float, int, float)
+    def measure_saturation(self, plot_index, start, stop, steps, integration_time):
+        self.integration_time = integration_time
         self._prepare_devices()
 
-        N = self.measurement_points
-        laser_voltages = np.linspace(0.59, 0.95, N)
-        photo_diode_voltages = np.zeros(N)
-        counts = np.zeros(N)
+        laser_voltages = np.linspace(start, stop, steps)
+        photo_diode_voltages = np.zeros(steps)
+        counts = np.zeros(steps)
 
         for i, v in enumerate(laser_voltages):
             self._set_laser_voltage(v)
