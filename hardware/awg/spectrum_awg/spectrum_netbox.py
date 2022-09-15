@@ -372,13 +372,13 @@ class SpectrumNetbox(Base, PulserInterface):
             self.load_waveform(ao_waveform_dictionary=aos, do_waveform_dictionary=dos,
                                digital_output_map=digital_output_map)
 
-        """
-        # This sequence immediately starts after the sequences are loaded
-        self.configure_ORmask(card_idx, 'immediate')
-        self.configure_ANDmask(card_idx, None)
-        stop_condition_list = np.array([])
-        """
-        #This sequence waits for a software trigger to start playing and moving to the next step.
+
+        # # This sequence immediately starts after the sequences are loaded
+        # self.configure_ORmask(card_idx, 'immediate')
+        # self.configure_ANDmask(card_idx, None)
+        # stop_condition_list = np.array([])
+
+        # This sequence waits for a software trigger to start playing and moving to the next step.
         self.configure_ORmask(card_idx, None)
         self.configure_ANDmask(card_idx, None)
         loops = np.ones((len(aosequence)), dtype=np.int64)
@@ -542,7 +542,7 @@ class SpectrumNetbox(Base, PulserInterface):
         return {}, ''
 
     def clear_all(self):
-        self._waveform_container = None
+        self._waveform_container = []
         return 0
 
     def get_status(self):
@@ -766,7 +766,7 @@ class SpectrumNetbox(Base, PulserInterface):
 
         for card_idx, chan_value in chans_to_activate.items():
             if chan_value != 0:
-                spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CHENABLE, chan_value)
+                spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CHENABLE, int64(chan_value))
                 errorout = self._get_error_msg(self._netbox.card(card_idx))
                 if errorout:
                     return -1
