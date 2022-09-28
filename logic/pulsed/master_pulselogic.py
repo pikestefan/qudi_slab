@@ -23,8 +23,11 @@ from collections import OrderedDict
 import numpy as np
 import math
 from hardware.awg.spectrum_awg.py_header.regs import *
+import time
+import datetime
 from core.connector import Connector
 from logic.generic_logic import GenericLogic
+from interface.microwave_interface import MicrowaveMode
 
 # Just hardcode the channels to the different hardware modules somewehere
 # Microwave: analog channel 2 and 3 for I and Q parameter. For now we just need I
@@ -36,6 +39,7 @@ class Masterpulse(GenericLogic):
     savelogic = Connector(interface='SaveLogic')
     pulselogic = Connector(interface='Pulse')
     photon_counter = Connector(interface='SnvmScannerInterface')
+    microwave1 = Connector(interface='MicrowaveInterface')
 
     integration_time = StatusVar('integration_time', 30e-3)  # In ms for timing...
 
@@ -48,11 +52,18 @@ class Masterpulse(GenericLogic):
     # Get connectors
         self._pulser = self.pulsegenerator()
         self._photon_counter = self.photon_counter()
+        self._mw_device = self.microwave1()
         self._savelogic = self.savelogic()
         self._pulselogic = self.pulselogic()
         active_channels = self._pulser.get_active_channels()
         self._pulser.clear_all()
         self._pulser.reset()
+        # These are the index for the matrix (step_index: columns and av_index: rows)
+        self._step_index = 0
+        self._av_index = 0
+        #  Elapsed measurement time and number of sweeps
+        self.elapsed_time = 0.0
+        self.elapsed_sweeps = 0
 
         # Initalize the values which get stored later
         self.count_matrix = None  # This matrix is used to store the DAQ card values.
@@ -121,18 +132,26 @@ class Masterpulse(GenericLogic):
 
         '''
         count_matrix = np.full((av_number, step_count), self.invalid)
-        self._freq_scanning_index = 0
-        self._average_index = 0
+        # These are the index for the matrix (step_index: columns and av_index: rows)
+        self._step_index = 0
+        self._av_index = 0
         self.count_matrix = count_matrix
 
     def _prepare_devices(self):
         """
         Initialize the counter and the settings of the MW device prior to starting scanning.
         """
-
+        # Photon counter
         self._photon_counter.module_state.lock()
         self._photon_samples = self._pxtime_to_samples()
         self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
+
+        # MW device: Put in the parameters and turn it on
+        mw_frequency = 2870e6
+        mw_power = -30
+        self._mw_device.set_power(mw_power)
+        self._mw_device.set_frequency(mw_frequency)
+        self.mw_on()
 
 
     # def save_data(self, method, laser_times, apd_times, mw_times):
@@ -153,8 +172,8 @@ class Masterpulse(GenericLogic):
     # sometimes its just empty
     # if len(counts) == 0:
     #     return
-    #
-    # self.count_matrix[self._average_index, self._freq_scanning_index] = counts / self.integration_time
+    # This fills the matrix
+    # self.count_matrix[self._average_index, self._step_index] = counts / self.integration_time
     # self.curr_odmr_trace = self.count_matrix[self._average_index]
     #
     # if self._average_index > 0:
@@ -162,5 +181,31 @@ class Masterpulse(GenericLogic):
 
 
     def _acquire_pixel(self):
+        # Requests the counts from the DAQ card, gives one number only
         counts, _ = self._photon_counter.read_pixel(self._photon_samples)
         return counts
+
+
+    def mw_off(self):
+        """ Switching off the MW source.
+
+        @return str, bool: active mode ['cw', 'list', 'sweep'], is_running
+        """
+        error_code = self._mw_device.off()
+        if error_code < 0: # This means there is an error
+            self.log.error('Switching off microwave source failed.')
+        else:
+            print('MW device is off')
+        return
+
+    def mw_on(self):
+        """
+        Switching on the mw source.
+        Parameters must be set somewhere else
+        """
+        error_code = self._mw_device_on()
+        if error_code < 0:  # This means there is an error
+            self.log.error('Switching on microwave source failed.')
+        else:
+            print('MW device is on')
+        return
