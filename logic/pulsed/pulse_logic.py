@@ -130,7 +130,9 @@ class Pulse(GenericLogic):
         else:
             print("Method can only be: rabi, ramsey or delaysweep")
 
-
+    def get_step_count(self, array):
+        step_count = int(((array[2] - array[1]) / array[3]) + 1)
+        return step_count
 
 ###############     Laser and APD blocks    ###############
 
@@ -304,12 +306,12 @@ class Pulse(GenericLogic):
                 wait:       time between the end of the initialisation and the reinitialisation in ms
                 laser_re:   length of the reinitialisation pulse in ms
         apd_times = [time to start, length of the pulse] both in ms
-        mw_times = [pulse_len, start, distance_min, distance_max, steps] all in ms
-                pulse length:   duration of pulses in ms (pi/2)
+        mw_times = [start, distance_min, distance_max, steps, pulse length] all in ms
                 start:          start position of the fist microwave pulse
                 duration_min:   minimal distance between the two pulses
                 duration_max:   maximal distance between the two pulses
                 steps:          step size for increasing the mw pulse duration
+                pulse length:   duration of pulses in ms (pi/2)
         Amplitude of the MW pulse should be +- 0.5V
         rep =       repetition time when no trigger is used
         trigger =   either True: software trigger or False: no trigger at all
@@ -332,7 +334,7 @@ class Pulse(GenericLogic):
         mw_times_s = np.multiply(mw_times, 1e-3)
 
         clk_rate = self._pulser.get_sample_rate(card_idx)
-        step_count = int(((mw_times[3] - mw_times[2]) / mw_times[4])+1)
+        step_count = int(((mw_times[2] - mw_times[1]) / mw_times[3])+1)
         print('step_count: ', step_count)
         # Create laser and apd waveform as they are constant
         laser_do_waveform = self.laser_seq(seq_len, laser_times)
@@ -341,7 +343,7 @@ class Pulse(GenericLogic):
         # print('apd len: ', len(apd_do_waveform))
 
         for i in range(step_count):
-            break_len.append((mw_times[2] + (i * mw_times[4])))  # starting with minimal length
+            break_len.append((mw_times[1] + (i * mw_times[3])))  # starting with minimal length
         # print ('mw_len: ', mw_len)
         break_len = np.multiply(1e-3, break_len)
         print('break_len in sec: ', break_len)
@@ -351,12 +353,12 @@ class Pulse(GenericLogic):
                 print('The total length needs to be larger that the sequence time')
             else:
                 # build mw waveform for every possible length
-                mw_wait = np.zeros(int(clk_rate * mw_times_s[1]))
-                mw_pulse = np.ones(int(clk_rate * mw_times_s[0]))  # this is fix, use this 2 times
+                mw_wait = np.zeros(int(clk_rate * mw_times_s[0]))
+                mw_pulse = np.ones(int(clk_rate * mw_times_s[4]))  # this is fix, use this 2 times
                 mw_break = np.zeros(int(clk_rate * i))  # this changes duration min + i
                 print('len mw_break: ', len(mw_break))
 
-                mw_all = mw_times_s[1] + mw_times_s[0] + i + mw_times_s[0]
+                mw_all = mw_times_s[0] + mw_times_s[4] + i + mw_times_s[4]
                 print('mw_all: ', mw_all)
                 rest_array = np.zeros(int(clk_rate * (seq_len_s - mw_all)))
                 print('len rest_array _this is right: ', len(rest_array))
@@ -425,12 +427,14 @@ class Pulse(GenericLogic):
                 laser_in:   length of initialisation laser pulse (it starts right at the beginning) in ms
                 wait:       time between the end of the initialisation and the reinitialisation in ms
                 laser_re:   length of the reinitialisation pulse in ms
-            mw_times = [mw_wait_time, mw_pulse_time] all in ms
+        apd_times = [length, min_start, max_start, steps]
+                length:      time to wait until the pulse should start
+                min_start:    minimal length of the apd pulse
+                max_start:    maximal length of the apd pulse
+                steps:      step size of the apd pulse sweep
+        mw_times = [mw_wait_time, mw_pulse_time] all in ms
                 mw_wait_time: time between the end of the first laser pulse and the beginning of the microwave (delay)
                 mw_pulse_time: length of the mw pulse in between the two laser pulses
-            apd_times = [steps, apd_width]
-                steps:      step size of the apd pulse sweep
-                apd_width:   time in ms where the apd is on (length of the pulse)
         rep =       repetition time when no trigger is used
         mw_pulse =  With or without MW pulse in the middle
         trigger =   either True: software trigger or False: no trigger at all
@@ -451,14 +455,15 @@ class Pulse(GenericLogic):
         clk_rate = self._pulser.get_sample_rate(card_idx)
 
         segment_map = []
-        apd_start_val = laser_times_s[0] + laser_times_s[1]     # Starts at the beginning of the 1st laser pulse
-        stop = (seq_len_s - laser_times_s[0] - laser_times_s[1] - laser_times_s[2]) - apd_times_s[1]      # Stops at the end of the 2nd laser pulse
+        # apd_start_val = laser_times_s[0] + laser_times_s[1]     # Starts at the beginning of the 1st laser pulse
+        # stop = (seq_len_s - laser_times_s[0] - laser_times_s[1] - laser_times_s[2]) - apd_times_s[1]      # Stops at the end of the 2nd laser pulse
 
         # build array with all the desired apd_start values
         apd_start = []
-        step_count = int(((stop - apd_start_val) / apd_times_s[0]) + 1)
+        step_count = int(((apd_times[2] - apd_times[1]) / apd_times[3]) + 1)
+        # step_count = int(((stop - apd_start_val) / apd_times_s[0]) + 1)
         for i in range(step_count):
-            apd_start.append((apd_start_val + (i * apd_times_s[0])))
+            apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
         print('apd_start: ', apd_start)
         # creating empty arrays
         dosequence = []
@@ -471,8 +476,8 @@ class Pulse(GenericLogic):
         #                "the same card.")
         for i in apd_start:
             apd_wait_time = np.zeros(int(clk_rate * i))
-            apd_on = np.ones(int(clk_rate * apd_times_s[1]))
-            apd_off = np.zeros(int(clk_rate * (seq_len_s - (i + apd_times_s[1]))))
+            apd_on = np.ones(int(clk_rate * apd_times_s[0]))
+            apd_off = np.zeros(int(clk_rate * (seq_len_s - (i + apd_times_s[0]))))
             apd_do_waveform = np.concatenate((apd_wait_time, apd_on, apd_off))
             len_apd_do_waveform = self._pulser.waveform_padding(len(apd_do_waveform))
             difference = len_apd_do_waveform - (clk_rate * seq_len_s)
