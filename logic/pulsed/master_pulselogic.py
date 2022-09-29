@@ -25,9 +25,17 @@ import math
 from hardware.awg.spectrum_awg.py_header.regs import *
 import time
 import datetime
+from logic.generic_logic import GenericLogic
+from core.util.mutex import Mutex
+from core.connector import Connector
+from core.configoption import ConfigOption
+from core.statusvariable import StatusVar
 from core.connector import Connector
 from logic.generic_logic import GenericLogic
 from interface.microwave_interface import MicrowaveMode
+from interface.microwave_interface import MicrowaveMode
+from interface.microwave_interface import TriggerEdge
+
 
 # Just hardcode the channels to the different hardware modules somewehere
 # Microwave: analog channel 2 and 3 for I and Q parameter. For now we just need I
@@ -39,20 +47,29 @@ class Masterpulse(GenericLogic):
     savelogic = Connector(interface='SaveLogic')
     pulselogic = Connector(interface='Pulse')
     photon_counter = Connector(interface='SnvmScannerInterface')
-    microwave1 = Connector(interface='MicrowaveInterface')
+    mw_source = Connector(interface='MicrowaveInterface')
 
-    integration_time = StatusVar('integration_time', 30e-3)  # In ms for timing...
+
+    # integration_time = 30e-3 # In ms for timing...
+    #
+    # # Internal signals
+    # sigNextLine = QtCore.Signal()
+    #
+    # # Update signals, e.g. for GUI module
+    # sigParameterUpdated = QtCore.Signal(dict)
+    # sigOutputStateUpdated = QtCore.Signal(str, bool)
+    # sigElapsedTimeUpdated = QtCore.Signal(float, int)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
 
     def on_activate(self):
-    # Initialisation performed during activation of the module
+        # Initialisation performed during activation of the module
 
-    # Get connectors
+        # Get connectors
         self._pulser = self.pulsegenerator()
         self._photon_counter = self.photon_counter()
-        self._mw_device = self.microwave1()
+        self._mw_device = self.mw_source()
         self._savelogic = self.savelogic()
         self._pulselogic = self.pulselogic()
         active_channels = self._pulser.get_active_channels()
@@ -63,8 +80,7 @@ class Masterpulse(GenericLogic):
         self._av_index = 0
         #  Elapsed measurement time and number of sweeps
         self.elapsed_time = 0.0
-        self.elapsed_sweeps = 0
-
+        self._photon_counter.get_counter_clock_frequency()
         # Initalize the values which get stored later
         self.count_matrix = None  # This matrix is used to store the DAQ card values.
 
@@ -74,6 +90,7 @@ class Masterpulse(GenericLogic):
         self._pulser.clear_all()
         self._pulser.reset()
         self._pulser.pulser_off()
+        self.mw_off()
 
     def trigger(self):
         self._pulselogic.trigger()
@@ -81,9 +98,8 @@ class Masterpulse(GenericLogic):
     def stop_awg(self):  # Makes everything stop
         self._pulselogic.stop_awg()
 
-
     def awg(self, clk_rate, seq_len, laser_times, apd_times=[], mw_times=[], method=str, rep=100, mw_pulse=bool,
-                 trigger=bool):
+            trigger=bool):
         '''
         Setup and load awg
         clk_rate =  clock rate of the AWG in ms
@@ -123,29 +139,30 @@ class Masterpulse(GenericLogic):
         trigger =   either True: software trigger or False: no trigger at all
         '''
 
-        self._pulselogic.play_any(clk_rate, seq_len, laser_times, apd_times=apd_times, mw_times=mw_times, method=method, rep=100, mw_pulse=mw_pulse, trigger=trigger)
+        self._pulselogic.play_any(clk_rate, seq_len, laser_times, apd_times=apd_times, mw_times=mw_times, method=method,
+                                  rep=100, mw_pulse=mw_pulse, trigger=trigger)
 
-
-    def _prepare_count_matrix(self, step_count, av_number):
+    def prepare_count_matrix(self, step_count, av_number):
         '''
         creates a matrix with av_number of rows and step_count of columns
 
         '''
-        count_matrix = np.full((av_number, step_count), self.invalid)
+        count_matrix = np.full((av_number, step_count), np.nan)
         # These are the index for the matrix (step_index: columns and av_index: rows)
         self._step_index = 0
         self._av_index = 0
         self.count_matrix = count_matrix
-
-    def _prepare_devices(self):
-        """
-        Initialize the counter and the settings of the MW device prior to starting scanning.
-        """
-        # Photon counter
-        self._photon_counter.module_state.lock()
-        self._photon_samples = self._pxtime_to_samples()
-        self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
-
+        print(count_matrix)
+    #
+    def prepare_devices(self):
+    #     """
+    #     Initialize the counter and the settings of the MW device prior to starting scanning.
+    #     """
+    #     # Photon counter
+    #     # self._photon_counter.module_state.lock()
+    #     # self._photon_samples = self._pxtime_to_samples()
+    #     self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
+    #
         # MW device: Put in the parameters and turn it on
         mw_frequency = 2870e6
         mw_power = -30
@@ -165,26 +182,24 @@ class Masterpulse(GenericLogic):
     #
     #     data = {**pulse}
     #     self._savelogic.save_hdf5_data(data)
-
-
-    ### Get the actual data from card
-    # this is from continue_odmr
-    # sometimes its just empty
+    #
+    # ## Get the actual data from card
+    # # this is from continue_odmr
+    # # sometimes its just empty
     # if len(counts) == 0:
     #     return
-    # This fills the matrix
+    # # This fills the matrix
     # self.count_matrix[self._average_index, self._step_index] = counts / self.integration_time
     # self.curr_odmr_trace = self.count_matrix[self._average_index]
     #
     # if self._average_index > 0:
     #     self.average_odmr_trace = np.nanmean(self.count_matrix, axis=0)
 
-
     def _acquire_pixel(self):
         # Requests the counts from the DAQ card, gives one number only
-        counts, _ = self._photon_counter.read_pixel(self._photon_samples)
+        x = [10] # this has to be integrationtime*clock_freq later on
+        counts, _ = self._photon_counter.read_pixel(x)
         return counts
-
 
     def mw_off(self):
         """ Switching off the MW source.
@@ -192,7 +207,7 @@ class Masterpulse(GenericLogic):
         @return str, bool: active mode ['cw', 'list', 'sweep'], is_running
         """
         error_code = self._mw_device.off()
-        if error_code < 0: # This means there is an error
+        if error_code < 0:  # This means there is an error
             self.log.error('Switching off microwave source failed.')
         else:
             print('MW device is off')
@@ -203,9 +218,12 @@ class Masterpulse(GenericLogic):
         Switching on the mw source.
         Parameters must be set somewhere else
         """
-        error_code = self._mw_device_on()
+        error_code = self._mw_device.on()
         if error_code < 0:  # This means there is an error
             self.log.error('Switching on microwave source failed.')
         else:
             print('MW device is on')
         return
+
+    def _pxtime_to_samples(self):
+        return round(self.integration_time * self._photon_counter.get_counter_clock_frequency())
