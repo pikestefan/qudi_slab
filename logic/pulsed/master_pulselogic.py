@@ -52,7 +52,9 @@ class Masterpulse(GenericLogic):
 
     # integration_time = 30e-3 # In ms for timing...
     #
-    # # Internal signals
+    # Internal signals
+    sigContinueLoop = QtCore.Signal()
+    sigStopMeasurement = QtCore.Signal()
     # sigNextLine = QtCore.Signal()
     #
     # # Update signals, e.g. for GUI module
@@ -62,6 +64,7 @@ class Masterpulse(GenericLogic):
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
+        # self.threadlock = Mutex()
 
     def on_activate(self):
         # Initialisation performed during activation of the module
@@ -76,13 +79,17 @@ class Masterpulse(GenericLogic):
         self._pulser.clear_all()
         self._pulser.reset()
         # These are the index for the matrix (step_index: columns and av_index: rows)
-        self._step_index = 0
-        self._av_index = 0
         #  Elapsed measurement time and number of sweeps
         self.elapsed_time = 0.0
         self._photon_counter.get_counter_clock_frequency()
         # Initalize the values which get stored later
         self.count_matrix = None  # This matrix is used to store the DAQ card values.
+        self.av_index = 0
+        self.step_index = 0
+        self.averages = 5
+        # Declare where the signals should lead to
+        self.sigContinueLoop.connect(self.continue_loop, QtCore.Qt.QueuedConnection)
+        self.sigStopMeasurement.connect(self.stop_measurement)
 
         return active_channels
 
@@ -142,26 +149,27 @@ class Masterpulse(GenericLogic):
         self._pulselogic.play_any(clk_rate, seq_len, laser_times, apd_times=apd_times, mw_times=mw_times, method=method,
                                   rep=100, mw_pulse=mw_pulse, trigger=trigger)
 
-    def prepare_count_matrix(self, step_count, av_number):
+    def prepare_count_matrix(self, array):
         '''
         creates a matrix with av_number of rows and step_count of columns
 
         '''
-        count_matrix = np.full((av_number, step_count), np.nan)
+        step_count = self.pulselogic.get_step_count(array)
+        count_matrix = np.full((self.averages, step_count), np.nan)
         # These are the index for the matrix (step_index: columns and av_index: rows)
-        self._step_index = 0
-        self._av_index = 0
         self.count_matrix = count_matrix
         print(count_matrix)
+        return count_matrix
     #
-    def prepare_devices(self):
+    def prepare_devices(self, integration_time):
     #     """
     #     Initialize the counter and the settings of the MW device prior to starting scanning.
     #     """
     #     # Photon counter
+        clock_rate_daq = 50000000
     #     # self._photon_counter.module_state.lock()
     #     # self._photon_samples = self._pxtime_to_samples()
-    #     self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
+        self._photon_counter.prepare_counters(integration_time * clock_rate_daq)
     #
         # MW device: Put in the parameters and turn it on
         mw_frequency = 2870e6
@@ -169,9 +177,47 @@ class Masterpulse(GenericLogic):
         self._mw_device.set_power(mw_power)
         self._mw_device.set_frequency(mw_frequency)
         self.mw_on()
+    def start_measurement(self,array, integration_time):
+        self._prepare_count_matrix(array)
+        self._prepare_devices(integration_time)
+        self.sigContinueLoop.emit()
+    def continue_loop(self,array, integration_time):
+        #Play trigger
+        # acquire the count value
+        # write this value in the matrix
+        # stop after 5 averages
+
+        step_count = self.pulselogic.get_step_count(array)
+        self.trigger() # sends a software trigger to the AWG
+
+        if self.step_index > step_count: # moves to the next average row
+            self.step_index = 0
+            self.av_index = self.av_index + 1
+            print('start to write in a new row')
+            counts = self._acquire_pixel()
+            self.count_matrix[self.av_index, self.step_index] = counts / integration_time
+            self.sigContinueLoop
+        elif self.step_index > step_count and self.av_index > self.averages:
+            print('Matrix if full, Stopp measurement')
+            self.sigStopMeasurement.emit()
+        else:       # just continue in this --> direction
+            print('switch to the next column, sequence')
+            self.step_index = self.step_index + 1
+            counts = self._acquire_pixel()
+            self.count_matrix[self.av_index, self.step_index] = counts / self.integration_time
+            self.sigContinueLoop
+
+        # clear the buffer of the DAQ just to be sure
 
 
-    # def save_data(self, method, laser_times, apd_times, mw_times):
+    def stop_measurement(self):
+        self.mw_off()
+        self.save_data()
+        pass
+
+
+    def save_data(self, method, laser_times, apd_times, mw_times):
+        pass
     #      pulse = {
     #             'method': self.method,
     #             'laser_times': self.laser_times,
