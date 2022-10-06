@@ -196,6 +196,34 @@ class Pulse(GenericLogic):
 
         return apd_do_waveform
 
+    def apd_ref(self, seq_len, apd_times_ref):
+        '''
+        len =   whole length of the sequence in ms
+        apd_times = [time to start, length] all in ms
+        '''
+        seq_len *= 1e-3
+        apd_times_ref = np.multiply(apd_times_ref, 1e-3)
+        apd_channel = 1  # Laser
+        card_idx = 1
+        #takes sampling rate which is there already
+        clk_rate = self._pulser.get_sample_rate(card_idx)
+        apd_len = apd_times_ref[0] + apd_times_ref[1]
+        if seq_len < apd_len:
+            print('The total length needs to be larger that the apd_time sum')
+        else:
+            # apd waveform
+            apd_wait = np.zeros(int(clk_rate * apd_times_ref[0]))
+            apd_on = np.ones(int(clk_rate * apd_times_ref[1]))
+            rest_array = np.zeros(int(clk_rate * (seq_len - apd_len)))
+            apd_do_waveform = np.concatenate((apd_wait, apd_on, rest_array))
+            len_apd_do_waveform = self._pulser.waveform_padding(len(apd_do_waveform))
+            difference = len_apd_do_waveform - (clk_rate * seq_len)
+            apd_ref_do_waveform = 3 * np.concatenate((apd_do_waveform, np.zeros(int(difference))))
+            # print('new length of waveform: ', len(apd_do_waveform))
+            # print('waveform: ', apd_do_waveform)
+
+        return apd_ref_do_waveform
+
 ###############     Different seqeuences    ###############
 
     def play_rabi(self, seq_len, laser_times, apd_times, mw_times, rep=100, trigger=bool):
@@ -207,6 +235,7 @@ class Pulse(GenericLogic):
                 laser_re:   length of the reinitialisation pulse in ms
         seq_len =   whole length of the sequence in ms
         apd_times = [time to start, length] all in ms
+        apd_ref_times = [time to start, length] all in ms
         mw_times = [mw_start_time, mw_len_0, mw_len_max, steps] all in ms
                 mw_start_time:  time from the beginning when MW pulse should start, does not change
                 mw_len_0:       minimal length of the mw pulse
@@ -220,7 +249,8 @@ class Pulse(GenericLogic):
         mw_len = []
         #Channels
         laser_outchan = 0  # Laser
-        apd_outchan = 1
+        apd_outchan = 1 #This should be 1!!!
+        apd_ref_outchan = 2
         mw_outchan = 2  # Laser
 
         card_idx = 1
@@ -235,12 +265,13 @@ class Pulse(GenericLogic):
         laser_do_waveform = self.laser_seq(seq_len, laser_times)
         # print('laser len: ', len(laser_do_waveform))
         apd_do_waveform = self.apd_seq(seq_len, apd_times)
+        #apd_ref_do_waveform = self.apd_ref(seq_len, apd_times_ref)
         # print('apd len: ', len(apd_do_waveform))
 
         for i in range(step_count):
             mw_len.append((mw_times[1] + (i * mw_times[3])))  # starting with minimal length
         mw_len = np.multiply(1e-3, mw_len)
-        print('mw_len in sec: ', mw_len)
+        # print('mw_len in sec: ', mw_len)
         for i in mw_len:
             # build the mw waveform for every
             if seq_len < (mw_times[0] + mw_times[2]):
@@ -254,9 +285,9 @@ class Pulse(GenericLogic):
                 len_mw_ao_waveform = self._pulser.waveform_padding(len(mw_ao_waveform))
                 difference = len_mw_ao_waveform - len(mw_ao_waveform)
                 mw_ao_waveform = np.concatenate((mw_ao_waveform, np.zeros(int(difference))))
-                print('laser_do_waveform: ', len(laser_do_waveform))
-                print('apd_do_waveform: ', len(apd_do_waveform))
-                print('mw_ao_waveform: ', len(mw_ao_waveform))
+                # print('laser_do_waveform: ', len(laser_do_waveform))
+                # print('apd_do_waveform: ', len(apd_do_waveform))
+                # print('mw_ao_waveform: ', len(mw_ao_waveform))
                 # Now build the  do_dict and ao_dict
                 do_dict = {laser_outchan: laser_do_waveform, apd_outchan: apd_do_waveform}
                 ao_dict = {mw_outchan: mw_ao_waveform}
@@ -328,7 +359,7 @@ class Pulse(GenericLogic):
         card_idx = 1
         # convert to seconds
         seq_len_s = seq_len * 1e-3
-        print ("seq_len: ", seq_len)
+        # print ("seq_len: ", seq_len)
         # laser_times_s = np.multiply(laser_times, 1e-3)
         # apd_times_s = np.multiply(apd_times, 1e-3)
         mw_times_s = np.multiply(mw_times, 1e-3)
@@ -346,7 +377,7 @@ class Pulse(GenericLogic):
             break_len.append((mw_times[1] + (i * mw_times[3])))  # starting with minimal length
         # print ('mw_len: ', mw_len)
         break_len = np.multiply(1e-3, break_len)
-        print('break_len in sec: ', break_len)
+        # print('break_len in sec: ', break_len)
         for i in break_len:
             # build the mw waveform for every
             if seq_len < (laser_times[0] + laser_times[1] + laser_times[2]):
@@ -356,29 +387,22 @@ class Pulse(GenericLogic):
                 mw_wait = np.zeros(int(clk_rate * mw_times_s[0]))
                 mw_pulse = np.ones(int(clk_rate * mw_times_s[4]))  # this is fix, use this 2 times
                 mw_break = np.zeros(int(clk_rate * i))  # this changes duration min + i
-                print('len mw_break: ', len(mw_break))
+                # print('len mw_break: ', len(mw_break))
 
                 mw_all = mw_times_s[0] + mw_times_s[4] + i + mw_times_s[4]
-                print('mw_all: ', mw_all)
+                # print('mw_all: ', mw_all)
                 rest_array = np.zeros(int(clk_rate * (seq_len_s - mw_all)))
-                print('len rest_array _this is right: ', len(rest_array))
+                # print('len rest_array _this is right: ', len(rest_array))
                 mw_ao_waveform = np.concatenate((mw_wait, mw_pulse, mw_break, mw_pulse, rest_array))
-                print('length of mw waveform before: ', len(mw_ao_waveform))
+                # print('length of mw waveform before: ', len(mw_ao_waveform))
                 len_mw_ao_waveform = self._pulser.waveform_padding(len(mw_ao_waveform))
-                print('length of mw waveform after: ', len_mw_ao_waveform)
+                # print('length of mw waveform after: ', len_mw_ao_waveform)
                 difference = len_mw_ao_waveform - len(mw_ao_waveform)
-                print('difference: ', difference)
+                # print('difference: ', difference)
                 mw_ao_waveform = np.subtract(np.concatenate((mw_ao_waveform, np.zeros(int(difference)))), 0.5)
-                # print('mw waveform max: ', max(mw_ao_waveform))
-                # print('mw waveform min: ', min(mw_ao_waveform))
-                # print('new length of mw waveform: ', len(mw_ao_waveform))
-                # check_out = self.check_len(laser_do_waveform, apd_do_waveform, mw_ao_waveform, mw_pulse= True)
-                # mw_ao_waveform = check_out[0]
-                # apd_do_waveform = check_out[0]
-                # laser_do_waveform = check_out[0]
-                print('laser_do_waveform: ', len(laser_do_waveform))
-                print('apd_do_waveform: ', len(apd_do_waveform))
-                print('mw_ao_waveform: ', len(mw_ao_waveform))
+                # print('laser_do_waveform: ', len(laser_do_waveform))
+                # print('apd_do_waveform: ', len(apd_do_waveform))
+                # print('mw_ao_waveform: ', len(mw_ao_waveform))
                 # Now build the  do_dict and ao_dict
                 do_dict = {laser_outchan: laser_do_waveform, apd_outchan: apd_do_waveform}
                 ao_dict = {mw_outchan: mw_ao_waveform}
@@ -464,14 +488,14 @@ class Pulse(GenericLogic):
         # step_count = int(((stop - apd_start_val) / apd_times_s[0]) + 1)
         for i in range(step_count):
             apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
-        print('apd_start: ', apd_start)
+        # print('apd_start: ', apd_start)
         # creating empty arrays
         dosequence = []
         aosequence = []
 
         # Create laser and apd waveform as they are constant (put it in ms)
         laser_do_waveform = self.laser_seq(seq_len, laser_times)
-        print(' len of laser_do_waveform: ', len(laser_do_waveform))
+        # print(' len of laser_do_waveform: ', len(laser_do_waveform))
         # self.log.error("The length of the analog waveforms must match the length of the digital waveforms on "
         #                "the same card.")
         for i in apd_start:
@@ -482,7 +506,7 @@ class Pulse(GenericLogic):
             len_apd_do_waveform = self._pulser.waveform_padding(len(apd_do_waveform))
             difference = len_apd_do_waveform - (clk_rate * seq_len_s)
             apd_do_waveform = 3 * np.concatenate((apd_do_waveform, np.zeros(int(difference))))
-            print(' len of apd_do_waveform: ', len(apd_do_waveform))
+            # print(' len of apd_do_waveform: ', len(apd_do_waveform))
             if mw_pulse == True:
                 mw_wait = np.zeros(int(clk_rate * (laser_times_s[0] + mw_times_s[0])))
                 mw_pulse_array = np.ones(int(clk_rate * mw_times_s[1]))
@@ -492,7 +516,7 @@ class Pulse(GenericLogic):
                 len_mw_ao_waveform = self._pulser.waveform_padding(len(mw_ao_waveform))
                 difference = len_mw_ao_waveform - (clk_rate * seq_len_s)
                 mw_ao_waveform = np.concatenate((mw_ao_waveform, np.zeros(int(difference))))
-                print(' len of mw_ao_waveform: ', len(mw_ao_waveform))
+                # print(' len of mw_ao_waveform: ', len(mw_ao_waveform))
                 ao_dict = {mw_outchan: mw_ao_waveform}
 
             else:  # if no MW is needed
