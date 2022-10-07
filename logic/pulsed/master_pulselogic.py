@@ -100,11 +100,11 @@ class Masterpulse(GenericLogic):
         self.mw_times_sweep = [0.1, 1] # mw_wait_time between laser off and mw on, mw_pulse_time
         self.apd_times = [4, 0.1] #[time to start, length] all in ms
         self.apd_times_sweep = [1, 4, 8, 0.1] #length, min_start, max_start, steps
-        # self.apd_ref_times = [9,1]
+        self.apd_ref_times = [9, 0.1]
         self.rep = 100
         self.mw_pulse_setting = True
         self.trigger_setting = True
-        self.method = 'rabi'    # change this to 'ramsey' or 'delaysweep' if needed
+        self.method = 'ramsey'    # change this to 'ramsey' or 'delaysweep' if needed
         # Declare where the signals should lead to
         self.sigContinueLoop.connect(self.continue_loop, QtCore.Qt.QueuedConnection)
         self.sigStopMeasurement.connect(self.stop_measurement, QtCore.Qt.QueuedConnection)
@@ -157,6 +157,7 @@ class Masterpulse(GenericLogic):
             mw_times = [mw_wait_time, mw_pulse_time] all in ms
                 mw_wait_time: time between the end of the first laser pulse and the beginning of the microwave (delay)
                 mw_pulse_time: length of the mw pulse in between the two laser pulses
+        apd_ref = [start of reference pulse, length of reference pulse]
         method =    can be rabi, ramsey or delaysweep
         rep =       repetition time when no trigger is used
         mw_pulse =  With or without MW pulse in the middle
@@ -177,7 +178,7 @@ class Masterpulse(GenericLogic):
             apd_times = self.apd_times_sweep
             mw_times = self.mw_times_sweep
 
-        self._pulselogic.play_any(self.clk_rate_awg, self.seq_len, self.laser_times, apd_times, mw_times, method=method,
+        self._pulselogic.play_any(self.clk_rate_awg, self.seq_len, self.laser_times, apd_times, self.apd_ref_times, mw_times, method=method,
                                   rep=self.rep, mw_pulse=self.mw_pulse_setting, trigger=self.trigger_setting)
         return method
 
@@ -220,7 +221,7 @@ class Masterpulse(GenericLogic):
         self.trigger() # sends a software trigger to the AWG
         print ('trigger')
         time.sleep(1)
-        # print(self.count_matrix)
+        # Repeat this for the second TTL switch 
         if self.step_index == self.step_count - 1 and self.av_index == self.averages - 1:
             # print('very last value')
             counts = self.acquire_pixel()
