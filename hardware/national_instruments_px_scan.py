@@ -219,6 +219,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         my_counter_channels = counter_channels if counter_channels else self._counter_channels
         my_photon_sources = sources if sources else self._photon_sources
         my_clock_channel = counter_clock if counter_clock else self._counter_clock
+
         #If no AI is specified, then create an empty array (and do not create AI tasks)
         my_counter_ai_channels = counter_ai_channels# if counter_ai_channels else []
         self._counter_ai_channels = my_counter_ai_channels
@@ -328,7 +329,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         #     daq.DAQmxStartTask(task)
 
         for key, task in self._scanner_ao_tasks.items():
-            print(task)
             if task is not None:
                 daq.DAQmxStartTask(task)
 
@@ -713,12 +713,21 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         if self._counter_ai_daq_task:
             daq.DAQmxStartTask(self._counter_ai_daq_task)
 
-        count_matrix = np.full((len(self._sample_scanner_counter_channels),
+        count_matrix = np.full((len(self._counter_daq_tasks),
                                 samples), 222, dtype=np.uint32)
 
         final_counts = np.full(len(self._counter_daq_tasks), 222)
 
         read_samples = daq.int32()
+
+        for i, task in enumerate(self._counter_daq_tasks):
+            # wait for the scanner counter to finish
+            daq.DAQmxWaitUntilTaskDone(
+                # define task
+                task,
+                # Maximum timeout for the counter times the positions. Unit is seconds.
+                self._RWTimeout * 2 * samples)
+
         try:
             for i, task in enumerate(self._counter_daq_tasks):
                 daq.DAQmxReadCounterU32(

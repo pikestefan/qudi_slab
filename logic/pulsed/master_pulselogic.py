@@ -97,7 +97,7 @@ class Masterpulse(GenericLogic):
         self.rep = 100
         self.mw_pulse_setting = True # this is only for delay sweep
         self.trigger_setting = True
-        self.method = 'delaysweep'    # change this to 'ramsey' or 'delaysweep' if needed
+        self.method = 'rabi'    # change this to 'ramsey' or 'delaysweep' if needed
         # Declare where the signals should lead to
         self.sigContinueLoop.connect(self.continue_loop, QtCore.Qt.QueuedConnection)
         self.sigStopMeasurement.connect(self.stop_measurement, QtCore.Qt.QueuedConnection)
@@ -247,17 +247,19 @@ class Masterpulse(GenericLogic):
         else:
             if self.step_index == self.step_count - 1 and self.av_index == self.averages - 1:
                 # print('very last value')
-                counts = self.acquire_pixel()
-                ref_counts = self.acquire_pixel()
+                counts = self.acquire_pixel()[0]
+                ref_counts = self.acquire_pixel()[1]
                 print ('counts: ', counts)
+                print('ref counts: ', ref_counts)
                 self.count_matrix[self.av_index, self.step_index] = counts
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 self.sigStopMeasurement.emit()
             elif self.step_index == self.step_count - 1 and self.av_index < self.averages - 1: # moves to the next average row
                 # print('last value in the row')
-                counts = self.acquire_pixel()
-                ref_counts = self.acquire_pixel()
+                counts = self.acquire_pixel()[0]
+                ref_counts = self.acquire_pixel()[1]
                 print('counts: ', counts)
+                print('ref counts: ', ref_counts)
                 self.count_matrix[self.av_index, self.step_index] = counts
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 self.step_index = 0
@@ -265,9 +267,10 @@ class Masterpulse(GenericLogic):
                 self.sigContinueLoop.emit()
             else:       # just continue in this --> direction
                 # print('switch to the next column, sequence')
-                counts = self.acquire_pixel()
-                ref_counts = self.acquire_pixel()
+                counts = self.acquire_pixel()[0]
+                ref_counts = self.acquire_pixel()[1]
                 print('counts: ', counts)
+                print('ref counts: ', ref_counts)
                 self.count_matrix[self.av_index, self.step_index] = counts
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 self.step_index = self.step_index + 1
@@ -326,8 +329,8 @@ class Masterpulse(GenericLogic):
         counts, _ = self._photon_counter.read_pixel(x)
         ref_counts, _ = self._photon_counter.read_pixel(x)
         counts = counts[0] # to just get the value and not the array
-        ref_counts = ref_counts[0]  # to just get the value and not the array
-        return counts
+        ref_counts = ref_counts[1]  # to just get the value and not the array
+        return counts, ref_counts
 
     def mw_off(self):
         """ Switching off the MW source.
