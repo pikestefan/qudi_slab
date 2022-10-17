@@ -674,7 +674,7 @@ class SnvmLogic(GenericLogic):
             self.log.exception("Could not clear the ao task.")
         try:
             if self._sca.module_state() == 'locked':
-            self._scanning_device.module_state.unlock()
+                self._scanning_device.module_state.unlock()
         except Exception as e:
             self.log.exception('Could not unlock scanning device.')
 
