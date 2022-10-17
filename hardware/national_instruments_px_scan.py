@@ -62,12 +62,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             - /Dev1/AO3
         sample_scanner_ai_channels:
             - /Dev1/AI1
-        sample_scanner_counter_channels:
-            - /Dev1/Ctr1
         tip_scanner_ai_channels:
             - /Dev1/AI2
-        tip_scanner_counter_channels:
-            - /Dev1/Ctr2
         sample_scanner_voltage_ranges:
             - [0, 10]
             - [0, 10]
@@ -109,14 +105,12 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     # Sample scanner
     _sample_scanner_ao_channels = ConfigOption('sample_scanner_ao_channels', missing='error')
     _sample_scanner_ai_channels = ConfigOption('sample_scanner_ai_channels', list(), missing='info')
-    _sample_scanner_counter_channels = ConfigOption('sample_scanner_counter_channels', list(), missing='warn')
     _sample_scanner_voltage_ranges = ConfigOption('sample_scanner_voltage_ranges', missing='error')
     _sample_scanner_position_ranges = ConfigOption('sample_scanner_position_ranges', missing='error')
 
     # Tip scanner
     _tip_scanner_ao_channels = ConfigOption('tip_scanner_ao_channels', missing='error')
     _tip_scanner_ai_channels = ConfigOption('tip_scanner_ai_channels', list(), missing='info')
-    _tip_scanner_counter_channels = ConfigOption('tip_scanner_counter_channels', list(), missing='warn')
     _tip_scanner_voltage_ranges = ConfigOption('tip_scanner_voltage_ranges', missing='error')
     _tip_scanner_position_ranges = ConfigOption('tip_scanner_position_ranges', missing='error')
 
@@ -141,9 +135,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         self._scanner_ai_channels = dict(zip(self._stack_names,
                                              [self._sample_scanner_ai_channels,
                                               self._tip_scanner_ai_channels]))
-        self._scanner_counter_channels = dict(zip(self._stack_names,
-                                              [self._sample_scanner_counter_channels,
-                                               self._tip_scanner_counter_channels]))
         self._scanner_voltage_ranges = dict(zip(self._stack_names,
                                                 [self._sample_scanner_voltage_ranges,
                                                  self._tip_scanner_voltage_ranges]))
@@ -178,10 +169,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         if len(self._tip_scanner_ao_channels) < len(self._tip_scanner_position_ranges):
             self.log.error(
                 'Specify at least as many tip_scanner_position_ranges as tip_scanner_ao_channels!')
-
-        if len(self._scanner_counter_channels) + len(self._scanner_ai_channels) < 1:
-            self.log.error(
-                'Specify at least one counter or analog input channel for the scanner!')
 
         self._current_position = dict(zip(self._stack_names, [np.zeros((2,)), np.zeros((2,))]))
 
@@ -668,8 +655,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
     def get_scanner_count_channels(self):
         """ Return list of counter channels """
-        ch = self._scanner_counter_channels[:]
-        #ch.extend(self._scanner_ai_channels)
+        ch = self._counter_channels[:]
         return ch
 
     def set_motion_speed(self, speed):
@@ -941,11 +927,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         ao_chans = [chan for sublist in self._scanner_ao_channels.values() for chan in sublist]
         ai_chans = [chan for sublist in self._scanner_ai_channels.values() for chan in sublist]
-        scan_chans = [chan for sublist in self._scanner_counter_channels.values() for chan in sublist]
 
         chanlist.extend(ao_chans)
         chanlist.extend(ai_chans)
-        chanlist.extend(scan_chans)
         chanlist.extend(self._photon_sources)
         chanlist.extend([self._motion_clock_channel])
 
