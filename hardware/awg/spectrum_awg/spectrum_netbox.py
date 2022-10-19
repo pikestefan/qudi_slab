@@ -391,6 +391,49 @@ class SpectrumNetbox(Base, PulserInterface):
         self.start_card(card_idx)
         self.arm_trigger(card_idx)
 
+    def waveform_test(self, msecondsplay=0.1, loops=0, first_out=0, second_out=1, clk_mega=50):
+        """
+        Function for early debugging of the awg. Remove from the final class.
+
+        The steps to a successful initialization of a sequence are:
+        - Define the clock rate
+        - create the arrays that will represent the sequences
+        - configure the trigger masks
+        - load the sequence
+        - start the card
+        - arm the trigger
+        """
+        msecondsplay *= 1e-3
+
+        clk_rate = MEGA(clk_mega)
+
+        card_idx = 1
+        self.stop_replay(card_idx)
+        self.set_sample_rate(card_idx, clk_rate)
+
+        # # This sequence immediately starts after the sequences are loaded
+        self.configure_ORmask(card_idx, 'immediate')
+        self.configure_ANDmask(card_idx, None)
+
+        samples = self.waveform_padding(msecondsplay * clk_rate)
+        time_ax = np.linspace(0, samples/clk_rate, samples)
+
+        do_chan = 1
+        do1 = first_out * np.ones(time_ax.shape, dtype=np.int64)
+        do2 = second_out * np.ones(time_ax.shape, dtype=np.int64)
+
+        outchan = 0
+        do_output = {1: do1, 2: do2}
+
+        digital_output_map = {0: [1, 2]}
+        self.load_waveform(do_waveform_dictionary=do_output,
+                           digital_output_map=digital_output_map)
+
+        self.play_waveform(self._waveform_container[-1], loops=loops)
+
+        self.start_card(card_idx)
+        self.arm_trigger(card_idx)
+
     def play_waveform(self, waveform=None, loops=0):
 
         if waveform is None:
@@ -450,6 +493,9 @@ class SpectrumNetbox(Base, PulserInterface):
 
     def arm_trigger(self, card_idx):
         spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_ENABLETRIGGER)
+
+    def disable_trigger(self, card_idx):
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_DISABLETRIGGER)
 
     def configuration_sequence_mode(self, card_idx):
         spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CARDMODE, SPC_REP_STD_SEQUENCE)
