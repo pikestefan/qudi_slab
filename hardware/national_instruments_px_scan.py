@@ -93,7 +93,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     #Clock used when moving the scanners from A to B, without acquiring anything along the way
     _motion_clock_channel = ConfigOption('motion_clock_channel', missing='error')
     _default_motion_clock_frequency = ConfigOption('default_motion_clock_frequency', 100, missing='info')
-    _motion_speed = ConfigOption('motion_speed', 1e-6, missing='info') #in m/s
+    _motion_speed_conf = ConfigOption('motion_speed_conf', 1e-6, missing='info')  # in m/s
+    _motion_speed_snvm = ConfigOption('motion_speed_snvm', 1e-6, missing='info')  # in m/s
 
     # Photon counting settings
     _counter_clock = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
@@ -631,8 +632,13 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     def get_motion_clock_frequency(self):
         return self._motion_clock_frequency
 
-    def get_motion_speed(self):
-        return self._motion_speed
+    def get_motion_speed(self, stack):
+        if stack == 'sample':
+            return self._motion_speed_snvm
+        elif stack == 'tip':
+            return self._motion_speed_conf
+        else:
+            raise ValueError(f'Trying to get speed for stack {stack}')
 
     def get_scanner_position(self, stack):
         """ Get the current position of the scanner hardware.
@@ -672,8 +678,13 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         #ch.extend(self._scanner_ai_channels)
         return ch
 
-    def set_motion_speed(self, speed):
-        self._motion_speed = speed
+    def set_motion_speed(self, speed, stack):
+        if stack == 'sample':
+            self._motion_speed_snvm = speed
+        elif stack == 'tip':
+            self._motion_speed_conf = speed
+        else:
+            raise ValueError(f'Trying to set speed for stack {stack}')
 
     def set_motion_clock_frequency(self, frequency):
         self._motion_clock_frequency = frequency
@@ -872,7 +883,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         y_start, y_end = start_xy[1], end_xy[1]
 
         if speed is None:
-            speed = self._motion_speed
+            speed = self.get_motion_speed(stack)
 
         points_ymotion = int(self._motion_clock_frequency * abs(y_end - y_start) / speed)
         points_xmotion = int(self._motion_clock_frequency * abs(x_end - x_start) / speed)
