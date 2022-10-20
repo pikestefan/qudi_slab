@@ -687,7 +687,6 @@ class HDF5SaveLogic(SaveLogic):
         @param timestamp: An optional parameter which sets the timestamp. Default is the date-time at saving.
         @param plotfig: a 2D-array which provides an optional saved figure.
         """
-
         start_time = time.time()
         if timestamp is None:
             timestamp = datetime.datetime.now()

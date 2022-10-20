@@ -391,24 +391,16 @@ class SpectrumNetbox(Base, PulserInterface):
         self.start_card(card_idx)
         self.arm_trigger(card_idx)
 
-    def waveform_test(self, msecondsplay=0.1, loops=0, first_out=0, second_out=1, clk_mega=50):
-        """
-        Function for early debugging of the awg. Remove from the final class.
+    def waveform_test(self, msecondsplay=0.5, loops=0, first_out=0, second_out=1, clk_mega=50):
+        '''
+        loops = 0 means it plays the waveform infinitely
+        '''
 
-        The steps to a successful initialization of a sequence are:
-        - Define the clock rate
-        - create the arrays that will represent the sequences
-        - configure the trigger masks
-        - load the sequence
-        - start the card
-        - arm the trigger
-        """
         msecondsplay *= 1e-3
 
         clk_rate = MEGA(clk_mega)
 
         card_idx = 1
-        self.stop_replay(card_idx)
         self.set_sample_rate(card_idx, clk_rate)
 
         # # This sequence immediately starts after the sequences are loaded
@@ -424,13 +416,10 @@ class SpectrumNetbox(Base, PulserInterface):
 
         outchan = 0
         do_output = {1: do1, 2: do2}
-
-        digital_output_map = {0: [1, 2]}
+        digital_output_map = {1: [1, 2]}
         self.load_waveform(do_waveform_dictionary=do_output,
                            digital_output_map=digital_output_map)
-
         self.play_waveform(self._waveform_container[-1], loops=loops)
-
         self.start_card(card_idx)
         self.arm_trigger(card_idx)
 
@@ -439,7 +428,6 @@ class SpectrumNetbox(Base, PulserInterface):
         if waveform is None:
             self.log.error("Please provide a waveform as input to this method.")
             return -1
-
         cards = waveform.required_cards()
         required_channels = waveform.required_channels()
 
@@ -452,7 +440,6 @@ class SpectrumNetbox(Base, PulserInterface):
             spcm_dwSetParam_i64(current_card, SPC_CARDMODE, SPC_REP_STD_SINGLE)
 
             ao_waveform, do_waveform, digital_output_map = waveform.generate_awg_waveform()
-
             self._assign_digital_output_channels(digital_waveforms=do_waveform,
                                                  digital_output_map=digital_output_map)
 
@@ -689,7 +676,8 @@ class SpectrumNetbox(Base, PulserInterface):
                     channel_do_matrix = (digital_waveforms[channel].T *
                                          2 ** (15 - np.arange(len(digital_waveforms[channel])))).astype(c_int16)
                     #                    The line above shifts puts each do signal in its right bit
-                    channel_matrix[:, channel] = np.sum(channel_do_matrix, axis=1)
+                    #channel_matrix[:, channel] = np.sum(channel_do_matrix, axis=1)
+                    channel_matrix[:, chan_idx] = np.sum(channel_do_matrix, axis=1)
                 if card_ao_waveforms and channel in card_ao_waveforms:
                     # Apply rescaling and adjust depending on whether the waveforms have 16, 15, or 14 usable bits
                     rescaled_ao = self._waveform_16_to_nbits(card_ao_waveforms[channel], maxADC_chan)
