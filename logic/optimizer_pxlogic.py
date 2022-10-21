@@ -216,7 +216,7 @@ class OptimizerLogicPxScan(GenericLogic):
         self._Y_values = np.linspace(ymin, ymax, num=self.optimizer_XY_res)
 
         self._slowmove_clock = self._scanning_device.get_motion_clock_frequency()
-        speed = self._scanning_device.get_motion_speed()
+        speed = self._scanning_device.get_motion_speed(stack=self.optimizer_stack)
         slow_pixels = int((xmax - xmin) * self._slowmove_clock / speed)
         if slow_pixels < 2:
             slow_pixels = 2

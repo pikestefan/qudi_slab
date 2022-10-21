@@ -116,12 +116,19 @@ class Masterpulse(GenericLogic):
     def trigger(self):
         self._pulselogic.trigger()
 
-    def cw(self):
+    def cw(self, on=True):
         '''
         plays a zero waveform on all channels but ones on the APD channels. Makes sure the Photon counter can read the counts without changing the cables
         '''
+        #FIXME: initialize properly the waveform, remove the test method!
         #self._pulselogic.do_cw(self.seq_len)
-        self._pulser.waveform_test(msecondsplay=0.5, first_out=1., second_out=0., clk_mega=50)
+        if on:
+            first_out = 1.
+            second_out = 0.
+        else:
+            first_out = 0.
+            second_out = 0.
+        self._pulser.waveform_test(msecondsplay=0.5, first_out=first_out, second_out=second_out, clk_mega=50)
 
 
     def stop_awg(self):  # Makes everything stop
