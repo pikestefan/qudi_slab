@@ -88,7 +88,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     """
 
     # config options
-    _photon_sources = ConfigOption('photon_sources', list(), missing='warn')
+    _scanning_photon_sources = ConfigOption('scanning_photon_sources', list(), missing='warn')
+    _pulsing_photon_sources = ConfigOption('pulsing_photon_sources', list(), missing='warn')
 
     #Clock used when moving the scanners from A to B, without acquiring anything along the way
     _motion_clock_channel = ConfigOption('motion_clock_channel', missing='error')
@@ -99,7 +100,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     # Photon counting settings
     _counter_clock = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
     _counter_clock_frequency = ConfigOption('counter_clock_frequency', 100e3, missing='info')
-    _counter_channels = ConfigOption('counter_channels', missing='error')
+
+    _scanning_counter_channels = ConfigOption('scanning_counter_channels', missing='error')
+    _pulsing_counter_channels = ConfigOption('pulsing_counter_channels', missing='error')
     _counter_ai_channels = ConfigOption('counter_ai_channels', list(), missing='info')
     _counter_voltage_range = ConfigOption('counter_voltage_range', [-10, 10], missing='info')
 
@@ -110,14 +113,12 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     # Sample scanner
     _sample_scanner_ao_channels = ConfigOption('sample_scanner_ao_channels', missing='error')
     _sample_scanner_ai_channels = ConfigOption('sample_scanner_ai_channels', list(), missing='info')
-    _sample_scanner_counter_channels = ConfigOption('sample_scanner_counter_channels', list(), missing='warn')
     _sample_scanner_voltage_ranges = ConfigOption('sample_scanner_voltage_ranges', missing='error')
     _sample_scanner_position_ranges = ConfigOption('sample_scanner_position_ranges', missing='error')
 
     # Tip scanner
     _tip_scanner_ao_channels = ConfigOption('tip_scanner_ao_channels', missing='error')
     _tip_scanner_ai_channels = ConfigOption('tip_scanner_ai_channels', list(), missing='info')
-    _tip_scanner_counter_channels = ConfigOption('tip_scanner_counter_channels', list(), missing='warn')
     _tip_scanner_voltage_ranges = ConfigOption('tip_scanner_voltage_ranges', missing='error')
     _tip_scanner_position_ranges = ConfigOption('tip_scanner_position_ranges', missing='error')
 
@@ -142,9 +143,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         self._scanner_ai_channels = dict(zip(self._stack_names,
                                              [self._sample_scanner_ai_channels,
                                               self._tip_scanner_ai_channels]))
-        self._scanner_counter_channels = dict(zip(self._stack_names,
-                                              [self._sample_scanner_counter_channels,
-                                               self._tip_scanner_counter_channels]))
         self._scanner_voltage_ranges = dict(zip(self._stack_names,
                                                 [self._sample_scanner_voltage_ranges,
                                                  self._tip_scanner_voltage_ranges]))
@@ -162,7 +160,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         self._motion_clock_task = None
         self._motion_clock_frequency = self._default_motion_clock_frequency
 
-        self._photon_sources = self._photon_sources if self._photon_sources is not None else list()
+        self._scanning_photon_sources = self._scanning_photon_sources if self._scanning_photon_sources is not None else list()
+        self._pulsing_photon_sources = self._pulsing_photon_sources if self._pulsing_photon_sources is not None else list()
 
         if len(self._sample_scanner_ao_channels) < len(self._sample_scanner_voltage_ranges):
             self.log.error(
@@ -179,10 +178,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         if len(self._tip_scanner_ao_channels) < len(self._tip_scanner_position_ranges):
             self.log.error(
                 'Specify at least as many tip_scanner_position_ranges as tip_scanner_ao_channels!')
-
-        if len(self._scanner_counter_channels) + len(self._scanner_ai_channels) < 1:
-            self.log.error(
-                'Specify at least one counter or analog input channel for the scanner!')
 
         self._current_position = dict(zip(self._stack_names, [np.zeros((2,)), np.zeros((2,))]))
 
@@ -202,23 +197,41 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                          counter_ai_channels=None,
                          sources=None,
                          counter_clock=None,
-                         samples_to_acquire=None):
+                         samples_to_acquire=None,
+                         mode='scanning'):
         """ Configures the actual counter with a given clock.
 
         @param list(str) counter_channels: optional, physical channel of the counter
+        @param list(str) counter_ai_channels: optional, the analog inputs that should be acquired along
+                                              with the counting.
         @param list(str) sources: optional, physical channel where the photons
                                   are to count from
-        @param str clock_channel: optional, specifies the clock channel for the
+        @param str counter_clock: optional, specifies the clock channel for the
                                   counter
-        @param int counter_buffer: optional, a buffer of specified integer
-                                   length, where in each bin the count numbers
-                                   are saved.
+        @param int samples_to_acquire: specifies the number of samples that should be acquired for finite acquisiton.
+        @param str mode: specifies the mode of the counter preparation.
 
         @return int: error code (0:OK, -1:error)
         """
 
-        my_counter_channels = counter_channels if counter_channels else self._counter_channels
-        my_photon_sources = sources if sources else self._photon_sources
+        allowed_modes = ['pulsing', 'scanning']
+
+        if mode not in allowed_modes:
+            self.log.error("The requested counter mode is not currently specified.")
+
+        if counter_channels:
+            my_counter_channels = counter_channels
+        elif mode == 'scanning':
+            my_counter_channels = self._scanning_counter_channels
+        elif mode == 'pulsing':
+            my_counter_channels = self._pulsing_counter_channels
+
+        if sources:
+            my_photon_sources = sources
+        elif mode == 'scanning':
+            my_photon_sources = self._scanning_photon_sources
+        elif mode == 'pulsing':
+            my_photon_sources = self._pulsing_photon_sources
         my_clock_channel = counter_clock if counter_clock else self._counter_clock
 
         #If no AI is specified, then create an empty array (and do not create AI tasks)
