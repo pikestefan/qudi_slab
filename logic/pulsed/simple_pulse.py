@@ -608,7 +608,7 @@ class Simplepulse(GenericLogic):
             # This sequence immediately starts after the sequences are loaded
             self._pulser.configure_ORmask(card_idx, 'immediate')
             self._pulser.configure_ANDmask(card_idx, None)
-            loops = np.array([rep], dtype=np.int64)
+            loops = np.ones(len(rep), dtype=np.int64)
             stop_condition_list = np.array([])
 
         # makes the waveforms repeat in loops
@@ -680,6 +680,7 @@ class Simplepulse(GenericLogic):
             apd_on = np.ones(self._pulser.waveform_padding(clk_rate * apd_stop))
             apd_off = np.zeros(self._pulser.waveform_padding(clk_rate * (msplay - (i + apd_stop))))
             apd_do_waveform = np.concatenate((apd_wait_time, apd_on, apd_off))
+            print('adp_do_waveform: ', apd_do_waveform)
 
             if mw_pulse == True:
                 # if a mw pulse is desired:
@@ -694,7 +695,7 @@ class Simplepulse(GenericLogic):
                 # Check which array is the longest and append the two others:
                 max_val = np.max(np.array([len(laser_do_waveform), len(apd_do_waveform), len(mw_ao_waveform)]))
                 if max_val == 0:
-                    # print('laser waveforms is the longest')
+                    print('laser waveforms is the longest')
                     difference_mw = len(laser_do_waveform) - len(mw_ao_waveform)
                     difference_apd = len(laser_do_waveform) - len(apd_do_waveform)
                     rest_array_mw = np.zeros(int(difference_mw))
@@ -705,7 +706,7 @@ class Simplepulse(GenericLogic):
                     # print('len of laser_do_waveform: ', len(laser_do_waveform))
                     # print('len of apd_do_waveform: ', len(apd_do_waveform))
                 elif max_val ==1:
-                    # print('apd waveforms is the longest')
+                    print('apd waveforms is the longest')
                     difference_mw = len(apd_do_waveform) - len(mw_ao_waveform)
                     difference_laser = len(apd_do_waveform) - len(laser_do_waveform)
                     rest_array_mw = np.zeros(int(difference_mw))
@@ -716,7 +717,7 @@ class Simplepulse(GenericLogic):
                     # print('len of laser_do_waveform: ', len(laser_do_waveform))
                     # print('len of apd_do_waveform: ', len(apd_do_waveform))
                 else:
-                    # print('mw waveforms is the longest')
+                    print('mw waveforms is the longest')
                     difference_apd = len(mw_ao_waveform) - len(apd_do_waveform)
                     difference_laser = len(mw_ao_waveform) - len(laser_do_waveform)
                     rest_array_apd = np.zeros(int(difference_apd))
@@ -732,7 +733,7 @@ class Simplepulse(GenericLogic):
             else: #if no MW is needed
                 # check which array is longer from laser and apd and use that one
                 if len(apd_do_waveform) < len(laser_do_waveform):
-                    # print('laser waveform is the longer')
+                    print('laser waveform is the longest')
                     difference = len(laser_do_waveform) - len(apd_do_waveform)
                     rest_array = np.zeros(int(difference))
                     apd_do_waveform = np.concatenate((apd_do_waveform, rest_array))
@@ -742,7 +743,7 @@ class Simplepulse(GenericLogic):
                     # print('len of laser_do_waveform: ', len(laser_do_waveform))
                     # print('len of apd_do_waveform: ', len(apd_do_waveform))
                 elif len(laser_do_waveform) < len(apd_do_waveform):
-                    # print('apd waveform is the longer')
+                    print('apd waveform is the longer')
                     difference = len(apd_do_waveform) - len(laser_do_waveform)
                     rest_array = np.zeros(int(difference))
                     laser_do_waveform = np.concatenate((laser_do_waveform, rest_array))
@@ -752,7 +753,7 @@ class Simplepulse(GenericLogic):
                     # print('len of laser_do_waveform: ', len(laser_do_waveform))
                     # print('len of apd_do_waveform: ', len(apd_do_waveform))
                 else:
-                    # print('apd waveform and laser_waveform have the same size')
+                    print('apd waveform and laser_waveform have the same size')
                     d_off = np.zeros(len(apd_do_waveform))
                     # print('len of mw_ao_waveform: ', len(d_off))
                     # print('len of laser_do_waveform: ', len(laser_do_waveform))
@@ -765,12 +766,13 @@ class Simplepulse(GenericLogic):
             dosequence.append((do_dict))
             aosequence.append((ao_dict))
 
-        # print('dosequence: ', dosequence)
-        # print('aosequence: ', aosequence)
+        print('dosequence: ', dosequence)
+        print('aosequence: ', aosequence)
         # load and play
-        # print('len of dosequence: ', len(dosequence))
-        # print('len of aosequence: ', len(aosequence))
+        print('len of dosequence: ', len(dosequence))
+        print('len of aosequence: ', len(aosequence))
         digital_output_map = {0: [0, 1]}  # directs to the right output channel analog channel0 directs to digital x0 and x1
+
         for aos, dos in zip(aosequence, dosequence):
             # Loads waveforms to the awg
             self._pulser.load_waveform(ao_waveform_dictionary=aos, do_waveform_dictionary=dos,
@@ -780,22 +782,26 @@ class Simplepulse(GenericLogic):
             # This sequence waits for a software trigger to start playing and moving to the next step.
             self._pulser.configure_ORmask(card_idx, None)
             self._pulser.configure_ANDmask(card_idx, None)
-            array=np.array([0x40000000], dtype=np.int64)
+            array = np.array([0x40000000], dtype=np.int64)
             stop_condition_list = np.repeat(array, step_count)
             # print('stop_condition_list: ', stop_condition_list)
             loops = np.ones((len(aosequence)), dtype=np.int64)
 
         else:
+            print('trigger= False')
             # This sequence immediately starts after the sequences are loaded
             self._pulser.configure_ORmask(card_idx, 'immediate')
             self._pulser.configure_ANDmask(card_idx, None)
-            loops = np.array([rep], dtype=np.int64)
+            loops = np.repeat(msplay, len(aosequence))
+            print('loops: ', loops)
             stop_condition_list = np.array([])
+
         # makes the waveforms repeat in loops
         self._pulser.load_sequence(  # digital_sequences=dosequence,
             loops_list=loops, segment_map=segment_map, stop_condition_list=stop_condition_list)
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
+
 
 
 

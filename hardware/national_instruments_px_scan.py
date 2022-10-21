@@ -62,12 +62,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             - /Dev1/AO3
         sample_scanner_ai_channels:
             - /Dev1/AI1
-        sample_scanner_counter_channels:
-            - /Dev1/Ctr1
         tip_scanner_ai_channels:
             - /Dev1/AI2
-        tip_scanner_counter_channels:
-            - /Dev1/Ctr2
         sample_scanner_voltage_ranges:
             - [0, 10]
             - [0, 10]
@@ -687,8 +683,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
     def get_scanner_count_channels(self):
         """ Return list of counter channels """
-        ch = self._scanner_counter_channels[:]
-        #ch.extend(self._scanner_ai_channels)
+        ch = self._counter_channels[:]
         return ch
 
     def set_motion_speed(self, speed, stack):
@@ -965,11 +960,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         ao_chans = [chan for sublist in self._scanner_ao_channels.values() for chan in sublist]
         ai_chans = [chan for sublist in self._scanner_ai_channels.values() for chan in sublist]
-        scan_chans = [chan for sublist in self._scanner_counter_channels.values() for chan in sublist]
 
         chanlist.extend(ao_chans)
         chanlist.extend(ai_chans)
-        chanlist.extend(scan_chans)
         chanlist.extend(self._photon_sources)
         chanlist.extend([self._motion_clock_channel])
 

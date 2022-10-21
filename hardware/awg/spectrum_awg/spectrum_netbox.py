@@ -391,77 +391,66 @@ class SpectrumNetbox(Base, PulserInterface):
         self.start_card(card_idx)
         self.arm_trigger(card_idx)
 
-    def play_single_waveform(self, analog_waveforms=dict(), digital_waveforms=dict(), digital_output_map=dict(),
-                             repeats=0, clk_rate=MEGA(50), channel_amplitudes=[], trigger_or_mask=list(),
-                             trigger_and_mask=list()):
+    def waveform_test(self, msecondsplay=0.5, loops=0, first_out=0, second_out=1, clk_mega=50):
+        '''
+        loops = 0 means it plays the waveform infinitely
+        '''
 
-        # FIXME: this is kinda outdated. The method should be made a bit more elegant, similar to the load_sequence
-        #  method. All the extra settings, like the triggers masks or the amplitude settings, should be moved
-        #  outside the method. Also, the reset command is useless, the game changer is M2CMD_CARD_WRITESETUP
-        card_indices = self._get_required_cards(analog_waveforms, digital_waveforms)
-        channels_required = self._get_required_channels(analog_waveforms, digital_waveforms)
+        msecondsplay *= 1e-3
 
-        if not channel_amplitudes:
-            channel_amplitudes = [self._max_ao_voltage, ] * len(channels_required)
+        clk_rate = MEGA(clk_mega)
 
-        # Check that all the waveforms have the same length
-        for card_idx in card_indices:
-            ao_wforms = []
-            do_wforms = []
-            if analog_waveforms and card_idx in analog_waveforms:
-                ao_wforms += list(map(len, analog_waveforms[card_idx].values()))
-        if digital_waveforms:
-            do_wforms += [doform.shape[1] for doform in digital_waveforms.values()]
-        wform_lengths = list(set(ao_wforms + do_wforms))
-        if len(wform_lengths) > 1:
-            self.log.error("All the analog and digital waveforms need to have the same length in this mode.")
+        card_idx = 1
+        self.set_sample_rate(card_idx, clk_rate)
+
+        # # This sequence immediately starts after the sequences are loaded
+        self.configure_ORmask(card_idx, 'immediate')
+        self.configure_ANDmask(card_idx, None)
+
+        samples = self.waveform_padding(msecondsplay * clk_rate)
+        time_ax = np.linspace(0, samples/clk_rate, samples)
+
+        do_chan = 1
+        do1 = first_out * np.ones(time_ax.shape, dtype=np.int64)
+        do2 = second_out * np.ones(time_ax.shape, dtype=np.int64)
+
+        outchan = 0
+        do_output = {1: do1, 2: do2}
+        digital_output_map = {1: [1, 2]}
+        self.load_waveform(do_waveform_dictionary=do_output,
+                           digital_output_map=digital_output_map)
+        self.play_waveform(self._waveform_container[-1], loops=loops)
+        self.start_card(card_idx)
+        self.arm_trigger(card_idx)
+
+    def play_waveform(self, waveform=None, loops=0):
+
+        if waveform is None:
+            self.log.error("Please provide a waveform as input to this method.")
             return -1
-        else:
-            memsize = wform_lengths[0]
+        cards = waveform.required_cards()
+        required_channels = waveform.required_channels()
 
-        if (memsize % 32) != 0:
-            self.log.error("The waveform length needs to be a multiple of 32. Use the method"
-                           "SpectrumNetbox.waveform_padding to help you get the correct waveform length.")
-            return -1
+        self.set_active_channels(*required_channels)
+        self._chan_enable(*required_channels)
 
-        if len(card_indices) > 1:
-            spcm_dwSetParam_i64(self._netbox.starHub, SPC_SYNC_ENABLEMASK, 0x3) # Harcoded, connects by default the only two cards we have
-            synchmaster = self._netbox.masteridx
-        else:
-            synchmaster = card_indices[0]
+        for card_idx in cards:
+            current_card = self._netbox.card(card_idx)
+            spcm_dwSetParam_i64(current_card, SPC_LOOPS, loops)
+            spcm_dwSetParam_i64(current_card, SPC_CARDMODE, SPC_REP_STD_SINGLE)
 
-        if self._netbox.masteridx in card_indices:
-            mask_card = self._netbox.master()
-        else:
-            mask_card = self._netbox.card(card_indices[0])
-            trigger_or_mask = [trig for trig in trigger_or_mask if trig in [None, 'immediate']]
-            trigger_and_mask = [None]
+            ao_waveform, do_waveform, digital_output_map = waveform.generate_awg_waveform()
+            self._assign_digital_output_channels(digital_waveforms=do_waveform,
+                                                 digital_output_map=digital_output_map)
 
-        self.set_active_channels(*channels_required)
+            self._create_waveform_buffers(analog_waveforms=ao_waveform,
+                                          digital_waveforms=do_waveform)
 
-        self._chan_enable(*channels_required)
-        self.set_chan_amplitude(channels_required, channel_amplitudes)
+        for card_idx in cards:
+            current_card = self._netbox.card(card_idx)
 
-        for card_idx in card_indices:
-            card = self._netbox.card(card_idx)
-            self.set_sample_rate(card_idx, clk_rate=clk_rate)
-            self.configuration_single_mode(card_idx)
-            spcm_dwSetParam_i64(card, SPC_MEMSIZE, memsize)
-            spcm_dwSetParam_i64(card, SPC_LOOPS, repeats)
-
-            if card == mask_card:
-                self.configure_ORmask(card_idx, *trigger_or_mask)
-                self.configure_ANDmask(card_idx, *trigger_and_mask)
-            else:
-                self.configure_ORmask(card_idx, *[])
-                self.configure_ANDmask(card_idx, *[])
-
-        self._assign_digital_output_channels(digital_waveforms=digital_waveforms, digital_output_map=digital_output_map)
-
-        self._create_waveform_buffers(analog_waveforms=analog_waveforms, digital_waveforms=digital_waveforms)
-
-        self.start_card(synchmaster)
-        self.arm_trigger(synchmaster)
+            # This step is fundamental. Without it, the card won't be able to apply the settings properly.
+            spcm_dwSetParam_i64(current_card, SPC_M2CMD, M2CMD_CARD_WRITESETUP)
 
     def configure_ORmask(self, card_idx, *masks_to_enable):
         final_mask = 0
@@ -491,6 +480,9 @@ class SpectrumNetbox(Base, PulserInterface):
 
     def arm_trigger(self, card_idx):
         spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_ENABLETRIGGER)
+
+    def disable_trigger(self, card_idx):
+        spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_M2CMD, M2CMD_CARD_DISABLETRIGGER)
 
     def configuration_sequence_mode(self, card_idx):
         spcm_dwSetParam_i64(self._netbox.card(card_idx), SPC_CARDMODE, SPC_REP_STD_SEQUENCE)
@@ -684,7 +676,8 @@ class SpectrumNetbox(Base, PulserInterface):
                     channel_do_matrix = (digital_waveforms[channel].T *
                                          2 ** (15 - np.arange(len(digital_waveforms[channel])))).astype(c_int16)
                     #                    The line above shifts puts each do signal in its right bit
-                    channel_matrix[:, channel] = np.sum(channel_do_matrix, axis=1)
+                    #channel_matrix[:, channel] = np.sum(channel_do_matrix, axis=1)
+                    channel_matrix[:, chan_idx] = np.sum(channel_do_matrix, axis=1)
                 if card_ao_waveforms and channel in card_ao_waveforms:
                     # Apply rescaling and adjust depending on whether the waveforms have 16, 15, or 14 usable bits
                     rescaled_ao = self._waveform_16_to_nbits(card_ao_waveforms[channel], maxADC_chan)
