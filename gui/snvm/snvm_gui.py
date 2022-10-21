@@ -716,7 +716,8 @@ class SnvmGui(GUIBase):
 
 
     def update_snvm_settings(self):
-        self._scanning_logic.set_motion_speed(self._snvm_dialog.slowspeedSpinBox.value())
+        self._scanning_logic.set_motion_speed(self._snvm_dialog.slowSpeedConfSpinBox.value(), stack='tip')
+        self._scanning_logic.set_motion_speed(self._snvm_dialog.slowSpeedSnvmSpinBox.value(), stack='sample')
         self._scanning_logic.set_slowmotion_clockrate(self._snvm_dialog.motionClockRate_Spinbox.value())
 
     def update_scanning_range(self, rect):
@@ -747,7 +748,8 @@ class SnvmGui(GUIBase):
         cbar.refresh_colorbar(*cbar_range)
 
     def keep_former_snvm_settings(self):
-        self._snvm_dialog.slowspeedSpinBox.setValue(self._scanning_logic.backward_speed)
+        self._snvm_dialog.slowSpeedConfSpinBox.setValue(self._scanning_logic.backward_speed['tip'])
+        self._snvm_dialog.slowSpeedSnvmSpinBox.setValue(self._scanning_logic.backward_speed['sample'])
         self._snvm_dialog.motionClockRate_Spinbox.setValue(self._scanning_logic.get_slowmotion_clockrate())
 
     def frequency_selector_clicked(self, freq_val):

@@ -202,7 +202,7 @@ class SnvmLogic(GenericLogic):
     optimizer_logic = Connector(interface='OptimizerLogicPxScan')
 
     slow_motion_clock_rate = StatusVar('slow_motion_clock_rate', 10)
-    backward_speed = StatusVar('slow_motion_speed', 1)
+    backward_speed = StatusVar('slow_motion_speed', {'tip': 1, 'sample': 1})
     max_history_length = StatusVar(default=10)
 
     # Initialize the optimization-while-scanning settings
@@ -242,7 +242,8 @@ class SnvmLogic(GenericLogic):
         self._optimizer_logic = self.optimizer_logic()
 
         self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
-        self.set_motion_speed(self.backward_speed)
+        self.set_motion_speed(self.backward_speed['tip'], stack='tip')
+        self.set_motion_speed(self.backward_speed['sample'], stack='sample')
 
         self.history = []
         for i in reversed(range(1, self.max_history_length)):
@@ -407,7 +408,7 @@ class SnvmLogic(GenericLogic):
         if self.store_retrace is False:
             self._scanning_device.prepare_motion_clock()
             clk_freq = self._scanning_device.get_motion_clock_frequency()
-            speed = self._scanning_device.get_motion_speed()
+            speed = self._scanning_device.get_motion_speed(self._active_stack)
             self.backward_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / speed) *
                                        clk_freq)
             if self.backward_pixels < 2:
@@ -731,13 +732,13 @@ class SnvmLogic(GenericLogic):
         self.slow_motion_clock_rate = clockrate
         self._scanning_device.set_motion_clock_frequency(clockrate)
 
-    def get_motion_speed(self):
-        return self._scanning_device.get_motion_speed()
+    def get_motion_speed(self, stack):
+        return self._scanning_device.get_motion_speed(stack)
 
-    def set_motion_speed(self, speed):
+    def set_motion_speed(self, speed, stack):
         #FIXME: dirty trick to keep the motion_speed as a status variable which sets the speed when reloading Qudi.
-        self.backward_speed = speed
-        self._scanning_device.set_motion_speed(speed * 1e-6)
+        self.backward_speed[stack] = speed
+        self._scanning_device.set_motion_speed(speed * 1e-6, stack)
 
     def _initialize_scanning_statuses(self):
         self._x_scanning_index = 0
