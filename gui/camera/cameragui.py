@@ -49,6 +49,8 @@ class CameraSettingDialog(QtWidgets.QDialog):
         super(CameraSettingDialog, self).__init__()
         uic.loadUi(ui_file, self)
 
+        another_test_for_master = 2
+
 
 class CameraWindow(QtWidgets.QMainWindow):
     """ Class defined for the main window (not the module)
