@@ -130,6 +130,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     _sample_stack_name = ConfigOption('Sample stack name', default='sample')
     _tip_stack_name = ConfigOption('Tip stack names', default='tip')
 
+    _test_for_push = 4
+
     def on_activate(self):
         """ Starts up the NI Card at activation.
         """
