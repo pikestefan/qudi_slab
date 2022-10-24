@@ -342,8 +342,8 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="actionStart_snvmscan"/>
-   <addaction name="actionResume_snvmscan"/>
+   <addaction name="actionStart_snvm_scan"/>
+   <addaction name="actionResume_snvm_scan"/>
    <addaction name="action_snvm_goToPoint"/>
    <addaction name="separator"/>
    <addaction name="actionStart_conf_scan"/>
@@ -899,10 +899,10 @@
       <widget class="QCheckBox" name="storeRetraceSnvm">
        <property name="geometry">
         <rect>
-         <x>370</x>
-         <y>40</y>
+         <x>260</x>
+         <y>100</y>
          <width>101</width>
-         <height>31</height>
+         <height>21</height>
         </rect>
        </property>
        <property name="font">
@@ -944,8 +944,8 @@
       <widget class="QSpinBox" name="fwpxTimeSnvm">
        <property name="geometry">
         <rect>
-         <x>45</x>
-         <y>96</y>
+         <x>150</x>
+         <y>100</y>
          <width>100</width>
          <height>20</height>
         </rect>
@@ -1116,8 +1116,8 @@
       <widget class="QLabel" name="label_29">
        <property name="geometry">
         <rect>
-         <x>370</x>
-         <y>20</y>
+         <x>10</x>
+         <y>100</y>
          <width>131</width>
          <height>20</height>
         </rect>
@@ -1386,19 +1386,6 @@
         <set>Qt::AlignCenter</set>
        </property>
       </widget>
-      <widget class="Line" name="line">
-       <property name="geometry">
-        <rect>
-         <x>490</x>
-         <y>0</y>
-         <width>20</width>
-         <height>141</height>
-        </rect>
-       </property>
-       <property name="orientation">
-        <enum>Qt::Vertical</enum>
-       </property>
-      </widget>
      </widget>
      <widget class="QWidget" name="Confocal">
       <attribute name="title">
@@ -1407,10 +1394,10 @@
       <widget class="QCheckBox" name="storeRetraceConf">
        <property name="geometry">
         <rect>
-         <x>380</x>
-         <y>40</y>
+         <x>270</x>
+         <y>100</y>
          <width>101</width>
-         <height>31</height>
+         <height>21</height>
         </rect>
        </property>
        <property name="font">
@@ -1503,8 +1490,8 @@
       <widget class="QLabel" name="label_36">
        <property name="geometry">
         <rect>
-         <x>380</x>
-         <y>20</y>
+         <x>10</x>
+         <y>100</y>
          <width>131</width>
          <height>20</height>
         </rect>
@@ -1644,9 +1631,9 @@
       <widget class="QSpinBox" name="fwpxTimeConf">
        <property name="geometry">
         <rect>
-         <x>50</x>
-         <y>96</y>
-         <width>100</width>
+         <x>150</x>
+         <y>100</y>
+         <width>101</width>
          <height>20</height>
         </rect>
        </property>
@@ -1750,7 +1737,7 @@
     </widget>
    </widget>
   </widget>
-  <action name="actionStart_snvmscan">
+  <action name="actionStart_snvm_scan">
    <property name="checkable">
     <bool>false</bool>
    </property>
@@ -1762,7 +1749,7 @@
     <string>Start SNVM scan</string>
    </property>
   </action>
-  <action name="actionResume_snvmscan">
+  <action name="actionResume_snvm_scan">
    <property name="icon">
     <iconset>
      <normaloff>../../artwork/icons/qudiTheme/22x22/scan-xy-resume.png</normaloff>../../artwork/icons/qudiTheme/22x22/scan-xy-resume.png</iconset>

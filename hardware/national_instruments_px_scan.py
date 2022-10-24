@@ -963,7 +963,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         chanlist.extend(ao_chans)
         chanlist.extend(ai_chans)
-        chanlist.extend(self._photon_sources)
+        chanlist.extend(self._scanning_photon_sources)
+        chanlist.extend(self._pulsing_photon_sources)
         chanlist.extend([self._motion_clock_channel])
 
         devicelist = []

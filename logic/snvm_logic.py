@@ -49,8 +49,6 @@ class ConfocalHistoryEntry(QtCore.QObject):
         self.scanning_x_resolution = dict()
         self.scanning_y_resolution = dict()
         self.px_time = dict()
-        self._photon_samples = dict()
-        self.backward_pixels = dict()
         self.store_retrace = dict()
 
         for stack in [self.sampleStackName, self.tipStackName]:
@@ -72,11 +70,10 @@ class ConfocalHistoryEntry(QtCore.QObject):
             # Integration time per pixel
             self.px_time[stack] = 30e-3
 
-            self.backward_pixels[stack] = 0  # The number is determined by the clock frequency and the bw_speed
-
             self.store_retrace[stack] = False
 
         self._photon_samples = 0
+        self.backward_pixels = 0 # The number is determined by the clock frequency and the bw_speed
         self.invalid = np.nan  # Number corresponding to invalid data points.
 
         ####
@@ -208,7 +205,7 @@ class SnvmLogic(GenericLogic):
     doublescanner = Connector(interface='SnvmScannerInterface')
     odmrscanner = Connector(interface='MicrowaveInterface')
     savelogic = Connector(interface='HDF5SaveLogic')
-    optimizer_logic = Connector(interface='OptimizerLogicPxScan')
+    optimizer_logic = Connector(interface='OptimizerLogic')
 
     slow_motion_clock_rate = StatusVar('slow_motion_clock_rate', 10)
     backward_speed_conf = StatusVar('slow_motion_speed_conf', 1)
@@ -394,17 +391,18 @@ class SnvmLogic(GenericLogic):
         Check that the requested scanning ranges are within the maximum scanning ranges set by the hardware.
         If they are out of bounds, clip the values.
         """
-        curr_x_minrange, curr_x_maxrange = self.x_maxrange[self._active_stack]
-        curr_y_minrange, curr_y_maxrange = self.y_maxrange[self._active_stack]
+        stk = self._active_stack
+        curr_x_minrange, curr_x_maxrange = self.x_maxrange[stk]
+        curr_y_minrange, curr_y_maxrange = self.y_maxrange[stk]
         # TODO: emit a signal when the clipping happens, and update the GUI limits accordingly
-        if not ((curr_x_minrange <= self.scanning_x_range[self._active_stack][0] <= curr_x_maxrange) or
-           not (curr_x_minrange <= self.scanning_x_range[self._active_stack][1] <= curr_x_maxrange)):
-            self.scanning_x_range[self._active_stack] = np.clip(self.scanning_x_range[self._active_stack], curr_x_minrange, curr_x_maxrange)
+        if not ((curr_x_minrange <= self.scanning_x_range[stk][0] <= curr_x_maxrange) or
+           not (curr_x_minrange <= self.scanning_x_range[stk][1] <= curr_x_maxrange)):
+            self.scanning_x_range[stk] = np.clip(self.scanning_x_range[stk], curr_x_minrange, curr_x_maxrange)
             self.log.warning("x scanning range limits are out of bounds, clipped back to the maximum values.")
 
-        if not ((curr_y_minrange <= self.scanning_y_range[0] <= curr_y_maxrange) or
-           not (curr_y_minrange <= self.scanning_y_range[1] <= curr_y_maxrange)):
-            self.scanning_y_range[self._active_stack] = np.clip(self.scanning_y_range[self._active_stack], curr_y_minrange, curr_y_maxrange)
+        if not ((curr_y_minrange <= self.scanning_y_range[stk][0] <= curr_y_maxrange) or
+           not (curr_y_minrange <= self.scanning_y_range[stk][1] <= curr_y_maxrange)):
+            self.scanning_y_range[stk] = np.clip(self.scanning_y_range[stk], curr_y_minrange, curr_y_maxrange)
             self.log.warning("y scanning range limits are out of bounds, clipped back to the maximum values.")
         return 0
 
@@ -427,10 +425,10 @@ class SnvmLogic(GenericLogic):
             self._scanning_device.prepare_motion_clock()
             clk_freq = self._scanning_device.get_motion_clock_frequency()
             speed = self._scanning_device.get_motion_speed(self._active_stack)
-            self.backward_pixels[self._active_stack] = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / speed) *
+            self.backward_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / speed) *
                                        clk_freq)
-            if self.backward_pixels[self._active_stack] < 2:
-                self.backward_pixels[self._active_stack] = 2
+            if self.backward_pixels < 2:
+                self.backward_pixels = 2
 
         if self._snvm_active:
             self._odmrscanner.module_state.lock()
@@ -548,11 +546,12 @@ class SnvmLogic(GenericLogic):
                 self.signal_xy_px_acquired.emit()
 
     def continue_confocal_scanning(self):
-        acquire_data = False if (self.store_retrace[self._active_stack] is False) and (self._is_retracing is True) else True
+        stk = self._active_stack
+        acquire_data = False if (self.store_retrace[stk] is False) and (self._is_retracing is True) else True
         if acquire_data:
             counts, _ = self.acquire_pixel()
-            counts = counts[0] / self.px_time
-            if self._is_retracing and self.store_retrace[self._active_stack]:
+            counts = counts[0] / self.px_time[stk]
+            if self._is_retracing and self.store_retrace[stk]:
                 self.xy_scan_matrix_retrace[self._y_scanning_index, self._x_scanning_index] = counts
             else:
                 self.xy_scan_matrix[self._y_scanning_index, self._x_scanning_index] = counts
@@ -564,7 +563,7 @@ class SnvmLogic(GenericLogic):
         return round(self.px_time[self._active_stack] * self._scanning_device.get_counter_clock_frequency())
 
     def acquire_pixel(self):
-        data = self._scanning_device.read_pixel(self._photon_samples[self._active_stack])
+        data = self._scanning_device.read_pixel(self._photon_samples)
         return data
 
     def move_to_xy_pixel(self):

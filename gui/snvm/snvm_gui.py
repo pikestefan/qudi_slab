@@ -118,7 +118,7 @@ class SnvmGui(GUIBase):
 
     # declare connectors
     snvm_logic = Connector(interface='SnvmLogic')
-    optimizer_logic = Connector(interface='OptimizerLogicPxScan')
+    optimizer_logic = Connector(interface='OptimizerLogic')
 
     default_meter_prefix = ConfigOption('default_meter_prefix', None)  # assume the unit prefix of position spinbox
     startstopFreq_multiplier = ConfigOption('startstopFreq_multiplier', default=1e9, missing='info')
@@ -131,7 +131,8 @@ class SnvmGui(GUIBase):
 
     # signals
     sigStartOptimizer = QtCore.Signal()
-    sigStartScanning = QtCore.Signal(str)
+    sigStartScanningSnvm = QtCore.Signal()
+    sigStartScanningConf = QtCore.Signal()
     sigGoTo = QtCore.Signal(str)
 
     def __init__(self, config, **kwargs):
@@ -265,7 +266,8 @@ class SnvmGui(GUIBase):
 
         #Connect the signals
         self.sigStartOptimizer.connect(self.optimize_counts, QtCore.Qt.QueuedConnection)
-        self.sigStartScanning.connect(self.start_scanning, QtCore.Qt.QueuedConnection)
+        self.sigStartScanningSnvm.connect(self.prepare_snvm_scan, QtCore.Qt.QueuedConnection)
+        self.sigStartScanningConf.connect(self.prepare_conf_scan, QtCore.Qt.QueuedConnection)
         self.sigGoTo.connect(self.go_to_point, QtCore.Qt.QueuedConnection)
 
         self._odmr_widgets['mwStart'].valueChanged.connect(self.accept_frequency_ranges)
@@ -298,7 +300,7 @@ class SnvmGui(GUIBase):
         ##############
         # Connect the actions to their slots
         ##############
-        self._mainwindow.actionStart_snvmscan.triggered.connect(self.scanning_action_clicked)
+        self._mainwindow.actionStart_snvm_scan.triggered.connect(self.scanning_action_clicked)
         self._mainwindow.actionStart_conf_scan.triggered.connect(self.scanning_action_clicked)
         self._mainwindow.actionStop_scan.triggered.connect(self.stop_scanning_request)
         self._mainwindow.actionOptimize.triggered.connect(self.scanning_action_clicked)
@@ -466,33 +468,32 @@ class SnvmGui(GUIBase):
         self._mainwindow.activateWindow()
         self._mainwindow.raise_()
 
-    def prepare_snvm_scan(self, start_name):
-        print(f'start_name {start_name}')
+    def prepare_snvm_scan(self):
         #Get the scanning settings from the GUI, and set them in the logic
         #FIXME: find a way to do this more efficiently, without calling each attribute one by one
-        stack = self._scanning_logic
-        self._scanning_logic.store_retrace[] = True if self._afm_widgets['storeRetraceSnvm'].checkState() == 2 else False
+        stk = self._scanning_logic.sampleStackName
+        self._scanning_logic.store_retrace[stk] = True if self._afm_widgets['storeRetraceSnvm'].checkState() == 2 else False
 
-        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRangeSnvm'].value()*self.xy_range_multiplier,
-                                                 self._afm_widgets['xMaxRangeSnvm'].value()*self.xy_range_multiplier]
-        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRangeSnvm'].value()*self.xy_range_multiplier,
-                                                 self._afm_widgets['yMaxRangeSnvm'].value()*self.xy_range_multiplier]
+        self._scanning_logic.scanning_x_range[stk] = [self._afm_widgets['xMinRangeSnvm'].value()*self.xy_range_multiplier,
+                                                      self._afm_widgets['xMaxRangeSnvm'].value()*self.xy_range_multiplier]
+        self._scanning_logic.scanning_y_range[stk] = [self._afm_widgets['yMinRangeSnvm'].value()*self.xy_range_multiplier,
+                                                      self._afm_widgets['yMaxRangeSnvm'].value()*self.xy_range_multiplier]
 
-        self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolutionSnvm'].value()
-        self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolutionSnvm'].value()
+        self._scanning_logic.scanning_x_resolution[stk] = self._afm_widgets['xResolutionSnvm'].value()
+        self._scanning_logic.scanning_y_resolution[stk] = self._afm_widgets['yResolutionSnvm'].value()
         self._scanning_logic.optimize_while_scanning = self._optim_dialog.optimizeDuringScanCheckBox.isChecked()
         self._scanning_logic.every_N_pixels = self._optim_dialog.everyNPixelsDoubleSpinBox.value()
 
         #Set the integration time
-        self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
+        self._scanning_logic.px_time[stk] = self._afm_widgets['fwpxTimeSnvm'].value() * self.px_time_multiplier
 
         #First update the crosshair position
         crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
-        if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range
-            or crosshair_pos[1]*self.xy_range_multiplier not in self._scanning_logic.scanning_y_range):
+        if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range[stk]
+            or crosshair_pos[1]*self.xy_range_multiplier not in self._scanning_logic.scanning_y_range[stk]):
 
-            newpos = (self._scanning_logic.scanning_x_range[0]/self.xy_range_multiplier,
-                      self._scanning_logic.scanning_y_range[0]/self.xy_range_multiplier)
+            newpos = (self._scanning_logic.scanning_x_range[stk][0]/self.xy_range_multiplier,
+                      self._scanning_logic.scanning_y_range[stk][0]/self.xy_range_multiplier)
             self._mainwindow.multiFreqPlotView.set_crosshair_pos(newpos)
             self._mainwindow.afmPlotView.set_crosshair_pos(newpos)
 
@@ -508,31 +509,29 @@ class SnvmGui(GUIBase):
 
         self._scanning_logic.start_snvm_scanning()
 
-    def prepare_conf_scan(self, start_name):
+    def prepare_conf_scan(self):
         # Get the scanning settings from the GUI, and set them in the logic
         # FIXME: find a way to do this more efficiently, without calling each attribute one by one
-        self._scanning_logic.store_retrace = True if self._afm_widgets['storeRetrace'].checkState() == 2 else False
+        stk = self._scanning_logic.tipStackName
+        self._scanning_logic.store_retrace[stk] = True if self._afm_widgets['storeRetraceConf'].checkState() == 2 else False
 
-        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value() * self.xy_range_multiplier,
-                                                 self._afm_widgets['xMaxRange'].value() * self.xy_range_multiplier]
-        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value() * self.xy_range_multiplier,
-                                                 self._afm_widgets['yMaxRange'].value() * self.xy_range_multiplier]
+        self._scanning_logic.scanning_x_range[stk] = [self._afm_widgets['xMinRangeConf'].value() * self.xy_range_multiplier,
+                                                      self._afm_widgets['xMaxRangeConf'].value() * self.xy_range_multiplier]
+        self._scanning_logic.scanning_y_range[stk] = [self._afm_widgets['yMinRangeConf'].value() * self.xy_range_multiplier,
+                                                      self._afm_widgets['yMaxRangeConf'].value() * self.xy_range_multiplier]
 
-        self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
-        self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
+        self._scanning_logic.scanning_x_resolution[stk] = self._afm_widgets['xResolutionConf'].value()
+        self._scanning_logic.scanning_y_resolution[stk] = self._afm_widgets['yResolutionConf'].value()
         self._scanning_logic.optimize_while_scanning = self._optim_dialog.optimizeDuringScanCheckBox.isChecked()
-        self._scanning_logic.every_N_pixels = self._optim_dialog.everyNPixelsDoubleSpinBox.value()
-        print('optimize during scan')
-        print(self._scanning_logic.optimize_while_scanning, self._scanning_logic.every_N_pixels)
 
         # Set the integration time
-        self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
+        self._scanning_logic.px_time[stk] = self._afm_widgets['fwpxTimeConf'].value() * self.px_time_multiplier
 
         # First update the crosshair position
         crosshair_pos = self._mainwindow.confocalScannerView.crosshair_position
-        if (crosshair_pos[0] not in self._scanning_logic.scanning_x_range
-                or crosshair_pos[1] not in self._scanning_logic.scanning_y_range):
-            newpos = self._scanning_logic.scanning_x_range[0], self._scanning_logic.scanning_y_range[0]
+        if (crosshair_pos[0] not in self._scanning_logic.scanning_x_range[stk]
+                or crosshair_pos[1] not in self._scanning_logic.scanning_y_range[stk]):
+            newpos = self._scanning_logic.scanning_x_range[stk][0], self._scanning_logic.scanning_y_range[stk][0]
             self._mainwindow.confocalScannerView.set_crosshair_pos(newpos)
 
         self._scanning_logic.start_confocal_scanning()
@@ -550,9 +549,9 @@ class SnvmGui(GUIBase):
             self._mainwindow.confocalScannerView.set_crosshair_range([xrange, yrange])
 
     def disable_interactions(self):
-        self._mainwindow.actionStart_snvmscan.setEnabled(False)
+        self._mainwindow.actionStart_snvm_scan.setEnabled(False)
         self._mainwindow.actionStart_conf_scan.setEnabled(False)
-        self._mainwindow.actionResume_snvmscan.setEnabled(False)
+        self._mainwindow.actionResume_snvm_scan.setEnabled(False)
         self._mainwindow.actionResume_conf_scan.setEnabled(False)
         self._mainwindow.actionOptimize.setEnabled(False)
         self._mainwindow.action_snvm_goToPoint.setEnabled(False)
@@ -566,9 +565,9 @@ class SnvmGui(GUIBase):
             setting.setEnabled(False)
 
     def activate_interactions(self):
-        self._mainwindow.actionStart_snvmscan.setEnabled(True)
+        self._mainwindow.actionStart_snvm_scan.setEnabled(True)
         self._mainwindow.actionStart_conf_scan.setEnabled(True)
-        self._mainwindow.actionResume_snvmscan.setEnabled(True)
+        self._mainwindow.actionResume_snvm_scan.setEnabled(True)
         self._mainwindow.actionResume_conf_scan.setEnabled(True)
         self._mainwindow.actionOptimize.setEnabled(True)
         self._mainwindow.action_snvm_goToPoint.setEnabled(True)
@@ -629,9 +628,9 @@ class SnvmGui(GUIBase):
             self._mainwindow.actionStop_scan.setEnabled(False)
             self.sigGoTo.emit('cfc')
         elif sendername == 'actionStart_conf_scan':
-            self.sigStartScanning.emit('cfc')
-        elif sendername == 'actionStart_snvmscan':
-            self.sigStartScanning.emit('snvm')
+            self.sigStartScanningConf.emit()
+        elif sendername == 'actionStart_snvm_scan':
+            self.sigStartScanningSnvm.emit()
 
     def optimize_counts(self):
         self.disable_interactions()
