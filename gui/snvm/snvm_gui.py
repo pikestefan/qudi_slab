@@ -466,15 +466,57 @@ class SnvmGui(GUIBase):
         self._mainwindow.activateWindow()
         self._mainwindow.raise_()
 
-    def start_scanning(self, start_name):
+    def prepare_snvm_scan(self, start_name):
+        print(f'start_name {start_name}')
         #Get the scanning settings from the GUI, and set them in the logic
         #FIXME: find a way to do this more efficiently, without calling each attribute one by one
-        self._scanning_logic.store_retrace = True if self._afm_widgets['storeRetrace'].checkState()==2 else False
+        stack = self._scanning_logic
+        self._scanning_logic.store_retrace[] = True if self._afm_widgets['storeRetraceSnvm'].checkState() == 2 else False
 
-        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value()*self.xy_range_multiplier,
-                                                 self._afm_widgets['xMaxRange'].value()*self.xy_range_multiplier]
-        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value()*self.xy_range_multiplier,
-                                                 self._afm_widgets['yMaxRange'].value()*self.xy_range_multiplier]
+        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRangeSnvm'].value()*self.xy_range_multiplier,
+                                                 self._afm_widgets['xMaxRangeSnvm'].value()*self.xy_range_multiplier]
+        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRangeSnvm'].value()*self.xy_range_multiplier,
+                                                 self._afm_widgets['yMaxRangeSnvm'].value()*self.xy_range_multiplier]
+
+        self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolutionSnvm'].value()
+        self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolutionSnvm'].value()
+        self._scanning_logic.optimize_while_scanning = self._optim_dialog.optimizeDuringScanCheckBox.isChecked()
+        self._scanning_logic.every_N_pixels = self._optim_dialog.everyNPixelsDoubleSpinBox.value()
+
+        #Set the integration time
+        self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
+
+        #First update the crosshair position
+        crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
+        if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range
+            or crosshair_pos[1]*self.xy_range_multiplier not in self._scanning_logic.scanning_y_range):
+
+            newpos = (self._scanning_logic.scanning_x_range[0]/self.xy_range_multiplier,
+                      self._scanning_logic.scanning_y_range[0]/self.xy_range_multiplier)
+            self._mainwindow.multiFreqPlotView.set_crosshair_pos(newpos)
+            self._mainwindow.afmPlotView.set_crosshair_pos(newpos)
+
+        self.set_odmr_settings()
+
+        #Here put the settings for the  spin box.
+        self._mainwindow.frequencySliceSelector.setMinimum(self._odmr_widgets['mwStart'].value())
+        self._mainwindow.frequencySliceSelector.setMaximum(self._odmr_widgets['mwEnd'].value())
+        step_val_ghz = self._odmr_widgets['mwStep'].value() * self.stepFreq_multiplier / self.startstopFreq_multiplier
+        self._mainwindow.frequencySliceSelector.setSingleStep(step_val_ghz)
+        self._viewIndex = 0
+        self._mainwindow.frequencySliceSelector.setValue(self._odmr_widgets['mwStart'].value())
+
+        self._scanning_logic.start_snvm_scanning()
+
+    def prepare_conf_scan(self, start_name):
+        # Get the scanning settings from the GUI, and set them in the logic
+        # FIXME: find a way to do this more efficiently, without calling each attribute one by one
+        self._scanning_logic.store_retrace = True if self._afm_widgets['storeRetrace'].checkState() == 2 else False
+
+        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value() * self.xy_range_multiplier,
+                                                 self._afm_widgets['xMaxRange'].value() * self.xy_range_multiplier]
+        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value() * self.xy_range_multiplier,
+                                                 self._afm_widgets['yMaxRange'].value() * self.xy_range_multiplier]
 
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
@@ -483,42 +525,18 @@ class SnvmGui(GUIBase):
         print('optimize during scan')
         print(self._scanning_logic.optimize_while_scanning, self._scanning_logic.every_N_pixels)
 
-        #Set the integration time
+        # Set the integration time
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
 
-        if start_name == 'snvm':
-            #First update the crosshair position
-            crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
-            if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range
-                or crosshair_pos[1]*self.xy_range_multiplier not in self._scanning_logic.scanning_y_range):
+        # First update the crosshair position
+        crosshair_pos = self._mainwindow.confocalScannerView.crosshair_position
+        if (crosshair_pos[0] not in self._scanning_logic.scanning_x_range
+                or crosshair_pos[1] not in self._scanning_logic.scanning_y_range):
+            newpos = self._scanning_logic.scanning_x_range[0], self._scanning_logic.scanning_y_range[0]
+            self._mainwindow.confocalScannerView.set_crosshair_pos(newpos)
 
-                newpos = (self._scanning_logic.scanning_x_range[0]/self.xy_range_multiplier,
-                          self._scanning_logic.scanning_y_range[0]/self.xy_range_multiplier)
-                self._mainwindow.multiFreqPlotView.set_crosshair_pos(newpos)
-                self._mainwindow.afmPlotView.set_crosshair_pos(newpos)
+        self._scanning_logic.start_confocal_scanning()
 
-            self.set_odmr_settings()
-
-            #Here put the settings for the  spin box.
-            self._mainwindow.frequencySliceSelector.setMinimum(self._odmr_widgets['mwStart'].value())
-            self._mainwindow.frequencySliceSelector.setMaximum(self._odmr_widgets['mwEnd'].value())
-            step_val_ghz = self._odmr_widgets['mwStep'].value() * self.stepFreq_multiplier / self.startstopFreq_multiplier
-            self._mainwindow.frequencySliceSelector.setSingleStep(step_val_ghz)
-            self._viewIndex = 0
-            self._mainwindow.frequencySliceSelector.setValue(self._odmr_widgets['mwStart'].value())
-
-            self._scanning_logic.start_snvm_scanning()
-        elif start_name == 'cfc':
-            # First update the crosshair position
-            crosshair_pos = self._mainwindow.confocalScannerView.crosshair_position
-            if (crosshair_pos[0] not in self._scanning_logic.scanning_x_range
-                    or crosshair_pos[1] not in self._scanning_logic.scanning_y_range):
-                newpos = self._scanning_logic.scanning_x_range[0], self._scanning_logic.scanning_y_range[0]
-                self._mainwindow.confocalScannerView.set_crosshair_pos(newpos)
-
-            self._scanning_logic.start_confocal_scanning()
-        else:
-            self.log.exception("Invalid name.")
 
     def snvm_confocal_finished(self, was_snvm):
         self.activate_interactions()

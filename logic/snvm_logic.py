@@ -71,11 +71,12 @@ class ConfocalHistoryEntry(QtCore.QObject):
 
             # Integration time per pixel
             self.px_time[stack] = 30e-3
-            self._photon_samples[stack] = 0
+
             self.backward_pixels[stack] = 0  # The number is determined by the clock frequency and the bw_speed
 
             self.store_retrace[stack] = False
 
+        self._photon_samples = 0
         self.invalid = np.nan  # Number corresponding to invalid data points.
 
         ####
@@ -403,7 +404,7 @@ class SnvmLogic(GenericLogic):
 
         if not ((curr_y_minrange <= self.scanning_y_range[0] <= curr_y_maxrange) or
            not (curr_y_minrange <= self.scanning_y_range[1] <= curr_y_maxrange)):
-            self.scanning_y_range[self._active_stack] = np.clip(self.scanning_y_range, curr_y_minrange, curr_y_maxrange)
+            self.scanning_y_range[self._active_stack] = np.clip(self.scanning_y_range[self._active_stack], curr_y_minrange, curr_y_maxrange)
             self.log.warning("y scanning range limits are out of bounds, clipped back to the maximum values.")
         return 0
 
@@ -413,12 +414,12 @@ class SnvmLogic(GenericLogic):
         """
 
         self._scanning_device.module_state.lock()
-        self._photon_samples[self._active_stack] = self.pxtime_to_samples()
+        self._photon_samples = self.pxtime_to_samples()
         if self._snvm_active:
             analog_channels = self._scanning_device.get_ai_counter_channels(stack_name=self._active_stack)
         else:
             analog_channels = None
-        self._scanning_device.prepare_counters(samples_to_acquire=self._photon_samples[self._active_stack],
+        self._scanning_device.prepare_counters(samples_to_acquire=self._photon_samples,
                                                counter_ai_channels=analog_channels)
 
         self._scanning_device.create_ao_task(self._active_stack)
