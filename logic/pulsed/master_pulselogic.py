@@ -242,7 +242,8 @@ class Masterpulse(GenericLogic):
         """
         # Photon counter
         self._photon_samples = self._pxtime_to_samples()
-        self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
+        self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples,
+                                              mode='pulsing')
 
         # MW device: Put in the parameters and turn it on
         self._mw_device.set_power(self.mw_power)
