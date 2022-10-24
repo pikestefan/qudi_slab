@@ -295,6 +295,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.sampleYSlider.sliderMoved.connect(self.slider_move_sample_crosshair)
         self._mainwindow.tipXSlider.sliderMoved.connect(self.slider_move_tip_crosshair)
         self._mainwindow.tipYSlider.sliderMoved.connect(self.slider_move_tip_crosshair)
+        self._mainwindow.scanningSettingsTab.currentChanged.connect(self.scanning_tab_pressed)
 
 
         ##############
@@ -312,6 +313,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.actionSave_confocal.triggered.connect(self.save_confocal_data)
 
         self._mainwindow.actionStop_scan.setEnabled(False)
+        self.disable_snvm_interactions()
         self.show()
 
     def _init_odmr_settings(self):
@@ -538,7 +540,8 @@ class SnvmGui(GUIBase):
 
 
     def snvm_confocal_finished(self, was_snvm):
-        self.activate_interactions()
+        self.enable_conf_interactions()
+        self.enable_opti_interactions()
 
         xrange, yrange = self._scanning_logic.get_xy_image_range(multiplier=1 / self.xy_range_multiplier)
 
@@ -548,33 +551,40 @@ class SnvmGui(GUIBase):
         else:
             self._mainwindow.confocalScannerView.set_crosshair_range([xrange, yrange])
 
-    def disable_interactions(self):
+    def disable_snvm_interactions(self):
         self._mainwindow.actionStart_snvm_scan.setEnabled(False)
-        self._mainwindow.actionStart_conf_scan.setEnabled(False)
         self._mainwindow.actionResume_snvm_scan.setEnabled(False)
-        self._mainwindow.actionResume_conf_scan.setEnabled(False)
-        self._mainwindow.actionOptimize.setEnabled(False)
         self._mainwindow.action_snvm_goToPoint.setEnabled(False)
+
+    def disable_conf_interactions(self):
+        self._mainwindow.actionStart_conf_scan.setEnabled(False)
+        self._mainwindow.actionResume_conf_scan.setEnabled(False)
         self._mainwindow.action_cfc_goToPoint.setEnabled(False)
 
+    def disable_interactions(self):
+        self._mainwindow.actionOptimize.setEnabled(False)
         self._mainwindow.actionStop_scan.setEnabled(True)
-
         for setting in self._afm_widgets.values():
             setting.setEnabled(False)
         for setting in self._odmr_widgets.values():
             setting.setEnabled(False)
 
-    def activate_interactions(self):
+    def enable_snvm_interactions(self):
         self._mainwindow.actionStart_snvm_scan.setEnabled(True)
-        self._mainwindow.actionStart_conf_scan.setEnabled(True)
         self._mainwindow.actionResume_snvm_scan.setEnabled(True)
-        self._mainwindow.actionResume_conf_scan.setEnabled(True)
-        self._mainwindow.actionOptimize.setEnabled(True)
         self._mainwindow.action_snvm_goToPoint.setEnabled(True)
+
+    def enable_conf_interactions(self):
+        self._mainwindow.actionStart_conf_scan.setEnabled(True)
+        self._mainwindow.actionResume_conf_scan.setEnabled(True)
         self._mainwindow.action_cfc_goToPoint.setEnabled(True)
 
-        self._mainwindow.actionStop_scan.setEnabled(False)
+    def enable_opti_interactions(self):
+        self._mainwindow.actionOptimize.setEnabled(True)
 
+    def enable_interactions(self):
+        self._mainwindow.actionOptimize.setEnabled(True)
+        self._mainwindow.actionStop_scan.setEnabled(False)
         for setting in self._afm_widgets.values():
             setting.setEnabled(True)
         for setting in self._odmr_widgets.values():
@@ -628,8 +638,10 @@ class SnvmGui(GUIBase):
             self._mainwindow.actionStop_scan.setEnabled(False)
             self.sigGoTo.emit('cfc')
         elif sendername == 'actionStart_conf_scan':
+            self.disable_conf_interactions()
             self.sigStartScanningConf.emit()
         elif sendername == 'actionStart_snvm_scan':
+            self.disable_snvm_interactions()
             self.sigStartScanningSnvm.emit()
 
     def optimize_counts(self):
@@ -645,7 +657,7 @@ class SnvmGui(GUIBase):
                                                                     coords[1]/self.xy_range_multiplier))
         if not self._scanning_logic._snvm_active:
             self._scanning_logic.go_to_point(coords, stack=self._optimizer_logic.optimizer_stack)
-            self.activate_interactions()
+            self.enable_interactions()
 
     def refresh_snvm_image(self):
         if self._mainwindow.viewtracesample:
@@ -854,6 +866,14 @@ class SnvmGui(GUIBase):
 
         self._mainwindow.confocalScannerView.set_crosshair_pos((new_x, new_y))
 
+    def scanning_tab_pressed(self, tab_index):
+        if tab_index == 0:
+            self.disable_conf_interactions()
+            self.enable_snvm_interactions()
+        if tab_index == 1:
+            self.disable_snvm_interactions()
+            self.enable_conf_interactions()
+
     def go_to_point(self, scanner):
         if scanner == 'snvm':
             position = self._mainwindow.multiFreqPlotView.crosshair_position
@@ -870,7 +890,7 @@ class SnvmGui(GUIBase):
 
     def go_to_finished(self, callertag):
         if callertag=="gui":
-            self.activate_interactions()
+            self.enable_interactions()
             self._mainwindow.actionStop_scan.setEnabled(True)
         else:
             pass

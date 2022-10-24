@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1387</width>
-    <height>992</height>
+    <height>1003</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -357,7 +357,7 @@
   </widget>
   <widget class="QDockWidget" name="odmrDock">
    <property name="sizePolicy">
-    <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
@@ -365,7 +365,7 @@
    <property name="minimumSize">
     <size>
      <width>276</width>
-     <height>52</height>
+     <height>100</height>
     </size>
    </property>
    <property name="maximumSize">
@@ -373,6 +373,9 @@
      <width>524287</width>
      <height>500</height>
     </size>
+   </property>
+   <property name="allowedAreas">
+    <set>Qt::LeftDockWidgetArea</set>
    </property>
    <property name="windowTitle">
     <string>ODMR view</string>
@@ -684,12 +687,30 @@
     </layout>
    </widget>
   </widget>
-  <widget class="QDockWidget" name="dockWidget_5">
+  <widget class="QDockWidget" name="scanSettingsDock">
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>80</width>
+     <height>90</height>
+    </size>
+   </property>
+   <property name="allowedAreas">
+    <set>Qt::BottomDockWidgetArea|Qt::LeftDockWidgetArea</set>
+   </property>
+   <property name="windowTitle">
+    <string>Scan settings</string>
+   </property>
    <attribute name="dockWidgetArea">
     <number>1</number>
    </attribute>
    <widget class="QWidget" name="dockWidgetContents_10">
-    <widget class="QTabWidget" name="tabWidget">
+    <widget class="QTabWidget" name="scanningSettingsTab">
      <property name="geometry">
       <rect>
        <x>0</x>
@@ -776,8 +797,8 @@
       <widget class="QDoubleSpinBox" name="mwStep">
        <property name="geometry">
         <rect>
-         <x>810</x>
-         <y>44</y>
+         <x>680</x>
+         <y>50</y>
          <width>100</width>
          <height>20</height>
         </rect>
@@ -804,8 +825,8 @@
       <widget class="QDoubleSpinBox" name="mwPower">
        <property name="geometry">
         <rect>
-         <x>597</x>
-         <y>70</y>
+         <x>467</x>
+         <y>76</y>
          <width>100</width>
          <height>20</height>
         </rect>
@@ -856,8 +877,8 @@
       <widget class="QLabel" name="label_24">
        <property name="geometry">
         <rect>
-         <x>703</x>
-         <y>22</y>
+         <x>573</x>
+         <y>28</y>
          <width>101</width>
          <height>16</height>
         </rect>
@@ -995,8 +1016,8 @@
       <widget class="QLabel" name="label_28">
        <property name="geometry">
         <rect>
-         <x>516</x>
-         <y>70</y>
+         <x>386</x>
+         <y>76</y>
          <width>75</width>
          <height>20</height>
         </rect>
@@ -1088,8 +1109,8 @@
       <widget class="QDoubleSpinBox" name="mwEnd">
        <property name="geometry">
         <rect>
-         <x>703</x>
-         <y>44</y>
+         <x>573</x>
+         <y>50</y>
          <width>101</width>
          <height>20</height>
         </rect>
@@ -1137,8 +1158,8 @@
       <widget class="QLabel" name="label_30">
        <property name="geometry">
         <rect>
-         <x>810</x>
-         <y>22</y>
+         <x>680</x>
+         <y>28</y>
          <width>100</width>
          <height>16</height>
         </rect>
@@ -1186,8 +1207,8 @@
       <widget class="QLabel" name="label_31">
        <property name="geometry">
         <rect>
-         <x>516</x>
-         <y>96</y>
+         <x>386</x>
+         <y>102</y>
          <width>75</width>
          <height>20</height>
         </rect>
@@ -1207,8 +1228,8 @@
       <widget class="QLabel" name="label_32">
        <property name="geometry">
         <rect>
-         <x>597</x>
-         <y>0</y>
+         <x>467</x>
+         <y>6</y>
          <width>313</width>
          <height>16</height>
         </rect>
@@ -1230,8 +1251,8 @@
       <widget class="QLabel" name="label_33">
        <property name="geometry">
         <rect>
-         <x>597</x>
-         <y>22</y>
+         <x>467</x>
+         <y>28</y>
          <width>100</width>
          <height>16</height>
         </rect>
@@ -1278,8 +1299,8 @@
       <widget class="QSpinBox" name="mwAverages">
        <property name="geometry">
         <rect>
-         <x>597</x>
-         <y>96</y>
+         <x>467</x>
+         <y>102</y>
          <width>100</width>
          <height>20</height>
         </rect>
@@ -1334,8 +1355,8 @@
       <widget class="QDoubleSpinBox" name="mwStart">
        <property name="geometry">
         <rect>
-         <x>597</x>
-         <y>44</y>
+         <x>467</x>
+         <y>50</y>
          <width>100</width>
          <height>20</height>
         </rect>
