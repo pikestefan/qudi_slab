@@ -255,76 +255,13 @@ class SnvmGui(GUIBase):
 
         self._viewIndex = 0 #Variable used to scroll through the SNVM images.Gets updated when clicking the frequency selector
 
-        ########
-        # AFM scanning settings
-        ########
-        #Put all the settings in a dictionary, for ease of access
-        self._afm_widgets = dict()
-        self._afm_widgets[self._mainwindow.xResolution.objectName()] = self._mainwindow.xResolution
-        self._afm_widgets[self._mainwindow.yResolution.objectName()] = self._mainwindow.yResolution
-        self._afm_widgets[self._mainwindow.xMinRange.objectName()] = self._mainwindow.xMinRange
-        self._afm_widgets[self._mainwindow.xMaxRange.objectName()] = self._mainwindow.xMaxRange
-        self._afm_widgets[self._mainwindow.yMinRange.objectName()] = self._mainwindow.yMinRange
-        self._afm_widgets[self._mainwindow.yMaxRange.objectName()] = self._mainwindow.yMaxRange
-        self._afm_widgets[self._mainwindow.fwpxTime.objectName()] = self._mainwindow.fwpxTime
-        self._afm_widgets[self._mainwindow.storeRetrace.objectName()] = self._mainwindow.storeRetrace
 
-        #########
-        self._afm_widgets['xResolution'].setValue(self._scanning_logic.scanning_x_resolution)
-        self._afm_widgets['yResolution'].setValue(self._scanning_logic.scanning_y_resolution)
-        self._afm_widgets['xMinRange'].setValue(self._scanning_logic.scanning_x_range[0] /
-                                                self.xy_range_multiplier)
-        self._afm_widgets['yMinRange'].setValue(self._scanning_logic.scanning_y_range[0] /
-                                                self.xy_range_multiplier)
-        self._afm_widgets['xMaxRange'].setValue(self._scanning_logic.scanning_x_range[1] /
-                                                self.xy_range_multiplier)
-        self._afm_widgets['yMaxRange'].setValue(self._scanning_logic.scanning_y_range[1] /
-                                                self.xy_range_multiplier)
-        self._afm_widgets['fwpxTime'].setValue(self._scanning_logic.px_time /
-                                               self.px_time_multiplier)
-        self._afm_widgets['storeRetrace'].setChecked(self._scanning_logic.store_retrace)
+        # Init scanning settings
+        self._init_scanning_settings()
 
-        self.sample_ranges = [self._scanning_logic.x_maxrange['sample'][0] / self.xy_range_multiplier,
-                              self._scanning_logic.x_maxrange['sample'][1] / self.xy_range_multiplier], \
-                             [self._scanning_logic.y_maxrange['sample'][0] / self.xy_range_multiplier,
-                              self._scanning_logic.y_maxrange['sample'][1] / self.xy_range_multiplier]
-        self.tip_ranges = [self._scanning_logic.x_maxrange['tip'][0] / self.xy_range_multiplier,
-                           self._scanning_logic.x_maxrange['tip'][1] / self.xy_range_multiplier], \
-                          [self._scanning_logic.y_maxrange['tip'][0] / self.xy_range_multiplier,
-                           self._scanning_logic.y_maxrange['tip'][1] / self.xy_range_multiplier]
+        # Init odmr settings
+        self._init_odmr_settings()
 
-        self._mainwindow.sampleXSliderSpinBox.setRange(self.sample_ranges[0][0], self.sample_ranges[0][1])
-        self._mainwindow.sampleYSliderSpinBox.setRange(self.sample_ranges[1][0], self.sample_ranges[1][1])
-        self._mainwindow.tipXSliderSpinBox.setRange(self.tip_ranges[0][0], self.sample_ranges[0][1])
-        self._mainwindow.tipYSliderSpinBox.setRange(self.tip_ranges[1][0], self.sample_ranges[1][1])
-
-        #########
-
-        #######
-        # ODMR scanning settings
-        ######
-        #Also here, store in a dictionary if the widgets need to be accessed in for loops
-        self._odmr_widgets = dict()
-        self._odmr_widgets[self._mainwindow.mwStart.objectName()] = self._mainwindow.mwStart
-        self._odmr_widgets[self._mainwindow.mwEnd.objectName()] = self._mainwindow.mwEnd
-        self._odmr_widgets[self._mainwindow.mwStep.objectName()] = self._mainwindow.mwStep
-        self._odmr_widgets[self._mainwindow.mwPower.objectName()] = self._mainwindow.mwPower
-        self._odmr_widgets[self._mainwindow.mwAverages.objectName()] = self._mainwindow.mwAverages
-
-        self._mainwindow.mwStart.setDecimals(self.mwspinbox_float_resolution)
-        self._mainwindow.mwEnd.setDecimals(self.mwspinbox_float_resolution)
-        self._mainwindow.mwStep.setDecimals(self.mwspinbox_float_resolution)
-
-        #########
-        self._odmr_widgets['mwStart'].setValue(self._scanning_logic.start_freq /
-                                               self.startstopFreq_multiplier)
-        self._odmr_widgets['mwEnd'].setValue(self._scanning_logic.stop_freq /
-                                             self.startstopFreq_multiplier)
-        self._odmr_widgets['mwStep'].setValue(self._scanning_logic.freq_resolution /
-                                              self.stepFreq_multiplier)
-        self._odmr_widgets['mwPower'].setValue(self._scanning_logic.mw_power)
-        self._odmr_widgets['mwAverages'].setValue(self._scanning_logic.odmr_averages)
-        #########
 
         #Connect the signals
         self.sigStartOptimizer.connect(self.optimize_counts, QtCore.Qt.QueuedConnection)
@@ -374,6 +311,98 @@ class SnvmGui(GUIBase):
 
         self._mainwindow.actionStop_scan.setEnabled(False)
         self.show()
+
+    def _init_odmr_settings(self):
+        # Also here, store in a dictionary if the widgets need to be accessed in for loops
+        self._odmr_widgets = dict()
+        self._odmr_widgets[self._mainwindow.mwStart.objectName()] = self._mainwindow.mwStart
+        self._odmr_widgets[self._mainwindow.mwEnd.objectName()] = self._mainwindow.mwEnd
+        self._odmr_widgets[self._mainwindow.mwStep.objectName()] = self._mainwindow.mwStep
+        self._odmr_widgets[self._mainwindow.mwPower.objectName()] = self._mainwindow.mwPower
+        self._odmr_widgets[self._mainwindow.mwAverages.objectName()] = self._mainwindow.mwAverages
+
+        self._mainwindow.mwStart.setDecimals(self.mwspinbox_float_resolution)
+        self._mainwindow.mwEnd.setDecimals(self.mwspinbox_float_resolution)
+        self._mainwindow.mwStep.setDecimals(self.mwspinbox_float_resolution)
+
+        #########
+        self._odmr_widgets['mwStart'].setValue(self._scanning_logic.start_freq /
+                                               self.startstopFreq_multiplier)
+        self._odmr_widgets['mwEnd'].setValue(self._scanning_logic.stop_freq /
+                                             self.startstopFreq_multiplier)
+        self._odmr_widgets['mwStep'].setValue(self._scanning_logic.freq_resolution /
+                                              self.stepFreq_multiplier)
+        self._odmr_widgets['mwPower'].setValue(self._scanning_logic.mw_power)
+        self._odmr_widgets['mwAverages'].setValue(self._scanning_logic.odmr_averages)
+        #########
+
+    def _init_scanning_settings(self):
+        ########
+        # AFM scanning settings
+        ########
+        # Put all the settings in a dictionary, for ease of access
+        self._afm_widgets = dict()
+        # Confacal settings
+        self._afm_widgets[self._mainwindow.xResolutionConf.objectName()] = self._mainwindow.xResolutionConf
+        self._afm_widgets[self._mainwindow.yResolutionConf.objectName()] = self._mainwindow.yResolutionConf
+        self._afm_widgets[self._mainwindow.xMinRangeConf.objectName()] = self._mainwindow.xMinRangeConf
+        self._afm_widgets[self._mainwindow.xMaxRangeConf.objectName()] = self._mainwindow.xMaxRangeConf
+        self._afm_widgets[self._mainwindow.yMinRangeConf.objectName()] = self._mainwindow.yMinRangeConf
+        self._afm_widgets[self._mainwindow.yMaxRangeConf.objectName()] = self._mainwindow.yMaxRangeConf
+        self._afm_widgets[self._mainwindow.fwpxTimeConf.objectName()] = self._mainwindow.fwpxTimeConf
+        self._afm_widgets[self._mainwindow.storeRetraceConf.objectName()] = self._mainwindow.storeRetraceConf
+
+        self._afm_widgets['yResolutionConf'].setValue(self._scanning_logic.scanning_y_resolution['tip'])
+        self._afm_widgets['xResolutionConf'].setValue(self._scanning_logic.scanning_x_resolution['tip'])
+        self._afm_widgets['xMinRangeConf'].setValue(self._scanning_logic.scanning_x_range['tip'][0] /
+                                                    self.xy_range_multiplier)
+        self._afm_widgets['yMinRangeConf'].setValue(self._scanning_logic.scanning_y_range['tip'][0] /
+                                                    self.xy_range_multiplier)
+        self._afm_widgets['xMaxRangeConf'].setValue(self._scanning_logic.scanning_x_range['tip'][1] /
+                                                    self.xy_range_multiplier)
+        self._afm_widgets['yMaxRangeConf'].setValue(self._scanning_logic.scanning_y_range['tip'][1] /
+                                                    self.xy_range_multiplier)
+        self._afm_widgets['fwpxTimeConf'].setValue(self._scanning_logic.px_time['tip'] /
+                                                   self.px_time_multiplier)
+        self._afm_widgets['storeRetraceConf'].setChecked(self._scanning_logic.store_retrace['tip'])
+
+        # Snvm settings
+        self._afm_widgets[self._mainwindow.xResolutionSnvm.objectName()] = self._mainwindow.xResolutionSnvm
+        self._afm_widgets[self._mainwindow.yResolutionSnvm.objectName()] = self._mainwindow.yResolutionSnvm
+        self._afm_widgets[self._mainwindow.xMinRangeSnvm.objectName()] = self._mainwindow.xMinRangeSnvm
+        self._afm_widgets[self._mainwindow.xMaxRangeSnvm.objectName()] = self._mainwindow.xMaxRangeSnvm
+        self._afm_widgets[self._mainwindow.yMinRangeSnvm.objectName()] = self._mainwindow.yMinRangeSnvm
+        self._afm_widgets[self._mainwindow.yMaxRangeSnvm.objectName()] = self._mainwindow.yMaxRangeSnvm
+        self._afm_widgets[self._mainwindow.fwpxTimeSnvm.objectName()] = self._mainwindow.fwpxTimeSnvm
+        self._afm_widgets[self._mainwindow.storeRetraceSnvm.objectName()] = self._mainwindow.storeRetraceSnvm
+
+        self._afm_widgets['xResolutionSnvm'].setValue(self._scanning_logic.scanning_x_resolution['sample'])
+        self._afm_widgets['yResolutionSnvm'].setValue(self._scanning_logic.scanning_y_resolution['sample'])
+        self._afm_widgets['xMinRangeSnvm'].setValue(self._scanning_logic.scanning_x_range['sample'][0] /
+                                                    self.xy_range_multiplier)
+        self._afm_widgets['yMinRangeSnvm'].setValue(self._scanning_logic.scanning_y_range['sample'][0] /
+                                                    self.xy_range_multiplier)
+        self._afm_widgets['xMaxRangeSnvm'].setValue(self._scanning_logic.scanning_x_range['sample'][1] /
+                                                    self.xy_range_multiplier)
+        self._afm_widgets['yMaxRangeSnvm'].setValue(self._scanning_logic.scanning_y_range['sample'][1] /
+                                                    self.xy_range_multiplier)
+        self._afm_widgets['fwpxTimeSnvm'].setValue(self._scanning_logic.px_time['sample'] /
+                                                   self.px_time_multiplier)
+        self._afm_widgets['storeRetraceSnvm'].setChecked(self._scanning_logic.store_retrace['sample'])
+
+        self.sample_ranges = [self._scanning_logic.x_maxrange['sample'][0] / self.xy_range_multiplier,
+                              self._scanning_logic.x_maxrange['sample'][1] / self.xy_range_multiplier], \
+                             [self._scanning_logic.y_maxrange['sample'][0] / self.xy_range_multiplier,
+                              self._scanning_logic.y_maxrange['sample'][1] / self.xy_range_multiplier]
+        self.tip_ranges = [self._scanning_logic.x_maxrange['tip'][0] / self.xy_range_multiplier,
+                           self._scanning_logic.x_maxrange['tip'][1] / self.xy_range_multiplier], \
+                          [self._scanning_logic.y_maxrange['tip'][0] / self.xy_range_multiplier,
+                           self._scanning_logic.y_maxrange['tip'][1] / self.xy_range_multiplier]
+
+        self._mainwindow.sampleXSliderSpinBox.setRange(self.sample_ranges[0][0], self.sample_ranges[0][1])
+        self._mainwindow.sampleYSliderSpinBox.setRange(self.sample_ranges[1][0], self.sample_ranges[1][1])
+        self._mainwindow.tipXSliderSpinBox.setRange(self.tip_ranges[0][0], self.sample_ranges[0][1])
+        self._mainwindow.tipYSliderSpinBox.setRange(self.tip_ranges[1][0], self.sample_ranges[1][1])
 
     def initOptimizer(self):
         """ Definition, configuration and initialisation of the optimizer settings GUI.
@@ -437,15 +466,57 @@ class SnvmGui(GUIBase):
         self._mainwindow.activateWindow()
         self._mainwindow.raise_()
 
-    def start_scanning(self, start_name):
+    def prepare_snvm_scan(self, start_name):
+        print(f'start_name {start_name}')
         #Get the scanning settings from the GUI, and set them in the logic
         #FIXME: find a way to do this more efficiently, without calling each attribute one by one
-        self._scanning_logic.store_retrace = True if self._afm_widgets['storeRetrace'].checkState()==2 else False
+        stack = self._scanning_logic
+        self._scanning_logic.store_retrace[] = True if self._afm_widgets['storeRetraceSnvm'].checkState() == 2 else False
 
-        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value()*self.xy_range_multiplier,
-                                                 self._afm_widgets['xMaxRange'].value()*self.xy_range_multiplier]
-        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value()*self.xy_range_multiplier,
-                                                 self._afm_widgets['yMaxRange'].value()*self.xy_range_multiplier]
+        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRangeSnvm'].value()*self.xy_range_multiplier,
+                                                 self._afm_widgets['xMaxRangeSnvm'].value()*self.xy_range_multiplier]
+        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRangeSnvm'].value()*self.xy_range_multiplier,
+                                                 self._afm_widgets['yMaxRangeSnvm'].value()*self.xy_range_multiplier]
+
+        self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolutionSnvm'].value()
+        self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolutionSnvm'].value()
+        self._scanning_logic.optimize_while_scanning = self._optim_dialog.optimizeDuringScanCheckBox.isChecked()
+        self._scanning_logic.every_N_pixels = self._optim_dialog.everyNPixelsDoubleSpinBox.value()
+
+        #Set the integration time
+        self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
+
+        #First update the crosshair position
+        crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
+        if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range
+            or crosshair_pos[1]*self.xy_range_multiplier not in self._scanning_logic.scanning_y_range):
+
+            newpos = (self._scanning_logic.scanning_x_range[0]/self.xy_range_multiplier,
+                      self._scanning_logic.scanning_y_range[0]/self.xy_range_multiplier)
+            self._mainwindow.multiFreqPlotView.set_crosshair_pos(newpos)
+            self._mainwindow.afmPlotView.set_crosshair_pos(newpos)
+
+        self.set_odmr_settings()
+
+        #Here put the settings for the  spin box.
+        self._mainwindow.frequencySliceSelector.setMinimum(self._odmr_widgets['mwStart'].value())
+        self._mainwindow.frequencySliceSelector.setMaximum(self._odmr_widgets['mwEnd'].value())
+        step_val_ghz = self._odmr_widgets['mwStep'].value() * self.stepFreq_multiplier / self.startstopFreq_multiplier
+        self._mainwindow.frequencySliceSelector.setSingleStep(step_val_ghz)
+        self._viewIndex = 0
+        self._mainwindow.frequencySliceSelector.setValue(self._odmr_widgets['mwStart'].value())
+
+        self._scanning_logic.start_snvm_scanning()
+
+    def prepare_conf_scan(self, start_name):
+        # Get the scanning settings from the GUI, and set them in the logic
+        # FIXME: find a way to do this more efficiently, without calling each attribute one by one
+        self._scanning_logic.store_retrace = True if self._afm_widgets['storeRetrace'].checkState() == 2 else False
+
+        self._scanning_logic.scanning_x_range = [self._afm_widgets['xMinRange'].value() * self.xy_range_multiplier,
+                                                 self._afm_widgets['xMaxRange'].value() * self.xy_range_multiplier]
+        self._scanning_logic.scanning_y_range = [self._afm_widgets['yMinRange'].value() * self.xy_range_multiplier,
+                                                 self._afm_widgets['yMaxRange'].value() * self.xy_range_multiplier]
 
         self._scanning_logic.scanning_x_resolution = self._afm_widgets['xResolution'].value()
         self._scanning_logic.scanning_y_resolution = self._afm_widgets['yResolution'].value()
@@ -454,42 +525,18 @@ class SnvmGui(GUIBase):
         print('optimize during scan')
         print(self._scanning_logic.optimize_while_scanning, self._scanning_logic.every_N_pixels)
 
-        #Set the integration time
+        # Set the integration time
         self._scanning_logic.px_time = self._afm_widgets['fwpxTime'].value() * self.px_time_multiplier
 
-        if start_name == 'snvm':
-            #First update the crosshair position
-            crosshair_pos = self._mainwindow.multiFreqPlotView.crosshair_position
-            if (crosshair_pos[0]*self.xy_range_multiplier not in self._scanning_logic.scanning_x_range
-                or crosshair_pos[1]*self.xy_range_multiplier not in self._scanning_logic.scanning_y_range):
+        # First update the crosshair position
+        crosshair_pos = self._mainwindow.confocalScannerView.crosshair_position
+        if (crosshair_pos[0] not in self._scanning_logic.scanning_x_range
+                or crosshair_pos[1] not in self._scanning_logic.scanning_y_range):
+            newpos = self._scanning_logic.scanning_x_range[0], self._scanning_logic.scanning_y_range[0]
+            self._mainwindow.confocalScannerView.set_crosshair_pos(newpos)
 
-                newpos = (self._scanning_logic.scanning_x_range[0]/self.xy_range_multiplier,
-                          self._scanning_logic.scanning_y_range[0]/self.xy_range_multiplier)
-                self._mainwindow.multiFreqPlotView.set_crosshair_pos(newpos)
-                self._mainwindow.afmPlotView.set_crosshair_pos(newpos)
+        self._scanning_logic.start_confocal_scanning()
 
-            self.set_odmr_settings()
-
-            #Here put the settings for the  spin box.
-            self._mainwindow.frequencySliceSelector.setMinimum(self._odmr_widgets['mwStart'].value())
-            self._mainwindow.frequencySliceSelector.setMaximum(self._odmr_widgets['mwEnd'].value())
-            step_val_ghz = self._odmr_widgets['mwStep'].value() * self.stepFreq_multiplier / self.startstopFreq_multiplier
-            self._mainwindow.frequencySliceSelector.setSingleStep(step_val_ghz)
-            self._viewIndex = 0
-            self._mainwindow.frequencySliceSelector.setValue(self._odmr_widgets['mwStart'].value())
-
-            self._scanning_logic.start_snvm_scanning()
-        elif start_name == 'cfc':
-            # First update the crosshair position
-            crosshair_pos = self._mainwindow.confocalScannerView.crosshair_position
-            if (crosshair_pos[0] not in self._scanning_logic.scanning_x_range
-                    or crosshair_pos[1] not in self._scanning_logic.scanning_y_range):
-                newpos = self._scanning_logic.scanning_x_range[0], self._scanning_logic.scanning_y_range[0]
-                self._mainwindow.confocalScannerView.set_crosshair_pos(newpos)
-
-            self._scanning_logic.start_confocal_scanning()
-        else:
-            self.log.exception("Invalid name.")
 
     def snvm_confocal_finished(self, was_snvm):
         self.activate_interactions()
@@ -748,8 +795,8 @@ class SnvmGui(GUIBase):
         cbar.refresh_colorbar(*cbar_range)
 
     def keep_former_snvm_settings(self):
-        self._snvm_dialog.slowSpeedConfSpinBox.setValue(self._scanning_logic.backward_speed['tip'])
-        self._snvm_dialog.slowSpeedSnvmSpinBox.setValue(self._scanning_logic.backward_speed['sample'])
+        self._snvm_dialog.slowSpeedConfSpinBox.setValue(self._scanning_logic.backward_speed_conf)
+        self._snvm_dialog.slowSpeedSnvmSpinBox.setValue(self._scanning_logic.backward_speed_snvm)
         self._snvm_dialog.motionClockRate_Spinbox.setValue(self._scanning_logic.get_slowmotion_clockrate())
 
     def frequency_selector_clicked(self, freq_val):
