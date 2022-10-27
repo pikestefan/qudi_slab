@@ -213,28 +213,28 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         if clock_channel is None:
             clock_channel = self._clock_counter
 
-        try:
-            taskname = 'PhotonCountingClock'
-            clock_task = daq.TaskHandle()
-            daq.DAQmxCreateTask(taskname, daq.byref(clock_task))
-            daq.DAQmxCreateCOPulseChanFreq(clock_task,  # taskHandle
-                                           clock_channel,  # counter
-                                           taskname, # nameToAssignToChannel
-                                           daq.DAQmx_val_Hz, # units
-                                           daq.DAQmx_Val_Low, # idleState
-                                           0., # initialDelay
-                                           clock_frequency, # frequency
-                                           0.5 # dutyCycle
-                                           )
-
-            daq.DAQmxCfgImplicitTiming(clock_task, #taskHandle
-                                       daq.DAQmx_Val_FiniteSamps, #sampleMode
-                                       samples_to_acquire #sampsPerChanToAcquire
+        #try:
+        taskname = 'PhotonCountingClock'
+        clock_task = daq.TaskHandle()
+        daq.DAQmxCreateTask(taskname, daq.byref(clock_task))
+        daq.DAQmxCreateCOPulseChanFreq(clock_task,  # taskHandle
+                                       clock_channel,  # counter
+                                       taskname, # nameToAssignToChannel
+                                       daq.DAQmx_Val_Hz, # units
+                                       daq.DAQmx_Val_Low, # idleState
+                                       0., # initialDelay
+                                       clock_frequency, # frequency
+                                       0.5 # dutyCycle
                                        )
-            self._clk_task = clock_task
-        except:
-            self.log.error("The clock initializaton has failed.")
-            return -1
+
+        daq.DAQmxCfgImplicitTiming(clock_task, #taskHandle
+                                   daq.DAQmx_Val_FiniteSamps, #sampleMode
+                                   samples_to_acquire #sampsPerChanToAcquire
+                                   )
+        self._clk_task = clock_task
+        # except:
+        #     self.log.error("The clock initializaton has failed.")
+        #     return -1
 
     def prepare_counters(self,
                          counter_channels=None,
@@ -360,6 +360,10 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         return 0
 
+    def prepare_testing_the_tests(self):
+        self.prepare_clock(5000)
+        self.prepare_counters_test(samples_to_acquire=5000)
+
     def prepare_counters_test(self,
                          counter_channels=None,
                          counter_ai_channels=None,
@@ -433,7 +437,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                     )
 
                 daq.DAQmxCfgSampClkTiming(task,
-                                          'PhotonCountingClockInternalOutput',
+                                          self._clock_counter + 'InternalOutput',
                                           self._counter_clock_frequency,
                                           daq.DAQmx_Val_Rising,
                                           daq.DAQmx_Val_FiniteSamps,
@@ -483,6 +487,84 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             return -1
 
         return 0
+
+    def read_pixel_test(self, samples=5000):
+        if self._counter_ai_daq_task:
+            daq.DAQmxStartTask(self._counter_ai_daq_task)
+
+        count_matrix = np.full((len(self._counter_daq_tasks),
+                                samples), 222, dtype=np.uint32)
+
+        final_counts = np.full(len(self._counter_daq_tasks), 222)
+
+        read_samples = daq.int32()
+
+        for i, task in enumerate(self._counter_daq_tasks):
+            daq.DAQmxStartTask(task)
+
+        daq.DAQmxStartTask(self._clk_task)
+
+        for i, task in enumerate(self._counter_daq_tasks):
+            # wait for the scanner counter to finish
+            daq.DAQmxWaitUntilTaskDone(
+                # define task
+                task,
+                # Maximum timeout for the counter times the positions. Unit is seconds.
+                self._RWTimeout * 2 * samples)
+
+        daq.DAQmxWaitUntilTaskDone(
+            self._clk_task,
+            # Maximum timeout for the counter times the positions. Unit is seconds.
+            self._RWTimeout * 2 * samples)
+
+        try:
+            for i, task in enumerate(self._counter_daq_tasks):
+                daq.DAQmxReadCounterU32(
+                    task,
+                    samples,
+                    self._RWTimeout,
+                    count_matrix[i],
+                    samples,
+                    daq.byref(read_samples),
+                    None
+                )
+                final_counts[i] = count_matrix[i, -1]
+                daq.DAQmxStopTask(task)
+        except:
+            self.log.exception("Failed reading counter samples")
+
+        # FIXME: this part is incorrect: check the ai_channels are the correct ones. Also, the readout needs to be a for
+        #  loop, and the data should be stored in each row of the analog_data container.
+        if self._counter_ai_daq_task is not None:
+            try:
+                analog_data = np.full(
+                    (len(self._counter_ai_channels), samples),
+                    111, dtype=np.float64)
+
+                analog_read_samples = daq.int32()
+
+                daq.DAQmxReadAnalogF64(
+                    self._counter_ai_daq_task,
+                    samples,
+                    self._RWTimeout,
+                    daq.DAQmx_Val_GroupByChannel,
+                    analog_data,
+                    len(self._counter_ai_channels) * samples,
+                    daq.byref(analog_read_samples),
+                    None
+                )
+
+                daq.DAQmxStopTask(self._counter_ai_daq_task)
+            except:
+                self.log.exception("Failed reading analog samples.")
+
+            analog_data = analog_data.mean(axis=0)
+        else:
+            analog_data = None
+
+        daq.DAQmxStopTask(self._clk_task)
+
+        return final_counts, analog_data
 
     def pause_tasks(self):
         try:
