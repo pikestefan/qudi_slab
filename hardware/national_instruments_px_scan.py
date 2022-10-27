@@ -217,20 +217,21 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             taskname = 'PhotonCountingClock'
             clock_task = daq.TaskHandle()
             daq.DAQmxCreateTask(taskname, daq.byref(clock_task))
-            daq.DAQmxCreateCOPulseChanFreq(clock_task, #taskHandle
-                                           clock_channel, #counter
-                                           taskname, #nameToAssignToChannel
-                                           daq.DAQmx_val_Hz, #units
-                                           daq.DAQmx_Val_Low, #idleState
-                                           0., #initialDelay
-                                           clock_frequency, #frequency
-                                           0.5 #dutyCycle
+            daq.DAQmxCreateCOPulseChanFreq(clock_task,  # taskHandle
+                                           clock_channel,  # counter
+                                           taskname, # nameToAssignToChannel
+                                           daq.DAQmx_val_Hz, # units
+                                           daq.DAQmx_Val_Low, # idleState
+                                           0., # initialDelay
+                                           clock_frequency, # frequency
+                                           0.5 # dutyCycle
                                            )
 
             daq.DAQmxCfgImplicitTiming(clock_task, #taskHandle
                                        daq.DAQmx_Val_FiniteSamps, #sampleMode
                                        samples_to_acquire #sampsPerChanToAcquire
                                        )
+            self._clk_task = clock_task
         except:
             self.log.error("The clock initializaton has failed.")
             return -1
@@ -309,6 +310,130 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
                 daq.DAQmxCfgSampClkTiming(task,
                                           my_clock_channel,
+                                          self._counter_clock_frequency,
+                                          daq.DAQmx_Val_Rising,
+                                          daq.DAQmx_Val_FiniteSamps,
+                                          samples_to_acquire
+                                          )
+
+                #Connect the counter to the physical terminal
+                daq.DAQmxSetCICountEdgesTerm(task,
+                                             counter_chan,
+                                             ph_source
+                                             )
+
+                # add task to counter task list
+                self._counter_daq_tasks.append(task)
+
+                # Counter analog input task
+                if my_counter_ai_channels is not None and len(my_counter_ai_channels) > 0:
+                    atask = daq.TaskHandle()
+
+                    daq.DAQmxCreateTask('CounterAnalogIn', daq.byref(atask))
+
+                    daq.DAQmxCreateAIVoltageChan(
+                        atask,
+                        ', '.join(my_counter_ai_channels),
+                        'Counter Analog In',
+                        daq.DAQmx_Val_RSE,
+                        self._counter_voltage_range[0],
+                        self._counter_voltage_range[1],
+                        daq.DAQmx_Val_Volts,
+                        ''
+                    )
+                    # Analog in channel timebase
+                    daq.DAQmxCfgSampClkTiming(
+                        atask,
+                        my_clock_channel,
+                        self._counter_clock_frequency,
+                        daq.DAQmx_Val_Rising,
+                        daq.DAQmx_Val_FiniteSamps,
+                        samples_to_acquire
+                    )
+                    self._counter_ai_daq_task = atask
+                else:
+                    self._counter_ai_daq_task = None
+
+        except:
+            self.log.exception('Error while setting up counting task.')
+            return -1
+
+        return 0
+
+    def prepare_counters_test(self,
+                         counter_channels=None,
+                         counter_ai_channels=None,
+                         sources=None,
+                         counter_clock=None,
+                         samples_to_acquire=None,
+                         mode='scanning'):
+        """ Configures the actual counter with a given clock.
+
+        @param list(str) counter_channels: optional, physical channel of the counter
+        @param list(str) counter_ai_channels: optional, the analog inputs that should be acquired along
+                                              with the counting.
+        @param list(str) sources: optional, physical channel where the photons
+                                  are to count from
+        @param str counter_clock: optional, specifies the clock channel for the
+                                  counter
+        @param int samples_to_acquire: specifies the number of samples that should be acquired for finite acquisiton.
+        @param str mode: specifies the mode of the counter preparation.
+
+        @return int: error code (0:OK, -1:error)
+        """
+
+        allowed_modes = ['pulsing', 'scanning']
+
+        if mode not in allowed_modes:
+            self.log.error("The requested counter mode is not currently specified.")
+
+        if counter_channels:
+            my_counter_channels = counter_channels
+        elif mode == 'scanning':
+            my_counter_channels = self._scanning_counter_channels
+        elif mode == 'pulsing':
+            my_counter_channels = self._pulsing_counter_channels
+
+        if sources:
+            my_photon_sources = sources
+        elif mode == 'scanning':
+            my_photon_sources = self._scanning_photon_sources
+        elif mode == 'pulsing':
+            my_photon_sources = self._pulsing_photon_sources
+        my_clock_channel = counter_clock if counter_clock else self._clock_counter
+
+        #If no AI is specified, then create an empty array (and do not create AI tasks)
+        my_counter_ai_channels = counter_ai_channels# if counter_ai_channels else []
+        self._counter_ai_channels = my_counter_ai_channels
+
+        if len(my_photon_sources) < len(my_counter_channels):
+            self.log.error('You have given {0} sources but {1} counting channels.'
+                           'Please give an equal or greater number of sources.'
+                           ''.format(len(my_photon_sources), len(my_counter_channels)))
+            return -1
+        else:
+            counter_num = len(my_counter_channels)
+
+        try:
+            for i, counter_chan, ph_source in zip(range(counter_num),
+                                                  my_counter_channels,
+                                                  my_photon_sources):
+
+                task = daq.TaskHandle()
+
+                daq.DAQmxCreateTask('Counter{0}'.format(i), daq.byref(task))
+
+                daq.DAQmxCreateCICountEdgesChan(
+                    task,
+                    counter_chan,
+                    'Counter Channel {0}'.format(i),
+                    daq.DAQmx_Val_Rising, #The trigger is a rising edge
+                    0,
+                    daq.DAQmx_Val_CountUp, #When edge detected, add one count
+                    )
+
+                daq.DAQmxCfgSampClkTiming(task,
+                                          'PhotonCountingClockInternalOutput',
                                           self._counter_clock_frequency,
                                           daq.DAQmx_Val_Rising,
                                           daq.DAQmx_Val_FiniteSamps,
