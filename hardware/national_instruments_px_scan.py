@@ -94,7 +94,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     _motion_speed_snvm = ConfigOption('motion_speed_snvm', 1e-6, missing='info')  # in m/s
 
     # Photon counting settings
-    _counter_clock = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
+    _clock_counter = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
     _counter_clock_frequency = ConfigOption('counter_clock_frequency', 100e3, missing='info')
 
     _scanning_counter_channels = ConfigOption('scanning_counter_channels', missing='error')
@@ -156,6 +156,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         self._motion_clock_task = None
         self._motion_clock_frequency = self._default_motion_clock_frequency
 
+        self._clk_task = None
+
         self._scanning_photon_sources = self._scanning_photon_sources if self._scanning_photon_sources is not None else list()
         self._pulsing_photon_sources = self._pulsing_photon_sources if self._pulsing_photon_sources is not None else list()
 
@@ -187,6 +189,51 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             self.log.exception('Could not clear AO Out Task.')
 
         self.reset_hardware()
+
+    def prepare_clock(self,
+                      samples_to_acquire=None,
+                      clock_channel=None,
+                      clock_frequency=None,
+                      ):
+        """
+        @param samples_to_acquire: the number of clock cycles
+        @param clock_channel: the counter channel to be used as clock output
+        @param clock_frequency: the frequency of the clock
+        @return:
+        """
+        if self._clk_task is not None:
+            self.log.error("A clock task is already running, the requested task cannot be started. Operation aborted.")
+            return -1
+        if samples_to_acquire is None:
+            self.log.error("Th")
+
+        if clock_frequency is None:
+            clock_frequency = self._counter_clock_frequency
+
+        if clock_channel is None:
+            clock_channel = self._clock_counter
+
+        try:
+            taskname = 'PhotonCountingClock'
+            clock_task = daq.TaskHandle()
+            daq.DAQmxCreateTask(taskname, daq.byref(clock_task))
+            daq.DAQmxCreateCOPulseChanFreq(clock_task, #taskHandle
+                                           clock_channel, #counter
+                                           taskname, #nameToAssignToChannel
+                                           daq.DAQmx_val_Hz, #units
+                                           daq.DAQmx_Val_Low, #idleState
+                                           0., #initialDelay
+                                           clock_frequency, #frequency
+                                           0.5 #dutyCycle
+                                           )
+
+            daq.DAQmxCfgImplicitTiming(clock_task, #taskHandle
+                                       daq.DAQmx_Val_FiniteSamps, #sampleMode
+                                       samples_to_acquire #sampsPerChanToAcquire
+                                       )
+        except:
+            self.log.error("The clock initializaton has failed.")
+            return -1
 
     def prepare_counters(self,
                          counter_channels=None,
@@ -228,7 +275,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             my_photon_sources = self._scanning_photon_sources
         elif mode == 'pulsing':
             my_photon_sources = self._pulsing_photon_sources
-        my_clock_channel = counter_clock if counter_clock else self._counter_clock
+        my_clock_channel = counter_clock if counter_clock else self._clock_counter
 
         #If no AI is specified, then create an empty array (and do not create AI tasks)
         my_counter_ai_channels = counter_ai_channels# if counter_ai_channels else []
