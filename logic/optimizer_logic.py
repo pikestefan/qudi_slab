@@ -236,20 +236,16 @@ class OptimizerLogic(GenericLogic):
 
         @param start_pos float[]: 2-point vector giving x, y position to go to.
         """
-        print(f'_move_to_start_pos: {start_pos}')
         try:
             self._scanning_device.scanner_slow_motion(start_pos, stack=self.optimizer_stack,
                                                       clear_ao_whenfinished=False,)
         except Exception as e:
             self.log.error('Error during move to starting point.')
-            print(e)
             self.stop_refocus()
             self._sigScanNextXyLine.emit()
             return
 
-        print('_launch_optimizer')
         self._launch_optimizer()
-        print('finished _launch_optimizer')
 
 
     def _refocus_xy_line(self):
