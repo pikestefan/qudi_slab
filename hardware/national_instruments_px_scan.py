@@ -318,8 +318,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                     )
 
                 daq.DAQmxCfgSampClkTiming(task,
-                                          my_clock_channel,
-                                          self._counter_clock_frequency + 'InternalOutput',
+                                          my_clock_channel + 'InternalOutput',
+                                          self._counter_clock_frequency,
                                           daq.DAQmx_Val_Rising,
                                           daq.DAQmx_Val_FiniteSamps,
                                           samples_to_acquire
@@ -554,7 +554,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         """
 
         motion_task = self._scanner_ao_tasks[stack]
-        print(f'motion_task: {motion_task}')
 
         daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_SampClk)
         self.set_up_linemotion(points=position_array.shape[1], stack=stack)
@@ -953,11 +952,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             close_at_end = True
         else:
             close_at_end = False
-        print('scanner_slow_motion:close_at_end ', close_at_end)
 
         #Create the ao task for the scanning
         self.create_ao_task(stack)
-        print('created task: ', self._scanner_ao_tasks[stack])
 
         #Move first along y coordinate, then x
         start_xy = self.get_scanner_position(stack=stack)
