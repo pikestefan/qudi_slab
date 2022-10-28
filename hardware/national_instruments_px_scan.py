@@ -94,7 +94,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
     _motion_speed_snvm = ConfigOption('motion_speed_snvm', 1e-6, missing='info')  # in m/s
 
     # Photon counting settings
-    _counter_clock = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
+    _clock_counter = ConfigOption('counter_clock', '100kHzTimebase', missing='info')
     _counter_clock_frequency = ConfigOption('counter_clock_frequency', 100e3, missing='info')
 
     _scanning_counter_channels = ConfigOption('scanning_counter_channels', missing='error')
@@ -156,6 +156,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         self._motion_clock_task = None
         self._motion_clock_frequency = self._default_motion_clock_frequency
 
+        self._clk_task = None
+
         self._scanning_photon_sources = self._scanning_photon_sources if self._scanning_photon_sources is not None else list()
         self._pulsing_photon_sources = self._pulsing_photon_sources if self._pulsing_photon_sources is not None else list()
 
@@ -188,13 +190,60 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
 
         self.reset_hardware()
 
+    def prepare_clock(self,
+                      samples_to_acquire=None,
+                      clock_channel=None,
+                      clock_frequency=None,
+                      ):
+        """
+        @param samples_to_acquire: the number of clock cycles
+        @param clock_channel: the counter channel to be used as clock output
+        @param clock_frequency: the frequency of the clock
+        @return:
+        """
+        if self._clk_task is not None:
+            self.log.error("A clock task is already running, the requested task cannot be started. Operation aborted.")
+            return -1
+        if samples_to_acquire is None:
+            self.log.error("Th")
+
+        if clock_frequency is None:
+            clock_frequency = self._counter_clock_frequency
+
+        if clock_channel is None:
+            clock_channel = self._clock_counter
+
+        #try:
+        taskname = 'PhotonCountingClock'
+        clock_task = daq.TaskHandle()
+        daq.DAQmxCreateTask(taskname, daq.byref(clock_task))
+        daq.DAQmxCreateCOPulseChanFreq(clock_task,  # taskHandle
+                                       clock_channel,  # counter
+                                       taskname, # nameToAssignToChannel
+                                       daq.DAQmx_Val_Hz, # units
+                                       daq.DAQmx_Val_Low, # idleState
+                                       0., # initialDelay
+                                       clock_frequency, # frequency
+                                       0.5 # dutyCycle
+                                       )
+
+        daq.DAQmxCfgImplicitTiming(clock_task, #taskHandle
+                                   daq.DAQmx_Val_FiniteSamps, #sampleMode
+                                   samples_to_acquire #sampsPerChanToAcquire
+                                   )
+        self._clk_task = clock_task
+        # except:
+        #     self.log.error("The clock initializaton has failed.")
+        #     return -1
+
     def prepare_counters(self,
                          counter_channels=None,
                          counter_ai_channels=None,
                          sources=None,
                          counter_clock=None,
                          samples_to_acquire=None,
-                         mode='scanning'):
+                         mode='scanning',
+                         auto_clock=True):
         """ Configures the actual counter with a given clock.
 
         @param list(str) counter_channels: optional, physical channel of the counter
@@ -206,6 +255,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                                   counter
         @param int samples_to_acquire: specifies the number of samples that should be acquired for finite acquisiton.
         @param str mode: specifies the mode of the counter preparation.
+        @param bool auto_clock: if True, prepare_counters also prepares the clock counter using the defaults.
 
         @return int: error code (0:OK, -1:error)
         """
@@ -228,7 +278,14 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             my_photon_sources = self._scanning_photon_sources
         elif mode == 'pulsing':
             my_photon_sources = self._pulsing_photon_sources
-        my_clock_channel = counter_clock if counter_clock else self._counter_clock
+        my_clock_channel = counter_clock if counter_clock else self._clock_counter
+
+        #Here prepare the clock, if in auto_clock mode
+        if auto_clock:
+            self.prepare_clock(samples_to_acquire=samples_to_acquire,
+                               clock_channel=my_clock_channel,
+                               clock_frequency=self._counter_clock_frequency
+                               )
 
         #If no AI is specified, then create an empty array (and do not create AI tasks)
         my_counter_ai_channels = counter_ai_channels# if counter_ai_channels else []
@@ -261,7 +318,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                     )
 
                 daq.DAQmxCfgSampClkTiming(task,
-                                          my_clock_channel,
+                                          my_clock_channel + 'InternalOutput',
                                           self._counter_clock_frequency,
                                           daq.DAQmx_Val_Rising,
                                           daq.DAQmx_Val_FiniteSamps,
@@ -296,7 +353,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                     # Analog in channel timebase
                     daq.DAQmxCfgSampClkTiming(
                         atask,
-                        my_clock_channel,
+                        my_clock_channel + 'InternalOutput',
                         self._counter_clock_frequency,
                         daq.DAQmx_Val_Rising,
                         daq.DAQmx_Val_FiniteSamps,
@@ -412,6 +469,14 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                 error = -1
             self._counter_ai_daq_task = None
             self._counter_ai_channels = []
+
+        if self._clk_task is not None:
+            try:
+                daq.DAQmxStopTask(self._clk_task)
+                daq.DAQmxClearTask(self._clk_task)
+                self._clk_task = None
+            except:
+                self.log.exception("Could not close the clock task.")
         return error
 
     def prepare_motion_clock(self, clock_channel=None):
@@ -489,7 +554,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         """
 
         motion_task = self._scanner_ao_tasks[stack]
-        print(f'motion_task: {motion_task}')
 
         daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_SampClk)
         self.set_up_linemotion(points=position_array.shape[1], stack=stack)
@@ -726,9 +790,6 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         return analog_data
 
     def read_pixel(self, samples=1):
-        for i, task in enumerate(self._counter_daq_tasks):
-            daq.DAQmxStartTask(task)
-
         if self._counter_ai_daq_task:
             daq.DAQmxStartTask(self._counter_ai_daq_task)
 
@@ -740,12 +801,22 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         read_samples = daq.int32()
 
         for i, task in enumerate(self._counter_daq_tasks):
+            daq.DAQmxStartTask(task)
+
+        daq.DAQmxStartTask(self._clk_task)
+
+        for i, task in enumerate(self._counter_daq_tasks):
             # wait for the scanner counter to finish
             daq.DAQmxWaitUntilTaskDone(
                 # define task
                 task,
                 # Maximum timeout for the counter times the positions. Unit is seconds.
                 self._RWTimeout * 2 * samples)
+
+        daq.DAQmxWaitUntilTaskDone(
+            self._clk_task,
+            # Maximum timeout for the counter times the positions. Unit is seconds.
+            self._RWTimeout * 2 * samples)
 
         try:
             for i, task in enumerate(self._counter_daq_tasks):
@@ -791,6 +862,8 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             analog_data = analog_data.mean(axis=0)
         else:
             analog_data = None
+
+        daq.DAQmxStopTask(self._clk_task)
 
         return final_counts, analog_data
 
@@ -879,11 +952,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             close_at_end = True
         else:
             close_at_end = False
-        print('scanner_slow_motion:close_at_end ', close_at_end)
 
         #Create the ao task for the scanning
         self.create_ao_task(stack)
-        print('created task: ', self._scanner_ao_tasks[stack])
 
         #Move first along y coordinate, then x
         start_xy = self.get_scanner_position(stack=stack)
