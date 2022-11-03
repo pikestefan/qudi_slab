@@ -90,7 +90,7 @@ class Pulse(GenericLogic):
         self._pulser.stop_replay(1)
 
 
-    def play_any(self, clk_rate, seq_len, laser_times, apd_times=[], apd_ref=[], mw_times=[], method=str, rep=100, mw_pulse=bool, trigger=bool):
+    def play_any(self, clk_rate, seq_len, laser_times, apd_times=[], apd_ref=[], mw_times=[], method=None, rep=100, mw_pulse=False, trigger=True):
         '''
         clk_rate =  clock rate of the AWG in microseconds
         seq_len =   whole length of the sequence in microseconds
@@ -189,7 +189,7 @@ class Pulse(GenericLogic):
         apd_len = apd_times[0] + apd_times[1]
         len_rest = seq_len - apd_len  # len of the rest in s
         if seq_len < apd_len:
-            self.log.error('The total length needs to be larger that the apd_time sum')
+            raise ValueError('The total length needs to be larger that the apd_time sum')
         else:
             # apd waveform
             apd_wait = np.zeros(int(round(clk_rate * apd_times[0])))
@@ -254,7 +254,7 @@ class Pulse(GenericLogic):
         clk_rate = self._pulser.get_sample_rate(card_idx)
         apd_len = apd_ref[0] + apd_ref[1]
         if seq_len < apd_len:
-            self.log.error('The total length needs to be larger that the apd_time sum')
+            raise ValueError('The total length needs to be larger that the apd_time sum')
         else:
             # apd waveform
             apd_wait = np.zeros(int(round(clk_rate * apd_ref[0])))
@@ -272,7 +272,7 @@ class Pulse(GenericLogic):
 
 ###############     Different seqeuences    ###############
 
-    def play_rabi(self, seq_len, laser_times, apd_times, apd_ref, mw_times, rep=100, trigger=bool):
+    def play_rabi(self, seq_len, laser_times, apd_times, apd_ref, mw_times, rep=100, trigger=True):
         '''
         laser_times = [laser_in, wait, laser_re] all in microseconds
                 laser_in:   length of initialisation laser pulse (it starts right at the beginning) in microseconds
@@ -320,7 +320,7 @@ class Pulse(GenericLogic):
         for i in mw_len:
             # build the mw waveform for every
             if seq_len < (mw_times[0] + mw_times[2]):
-                self.log.error('The total length needs to be larger that the apd_time sum')
+                raise ValueError('The total length needs to be larger that the apd_time sum')
             else:
                 # build mw waveform for every possible length
                 mw_wait = np.zeros(int(round(clk_rate * mw_times_s[0])))
@@ -372,7 +372,7 @@ class Pulse(GenericLogic):
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
 
-    def play_ramsey(self, seq_len, laser_times, apd_times, apd_ref, mw_times, rep=100, trigger=bool):
+    def play_ramsey(self, seq_len, laser_times, apd_times, apd_ref, mw_times, trigger=True, rep=100):
         '''
         It changes the distance between two pi/2 pusles, the position of the first pulse stays the same
         seq_len =   whole length of the sequence in microseconds
@@ -469,7 +469,7 @@ class Pulse(GenericLogic):
             self._pulser.load_waveform(ao_waveform_dictionary=aos, do_waveform_dictionary=dos,
                                        digital_output_map=digital_output_map)
 
-        if trigger == True:
+        if trigger:
             # This sequence waits for a software trigger to start playing and moving to the next step.
             self._pulser.configure_ORmask(card_idx, None)
             self._pulser.configure_ANDmask(card_idx, None)
@@ -491,7 +491,7 @@ class Pulse(GenericLogic):
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
 
-    def delay_sweep(self, seq_len, laser_times, apd_times, apd_ref, mw_times, rep=100, trigger=bool, mw_pulse=bool):
+    def delay_sweep(self, seq_len, laser_times, apd_times, apd_ref, mw_times, rep=100, trigger=True, mw_pulse=False):
         '''
         seq_len =   whole length of the sequence in microseconds
         laser_times = [laser_in, wait, laser_re] all in microseconds
@@ -518,7 +518,7 @@ class Pulse(GenericLogic):
         apd_times_s = np.multiply(apd_times, 1e-6)
         apd_ref_s = np.multiply(apd_ref, 1e-6)
 
-        # Sofar we just use card1
+        # So far we just use card1
         card_idx = 1
 
         # Set up the right channels:
@@ -560,7 +560,7 @@ class Pulse(GenericLogic):
             difference = len_apd_do_waveform - (clk_rate * seq_len_s)
             apd_do_waveform = np.concatenate((apd_do_waveform, np.zeros(int(difference))))
             # print(' len of apd_do_waveform: ', len(apd_do_waveform))
-            if mw_pulse == True:
+            if mw_pulse:
                 mw_wait = np.zeros(int(round(clk_rate * (laser_times_s[0] + mw_times_s[0]))))
                 mw_pulse_array = np.ones(int(round(clk_rate * mw_times_s[1])))
                 mw_off = np.zeros(int(round(clk_rate * (seq_len_s - (laser_times_s[0] + mw_times_s[0] + mw_times_s[1])))))

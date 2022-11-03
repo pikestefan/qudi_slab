@@ -26,6 +26,7 @@ import time
 import datetime
 from core.connector import Connector
 from logic.generic_logic import GenericLogic
+from hardware.awg.spectrum_awg.spectrum_netbox import AbstractWaveform
 
 
 
@@ -34,7 +35,7 @@ from logic.generic_logic import GenericLogic
 # Laser: digital channel X0
 # Photon counter: digital channel X1 and X2 (for reference)
 
-class Masterpulse(GenericLogic):
+class MasterPulse(GenericLogic):
     pulsegenerator = Connector(interface='PulserInterface')
     savelogic = Connector(interface='SaveLogic')
     pulselogic = Connector(interface='Pulse')
@@ -79,31 +80,40 @@ class Masterpulse(GenericLogic):
         self.count_matrix = None  # This matrix is used to store the DAQ card values.
         self.av_index = 0  # value right now, row
         self.step_index = 0 # value right now, column
-        self.averages = 5 # max value for rows
-        self.mw_frequency = 2870e6 # This should be the slope frequency?
-        self.mw_power = -30
-        self.integration_time = 30e-3  # in s
+        self.averages = 10 # max value for rows
+        self.mw_frequency = 2.8685e9 # This should be the slope frequency?
+        self.mw_power = -12 # in dBm
+        self.integration_time = 100e-3  # in s
         # self.step_count = self._pulselogic.get_step_count([2.1, 1, 2, 0.5])  #max value for columns
         self.clk_rate_daq = self._photon_counter.get_counter_clock_frequency() # which is 100000
         self.clk_rate_awg = 800  # in MHz
-        self.seq_len = 5     # in microseconds 0.01
-        self.laser_times = [0.0, 1, 2] # on off on ...the rest is zeros
-        self.mw_times_rabi = [1.5, 0.1, 2.0, 0.1] # [mw_start_time, mw_len_0, mw_len_max, steps] all in microseconds
-        self.mw_times_ramsey = [1.45, 0.05, 0.8, 0.01, 0.005] #[start, distance_min, distance_max, steps, pulse length] all in microseconds
-        self.mw_times_sweep = [0.06, 0.2] # mw_wait_time between laser off and mw on, mw_pulse_time
-        self.apd_times = [3.51, 0.2] #[time to start, length] all in microseconds
-        self.apd_times_sweep = [0.05, 0.7, 1.7 , 0.001] #length, min_start, max_start, steps in microseconds
-        self.apd_ref_times = [4.5, 0.00] #[time to start, length of the pulse]
+
+        ## Delay Sweep
+        self.seq_len = 5     # in microseconds
+        self.laser_times = [1, 1, 2]  # on off on ...the rest is zeros [1, 5.5, 1.5]
+        self.mw_times_sweep = [0.5, 0.35] # mw_wait_time between laser off and mw on, mw_pulse_time
+        self.apd_times_sweep = [0.05, 1.9, 4.3, 0.01] #length, min_start, max_start, steps in microseconds
+        self.apd_ref_times = [4.5, 0.05]  # [time to start, length of the pulse]
+        self.mw_pulse_setting = True  # this is only for delay sweep
+        self.method = 'delaysweep'
+
+        ## Rabi
+        # self.seq_len = 8.5
+        # self.laser_times = [1, 6, 1.5] # on off on ...the rest is zeros
+        # self.apd_ref_times = [8, 0.5] #[time to start, length of the pulse]
+        # self.method = 'rabi'    # change this to 'ramsey', 'delaysweep', 'rabi' or 'delaysweep_ref' if needed
+
+
+        self.mw_times_rabi = [1.3, 0, 5, 0.05] # [mw_start_time, mw_len_0, mw_len_max, steps] all in microseconds
+        self.mw_times_ramsey = [1.3, 0, 2, 0.01, 0.23153164696900955] #[start, distance_min, distance_max, steps, pulse length] all in microseconds 0.22624434389140272
+        self.apd_times = [7.05, 0.5] # [time to start, length] all in microseconds
         self.rep = 100
-        self.mw_pulse_setting = False # this is only for delay sweep
         self.trigger_setting = True
-        self.method = 'delaysweep'    # change this to 'ramsey', 'delaysweep', rabi or delaysweep_ref if needed
         # Declare where the signals should lead to
         self.sigContinueLoop.connect(self.continue_loop, QtCore.Qt.QueuedConnection)
         self.sigStopMeasurement.connect(self.stop_measurement, QtCore.Qt.QueuedConnection)
         self.sigStopAll.connect(self.stop_all, QtCore.Qt.QueuedConnection)
         self.stopRequested = False
-        self._waveform_container = []
 
         return active_channels
 
@@ -121,14 +131,19 @@ class Masterpulse(GenericLogic):
         plays a zero waveform on all channels but ones on the APD channels. Makes sure the Photon counter can read the counts without changing the cables
         '''
         #FIXME: initialize properly the waveform, remove the test method!
+        # change to paly waveform
         #self._pulselogic.do_cw(self.seq_len)
+        self._pulser.reset()
         if on:
             first_out = 1.
             second_out = 0.
+            third_out = 0.
         else:
-            first_out = 0.
-            second_out = 0.
-        self._pulser.waveform_test(msecondsplay=0.5, first_out=first_out, second_out=second_out, clk_mega=50)
+            first_out = 1.
+            second_out = 1.
+            third_out = 0.
+        self._pulser.waveform_test(msecondsplay=0.5, first_out=first_out, second_out=second_out,
+                                   third_out=third_out, clk_mega=50)
 
 
     def stop_awg(self):  # Makes everything stop
@@ -177,7 +192,7 @@ class Masterpulse(GenericLogic):
         method = self.method
 
         if method == 'rabi':
-            # print ('do rabi')
+            print('do rabi')
             if len(self.apd_times) == 2 and len(self.mw_times_rabi) == 4 and len(self.laser_times) == 3:
                 apd_times = self.apd_times
                 mw_times = self.mw_times_rabi
@@ -192,7 +207,7 @@ class Masterpulse(GenericLogic):
                 self.log.error("The input arrays don't have the right size.")
         elif method == 'delaysweep':
             if len(self.apd_times_sweep) == 4 and len(self.mw_times_sweep) == 2 and len(self.laser_times) == 3:
-                print ('do delay sweep')
+                print('do delay sweep')
                 apd_times = self.apd_times_sweep
                 mw_times = self.mw_times_sweep
             else:
@@ -249,6 +264,7 @@ class Masterpulse(GenericLogic):
         self._mw_device.set_power(self.mw_power)
         self._mw_device.set_frequency(self.mw_frequency)
         self.mw_on()
+        self._mw_device.set_mod(True)
 
     def start_measurement(self):
         self.stop_awg()
@@ -266,6 +282,7 @@ class Masterpulse(GenericLogic):
         #time.sleep(0.1) # in sec
         if self.stopRequested == True:
             self.mw_off()
+            self._mw_device.set_mod(False)
             self._photon_counter.close_counters()
             self.stop_awg()
             # make sure after all the inputs are low after the mesurement
@@ -280,30 +297,30 @@ class Masterpulse(GenericLogic):
         else:
             if self.step_index == self.step_count - 1 and self.av_index == self.averages - 1:
                 # print('very last value')
-                counts = self.acquire_pixel()[0]
-                ref_counts = self.acquire_pixel()[1]
-                print ('counts: ', counts)
-                print('ref counts: ', ref_counts)
+                counts, ref_counts = self.acquire_pixel()
+                # print ('counts: ', counts)
+                # print('ref counts: ', ref_counts)
                 self.count_matrix[self.av_index, self.step_index] = counts
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 self.sigStopMeasurement.emit()
+
             elif self.step_index == self.step_count - 1 and self.av_index < self.averages - 1: # moves to the next average row
                 # print('last value in the row')
-                counts = self.acquire_pixel()[0]
-                ref_counts = self.acquire_pixel()[1]
-                print('counts: ', counts)
-                print('ref counts: ', ref_counts)
+                print(f'Current Average: {self.av_index}')
+                counts, ref_counts = self.acquire_pixel()
+                # print('counts: ', counts)
+                # print('ref counts: ', ref_counts)
                 self.count_matrix[self.av_index, self.step_index] = counts
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 self.step_index = 0
                 self.av_index = self.av_index + 1
                 self.sigContinueLoop.emit()
+
             else:       # just continue in this --> direction
                 # print('switch to the next column, sequence')
-                counts = self.acquire_pixel()[0]
-                ref_counts = self.acquire_pixel()[1]
-                print('counts: ', counts)
-                print('ref counts: ', ref_counts)
+                counts, ref_counts = self.acquire_pixel()
+                # print('counts: ', counts)
+                # print('ref counts: ', ref_counts)
                 self.count_matrix[self.av_index, self.step_index] = counts
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 self.step_index = self.step_index + 1
@@ -317,7 +334,7 @@ class Masterpulse(GenericLogic):
         # todo: write a real function for that
         self._pulser.waveform_test(msecondsplay=0.5, loops=0, first_out=0, second_out=0, clk_mega=50)
         # self._pulselogic.post_measurement(self.seq_len)
-
+        self._mw_device.set_mod(False)
         self.av_index = 0
         self.step_index = 0
         self.stopRequested = False
@@ -363,11 +380,10 @@ class Masterpulse(GenericLogic):
 
     def acquire_pixel(self):
         # Requests the counts from the DAQ card, gives one number only
-        x = int(self.integration_time * self.clk_rate_daq)
-        counts, _ = self._photon_counter.read_pixel(x)
-        ref_counts, _ = self._photon_counter.read_pixel(x)
-        counts = counts[0] # to just get the value and not the array
-        ref_counts = ref_counts[1]  # to just get the value and not the array
+        samples = int(self.integration_time * self.clk_rate_daq)
+        data, _ = self._photon_counter.read_pixel(samples)
+        # ref_counts, _ = self._photon_counter.read_pixel(x)
+        counts, ref_counts = data
         return counts, ref_counts
 
     def mw_off(self):
@@ -388,6 +404,7 @@ class Masterpulse(GenericLogic):
         Parameters must be set somewhere else
         """
         error_code = self._mw_device.on()
+
         if error_code < 0:  # This means there is an error
             self.log.error('Switching on microwave source failed.')
         else:
@@ -404,17 +421,19 @@ class Masterpulse(GenericLogic):
         #todo: write a real function for that...
         self._pulser.waveform_test(msecondsplay=0.5, loops=0, first_out=1, second_out=0, clk_mega=50)
 
-    def address_ttls(self, seq_len, first_out=1, second_out=0):
+    def address_ttls(self, seq_len=5.0, first_out=1, second_out=0, third_out=0):
         '''
         Play ones to the APD channel to make sure the counts get through and can be used in a cw measurement.
         Here I send zeros to all the other channels: Laser, mw, and APD ref
-        fist_out = channel2 of the first ttl switch
-        second_out = channel2 of the second ttl switch
+        fist_out = channelX0 connected to laser, this should be high for cw mode
+        second_out = channelX1 is connected to the first TTL switch --> should be low for cw mode
+        third_out = channelX2 is connected to 2nd TTL switch --> should be low for the cw mode
+        in the end the counts get all the way through both ttls and end up it the User BNC connector
         '''
         seq_len *= 1e-6
         card_idx = 1
         loops = 0 # This lets the waveform play infinitely
-        self._pulser.set_sample_rate(card_idx = card_idx, clk_rate=50000000)
+        self._pulser.set_sample_rate(card_idx = card_idx, clk_rate=50000000) # low sampling rate is fine for that
         clk_rate = self._pulser.get_sample_rate(card_idx)
 
         #self.set_sample_rate(card_idx, clk_rate)
@@ -427,16 +446,19 @@ class Masterpulse(GenericLogic):
         time_ax = np.linspace(0, samples / clk_rate, samples)
 
         do_chan = 1
-        do1 = first_out * np.ones(time_ax.shape, dtype=np.int64)
-        do2 = second_out * np.ones(time_ax.shape, dtype=np.int64)
-
+        do0 = first_out * np.ones(time_ax.shape, dtype=np.int64)
+        do1 = second_out * np.ones(time_ax.shape, dtype=np.int64)
+        do2 = third_out * np.ones(time_ax.shape, dtype=np.int64)
+        print('do0', len(do0))
+        print('do1', len(do1))
+        print('do2', len(do2))
         outchan = 0
-        do_output = {1: do1, 2: do2}
-        digital_output_map = {1: [1, 2]}
+        do_output = {1: do0, 2: do1, 3: do2}
+        digital_output_map = {1: [0, 1, 2]}
         self._pulser.load_waveform(do_waveform_dictionary=do_output,
                            digital_output_map=digital_output_map)
-        # self._waveform_container = [1]
-        self._pulser.play_waveform(self._waveform_container, loops=loops)
+        self._pulser.play_waveform(self._pulser._waveform_container[-1], loops=loops) # What does this [-1] do?
 
-        self._pulser.start_card(card_idx)
-        self._pulser.arm_trigger(card_idx)
+
+        # self._pulser.start_card(card_idx)
+        # self._pulser.arm_trigger(card_idx)

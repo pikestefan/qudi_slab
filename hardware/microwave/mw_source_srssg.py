@@ -187,6 +187,12 @@ class MicrowaveSRSSG(Base, MicrowaveInterface):
         """
         return float(self._ask('FREQ ?'))
 
+    def set_mod(self, on):
+        if on:
+            self._write('MODL 1')
+        else:
+            self._write('MODL 0')
+
     def set_cw(self, frequency=None, power=None, useinterleave=None):
         """
         Configures the device for cw-mode and optionally sets frequency and/or power

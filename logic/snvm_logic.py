@@ -206,6 +206,7 @@ class SnvmLogic(GenericLogic):
     odmrscanner = Connector(interface='MicrowaveInterface')
     savelogic = Connector(interface='HDF5SaveLogic')
     optimizer_logic = Connector(interface='OptimizerLogic')
+    master_pulselogic = Connector(interface='MasterPulse')
 
     slow_motion_clock_rate = StatusVar('slow_motion_clock_rate', 10)
     backward_speed_conf = StatusVar('slow_motion_speed_conf', 1)
@@ -247,7 +248,9 @@ class SnvmLogic(GenericLogic):
         self._odmrscanner = self.odmrscanner()
         self._savelogic = self.savelogic()
         self._optimizer_logic = self.optimizer_logic()
+        self._master_pulselogic = self.master_pulselogic()
 
+        self._master_pulselogic.cw()
         self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
         self.set_motion_speed(self.backward_speed_conf, stack='tip')
         self.set_motion_speed(self.backward_speed_snvm, stack='sample')

@@ -391,7 +391,7 @@ class SpectrumNetbox(Base, PulserInterface):
         self.start_card(card_idx)
         self.arm_trigger(card_idx)
 
-    def waveform_test(self, msecondsplay=0.5, loops=0, first_out=0, second_out=1, clk_mega=50):
+    def waveform_test(self, msecondsplay=0.5, loops=0, first_out=0, second_out=1, third_out=1, clk_mega=50):
         '''
         loops = 0 means it plays the waveform infinitely
         '''
@@ -410,13 +410,12 @@ class SpectrumNetbox(Base, PulserInterface):
         samples = self.waveform_padding(msecondsplay * clk_rate)
         time_ax = np.linspace(0, samples/clk_rate, samples)
 
-        do_chan = 1
-        do1 = first_out * np.ones(time_ax.shape, dtype=np.int64)
-        do2 = second_out * np.ones(time_ax.shape, dtype=np.int64)
+        do0 = first_out * np.ones(time_ax.shape, dtype=np.int64)
+        do1 = second_out * np.ones(time_ax.shape, dtype=np.int64)
+        do2 = third_out * np.ones(time_ax.shape, dtype=np.int64)
 
-        outchan = 0
-        do_output = {1: do1, 2: do2}
-        digital_output_map = {1: [1, 2]}
+        do_output = {0: do0, 1: do1, 2: do2}
+        digital_output_map = {1: [0, 1, 2]}
         self.load_waveform(do_waveform_dictionary=do_output,
                            digital_output_map=digital_output_map)
         self.play_waveform(self._waveform_container[-1], loops=loops)
