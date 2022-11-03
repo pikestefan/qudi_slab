@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1189</width>
-    <height>818</height>
+    <height>832</height>
    </rect>
   </property>
   <property name="contextMenuPolicy">
@@ -84,7 +84,7 @@
           <enum>QTabWidget::Rounded</enum>
          </property>
          <property name="currentIndex">
-          <number>2</number>
+          <number>1</number>
          </property>
          <property name="elideMode">
           <enum>Qt::ElideLeft</enum>
@@ -98,9 +98,21 @@
             <rect>
              <x>130</x>
              <y>30</y>
-             <width>62</width>
+             <width>101</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>dBm</string>
+           </property>
+           <property name="minimum">
+            <double>-100.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>-2.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>-10.000000000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_freq">
@@ -108,9 +120,24 @@
             <rect>
              <x>130</x>
              <y>50</y>
-             <width>62</width>
+             <width>101</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>MHz</string>
+           </property>
+           <property name="decimals">
+            <number>4</number>
+           </property>
+           <property name="minimum">
+            <double>1500.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>40000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>2876.000000000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_111">
@@ -160,9 +187,15 @@
             <rect>
              <x>360</x>
              <y>30</y>
-             <width>62</width>
+             <width>71</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="decimals">
+            <number>0</number>
+           </property>
+           <property name="value">
+            <double>10.000000000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_113">
@@ -212,9 +245,18 @@
             <rect>
              <x>360</x>
              <y>50</y>
-             <width>62</width>
+             <width>71</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>ms</string>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="value">
+            <double>30.000000000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="clk_awg">
@@ -222,9 +264,15 @@
             <rect>
              <x>360</x>
              <y>70</y>
-             <width>62</width>
+             <width>71</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="maximum">
+            <double>5000.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>800.000000000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_115">
@@ -325,18 +373,24 @@
             <rect>
              <x>360</x>
              <y>90</y>
-             <width>62</width>
+             <width>71</width>
              <height>22</height>
             </rect>
            </property>
+           <property name="suffix">
+            <string>us</string>
+           </property>
            <property name="decimals">
             <number>3</number>
+           </property>
+           <property name="value">
+            <double>7.000000000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_60">
            <property name="geometry">
             <rect>
-             <x>790</x>
+             <x>700</x>
              <y>20</y>
              <width>211</width>
              <height>16</height>
@@ -359,8 +413,8 @@
           <widget class="QLabel" name="label_156">
            <property name="geometry">
             <rect>
-             <x>790</x>
-             <y>80</y>
+             <x>710</x>
+             <y>70</y>
              <width>91</width>
              <height>20</height>
             </rect>
@@ -380,8 +434,8 @@
           <widget class="QLabel" name="label_157">
            <property name="geometry">
             <rect>
-             <x>800</x>
-             <y>60</y>
+             <x>720</x>
+             <y>50</y>
              <width>81</width>
              <height>16</height>
             </rect>
@@ -401,21 +455,27 @@
           <widget class="ScienDSpinBox" name="apd_ref_start_time">
            <property name="geometry">
             <rect>
-             <x>890</x>
-             <y>60</y>
-             <width>62</width>
+             <x>810</x>
+             <y>50</y>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_ref_len">
            <property name="geometry">
             <rect>
-             <x>890</x>
-             <y>80</y>
-             <width>62</width>
+             <x>810</x>
+             <y>70</y>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_len">
@@ -423,9 +483,12 @@
             <rect>
              <x>590</x>
              <y>70</y>
-             <width>62</width>
+             <width>91</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="QLabel" name="label_65">
@@ -498,9 +561,12 @@
             <rect>
              <x>590</x>
              <y>50</y>
-             <width>62</width>
+             <width>91</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
          </widget>
@@ -623,9 +689,15 @@
             <rect>
              <x>140</x>
              <y>50</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
+           </property>
+           <property name="value">
+            <double>2.000000000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="laser_off">
@@ -633,9 +705,15 @@
             <rect>
              <x>140</x>
              <y>70</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
+           </property>
+           <property name="value">
+            <double>2.000000000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="laser_re">
@@ -643,9 +721,15 @@
             <rect>
              <x>140</x>
              <y>90</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
+           </property>
+           <property name="value">
+            <double>2.000000000000000</double>
            </property>
           </widget>
          </widget>
@@ -923,9 +1007,15 @@
             <rect>
              <x>150</x>
              <y>40</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
+           </property>
+           <property name="value">
+            <double>0.500000000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_min_start_delay">
@@ -933,9 +1023,12 @@
             <rect>
              <x>150</x>
              <y>60</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_max_start_delay">
@@ -943,9 +1036,15 @@
             <rect>
              <x>150</x>
              <y>80</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
+           </property>
+           <property name="value">
+            <double>1.000000000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_steps_delay">
@@ -953,9 +1052,15 @@
             <rect>
              <x>150</x>
              <y>100</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
+           </property>
+           <property name="value">
+            <double>0.050000000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_start_time_delay">
@@ -963,9 +1068,12 @@
             <rect>
              <x>350</x>
              <y>46</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_len_delay">
@@ -973,9 +1081,12 @@
             <rect>
              <x>350</x>
              <y>66</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
          </widget>
@@ -1119,9 +1230,12 @@
             <rect>
              <x>130</x>
              <y>50</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_min_len_rabi">
@@ -1129,9 +1243,12 @@
             <rect>
              <x>130</x>
              <y>70</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_max_len_rabi">
@@ -1139,9 +1256,12 @@
             <rect>
              <x>130</x>
              <y>90</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_steps_rabi">
@@ -1149,9 +1269,12 @@
             <rect>
              <x>130</x>
              <y>110</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
          </widget>
@@ -1295,9 +1418,12 @@
             <rect>
              <x>110</x>
              <y>40</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_min_len_ramsey">
@@ -1305,9 +1431,12 @@
             <rect>
              <x>110</x>
              <y>60</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_max_len_ramsey">
@@ -1315,9 +1444,12 @@
             <rect>
              <x>110</x>
              <y>80</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_steps_ramsey">
@@ -1325,9 +1457,12 @@
             <rect>
              <x>110</x>
              <y>100</y>
-             <width>62</width>
+             <width>81</width>
              <height>22</height>
             </rect>
+           </property>
+           <property name="suffix">
+            <string>us</string>
            </property>
           </widget>
          </widget>
@@ -1438,19 +1573,6 @@
    <addaction name="menu_File"/>
    <addaction name="menu_View"/>
    <addaction name="menu_Options"/>
-  </widget>
-  <widget class="QToolBar" name="toolBar">
-   <property name="windowTitle">
-    <string>toolBar</string>
-   </property>
-   <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
-   </attribute>
-   <attribute name="toolBarBreak">
-    <bool>false</bool>
-   </attribute>
-   <addaction name="action_run_stop"/>
-   <addaction name="action_resume_odmr"/>
   </widget>
   <widget class="QDockWidget" name="pulsed_fit_DockWidget">
    <property name="sizePolicy">
@@ -1567,9 +1689,33 @@
     </layout>
    </widget>
   </widget>
-  <widget class="QToolBar" name="save_ToolBar">
+  <widget class="QToolBar" name="play_ToolBar">
    <property name="windowTitle">
     <string>toolBar_2</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="action_run_stop"/>
+  </widget>
+  <widget class="QToolBar" name="awg_ToolBar">
+   <property name="windowTitle">
+    <string>toolBar_2</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="clear_awg"/>
+  </widget>
+  <widget class="QToolBar" name="save_toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
    </property>
    <attribute name="toolBarArea">
     <enum>TopToolBarArea</enum>
@@ -1578,18 +1724,8 @@
     <bool>false</bool>
    </attribute>
    <addaction name="action_Save"/>
-  </widget>
-  <widget class="QToolBar" name="cw_ToolBar">
-   <property name="windowTitle">
-    <string>toolBar_2</string>
-   </property>
-   <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
-   </attribute>
-   <attribute name="toolBarBreak">
-    <bool>false</bool>
-   </attribute>
-   <addaction name="action_toggle_cw"/>
+   <addaction name="separator"/>
+   <addaction name="clear_data"/>
   </widget>
   <action name="action_Settings">
    <property name="icon">
@@ -1609,7 +1745,7 @@
     <string>&amp;Save</string>
    </property>
    <property name="toolTip">
-    <string>Save odmr data</string>
+    <string>Save data</string>
    </property>
   </action>
   <action name="action_Close">
@@ -1632,6 +1768,9 @@
    </property>
    <property name="text">
     <string>run_stop</string>
+   </property>
+   <property name="clear data" stdset="0">
+    <string notr="true"/>
    </property>
   </action>
   <action name="action_resume_odmr">
@@ -1663,21 +1802,43 @@
     <string>Fit settings</string>
    </property>
   </action>
-  <action name="action_toggle_cw">
+  <action name="clear_awg">
    <property name="checkable">
+    <bool>false</bool>
+   </property>
+   <property name="enabled">
     <bool>true</bool>
    </property>
    <property name="icon">
     <iconset>
-     <normaloff>../../artwork/icons/oxygen/22x22/media-playback-start.png</normaloff>
-     <normalon>../../artwork/icons/oxygen/22x22/media-playback-stop.png</normalon>
-     <activeon>../../artwork/icons/oxygen/22x22/media-playback-stop.png</activeon>../../artwork/icons/oxygen/22x22/media-playback-start.png</iconset>
+     <normaloff>../../artwork/icons/oxygen/22x22/edit-clear.png</normaloff>../../artwork/icons/oxygen/22x22/edit-clear.png</iconset>
    </property>
    <property name="text">
-    <string>toggle_cw</string>
+    <string>clear awg</string>
+   </property>
+   <property name="iconText">
+    <string>clear awg</string>
    </property>
    <property name="toolTip">
-    <string>toggle microwave CW output</string>
+    <string>clear memory of AWG</string>
+   </property>
+   <property name="autoRepeat">
+    <bool>false</bool>
+   </property>
+   <property name="visible">
+    <bool>true</bool>
+   </property>
+  </action>
+  <action name="clear_data">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/oxygen/22x22/view-refresh.png</normaloff>../../artwork/icons/oxygen/22x22/view-refresh.png</iconset>
+   </property>
+   <property name="text">
+    <string>clear plotted data</string>
+   </property>
+   <property name="toolTip">
+    <string>clear_plotted_data</string>
    </property>
   </action>
  </widget>
@@ -1717,7 +1878,4 @@
    </hints>
   </connection>
  </connections>
- <buttongroups>
-  <buttongroup name="buttonGroup"/>
- </buttongroups>
 </ui>

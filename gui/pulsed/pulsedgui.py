@@ -27,7 +27,6 @@ from core.connector import Connector
 from core.util import units
 from core.configoption import ConfigOption
 from gui.guibase import GUIBase
-from gui.guiutils import ColorBar
 from gui.colordefs import ColorScaleInferno
 from gui.colordefs import QudiPalettePale as palette
 from gui.fitsettings import FitSettingsDialog, FitSettingsComboBox
@@ -77,7 +76,8 @@ class PulsedGui(GUIBase):
 
     # some signals which are also used in the master pulse logic
     sigStartMeasurement = QtCore.Signal() # This starts the measurement
-    sigStopMesurement = QtCore.Signal() # This stops the measurement
+    #sigClearData = QtCore.Signal()
+    # sigStopMeasurement = QtCore.Signal() # the stop_requested statement should be enough
     # sigClearData = QtCore.Signal()
     # sigClearAWQ = qtCoreSignal()
     # sigMwOff = QtCore.Signal()
@@ -120,39 +120,41 @@ class PulsedGui(GUIBase):
         self._mw.mw_freq.setMaximum(4000e6)
         self._mw.mw_freq.setMaximum(2000e6)
 
+        # set up all the important connections:
+        self._setup_connections()
 
-
-    # def _setup_connections(self):
+    def _setup_connections(self):
+        # this happens during on_activate
         ########################################################################
         #                       Connect signals                                #
         ########################################################################
         # # Internal user input changed signals
-        # # These are the boxes of the GUI?
+
         # # self._mw.cw_frequency_DoubleSpinBox.editingFinished.connect(self.change_cw_params)
         # self._mw.mw_power.editingFinished.connect(self.change_mw_power)
         # self._mw.mw_freq.editingFinished.connect(self.change_mw_freq)
         # self._mw.mw_freq.editingFinished.connect(self.change_mw_freq)
         # self._mw.comboBox.valueChanged.connect(self.change_method)
         #
-        # # Internal trigger signals
-        # self._mw.clear_awg_PushButton.clicked.connect(self.clear_odmr_data)
-        # self._mw.action_run_stop.triggered.connect(self.run_stop_odmr)
-        # self._mw.action_resume_odmr.triggered.connect(self.resume_odmr)
-        # self._mw.action_toggle_cw.triggered.connect(self.toggle_cw_mode)
-        # self._mw.action_Save.triggered.connect(self.save_data)
-        # self._mw.action_RestoreDefault.triggered.connect(self.restore_defaultview)
-        # self._mw.do_fit_PushButton.clicked.connect(self.do_fit)
-        # self._mw.fit_range_SpinBox.editingFinished.connect(self.update_fit_range)
-        #
+        # # Internal trigger signals --> connect the signals from the buttons to the gui methods
+        # These are the boxes of the GUI
+        # This is the red run button on the left
+        self._mw.action_run_stop.triggered.connect(self.run_stop_measurement)
+        # This is the clear awg button
+        self._mw.clear_awg.triggered.connect(self.clear_all)
+        # This is the save button
+        self._mw.action_Save.triggered.connect(self.save_data)
+        # This should be the clear data in the plot button:
+        #self._mw.clear_data.triggered.connect(self.clear_plot)
+
         # # Control/values-changed signals to logic
-        # # self.sigCwMwOn.connect(self._odmr_logic.mw_cw_on, QtCore.Qt.QueuedConnection)
-        # # self.sigMwOff.connect(self._odmr_logic.mw_off, QtCore.Qt.QueuedConnection)
-        # self.sigClearData.connect(self._master_pulselogic.clear_all, QtCore.Qt.QueuedConnection)
+        self.sigStartMeasurement.connect(self.start_measurement, QtCore.Qt.QueuedConnection)
+        #self.sigStopAll.connect(self.stop_all, QtCore.Qt.QueuedConnection)
+        #self.sigClearData.connect(self.clear_all, QtCore.Qt.QueuedConnection)
         # self.sigStartOdmrScan.connect(self.start_odmr,
         #                               QtCore.Qt.QueuedConnection)
         # self.sigStopOdmrScan.connect(self._odmr_logic.stop_odmr, QtCore.Qt.QueuedConnection)
-        # self.sigContinueOdmrScan.connect(self._odmr_logic.continue_odmr,
-        #                                  QtCore.Qt.QueuedConnection)
+
         # self.sigDoFit.connect(self._odmr_logic.do_fit, QtCore.Qt.QueuedConnection)
         # # self.sigMwCwParamsChanged.connect(self._odmr_logic.set_cw_parameters,
         # #                                   QtCore.Qt.QueuedConnection)
@@ -165,7 +167,7 @@ class PulsedGui(GUIBase):
         # #                                  QtCore.Qt.QueuedConnection)
         # # self.sigOversamplingChanged.connect(self._odmr_logic.set_oversampling, QtCore.Qt.QueuedConnection)
         # # self.sigLockInChanged.connect(self._odmr_logic.set_lock_in, QtCore.Qt.QueuedConnection)
-        # # self.sigSaveMeasurement.connect(self._odmr_logic.save_odmr_data, QtCore.Qt.QueuedConnection)
+
         # # self.sigAverageLinesChanged.connect(self._odmr_logic.set_average_length,
         # #                                     QtCore.Qt.QueuedConnection)
         #
@@ -248,62 +250,64 @@ class PulsedGui(GUIBase):
         # self._fsd.sigFitsUpdated.disconnect()
         # self._mw.fit_range_SpinBox.editingFinished.disconnect()
         # self._mw.action_FitSettings.triggered.disconnect()
+        #self.sigClearData.disconnect()
+        self.sigStartMeasurement.disconnect()
         self._mw.close()
         return 0
 
     # def _set_enabled_odmr_ui(self, val):
-        # """Set the enabled/disabled state for the odmr setting ui"""
-        # self._mw.action_toggle_cw.setEnabled(val)
-        # self._mw.cw_power_DoubleSpinBox.setEnabled(val)
-        # self._mw.sweep_power_DoubleSpinBox.setEnabled(val)
-        # self._mw.cw_frequency_DoubleSpinBox.setEnabled(val)
-        # self._mw.average_level_SpinBox.setEnabled(val)
-        # self._mw.integration_time_doubleSpinBox.setEnabled(val)
-        # self._mw.do_fit_PushButton.setEnabled(val)
-        # dspinbox_dict = self.get_all_dspinboxes_from_groupbox()
-        # for identifier_name in dspinbox_dict:
-        #     dspinbox_type_list = dspinbox_dict[identifier_name]
-        #     [dspinbox_type.setEnabled(val) for dspinbox_type in dspinbox_type_list]
-        # self._mw.odmr_control_DockWidget.add_range_button.setEnabled(val)
-        # self._mw.odmr_control_DockWidget.remove_range_button.setEnabled(val)
-        # self._mw.action_Save.setEnabled(val)
-        # self._sd.clock_frequency_DoubleSpinBox.setEnabled(val)
-        # self._sd.oversampling_SpinBox.setEnabled(val)
-        # self._sd.lock_in_CheckBox.setEnabled(val)
+    #     """Set the enabled/disabled state for the odmr setting ui"""
+    #     self._mw.action_toggle_cw.setEnabled(val)
+    #     self._mw.cw_power_DoubleSpinBox.setEnabled(val)
+    #     self._mw.sweep_power_DoubleSpinBox.setEnabled(val)
+    #     self._mw.cw_frequency_DoubleSpinBox.setEnabled(val)
+    #     self._mw.average_level_SpinBox.setEnabled(val)
+    #     self._mw.integration_time_doubleSpinBox.setEnabled(val)
+    #     self._mw.do_fit_PushButton.setEnabled(val)
+    #     dspinbox_dict = self.get_all_dspinboxes_from_groupbox()
+    #     for identifier_name in dspinbox_dict:
+    #         dspinbox_type_list = dspinbox_dict[identifier_name]
+    #         [dspinbox_type.setEnabled(val) for dspinbox_type in dspinbox_type_list]
+    #     self._mw.odmr_control_DockWidget.add_range_button.setEnabled(val)
+    #     self._mw.odmr_control_DockWidget.remove_range_button.setEnabled(val)
+    #     self._mw.action_Save.setEnabled(val)
+    #     self._sd.clock_frequency_DoubleSpinBox.setEnabled(val)
+    #     self._sd.oversampling_SpinBox.setEnabled(val)
+    #     self._sd.lock_in_CheckBox.setEnabled(val)
 
-    # def run_stop_measurement(self, is_checked):
-    #     """ Manages what happens if measurement is started/stopped. """
-        # if is_checked:
-        #     # change the axes appearance according to input values:
-        #     # self._mw.action_run_stop.setEnabled(False)
-        #     # self._mw.action_resume_odmr.setEnabled(False)
-        #     self._mw.odmr_PlotWidget.removeItem(self.odmr_fit_image)
-        #
-        #     # Disable the ui
-        #     self._set_enabled_odmr_ui(False)
-        #
-        #     # Reset the sweeps counter
-        #     self._mw.elapsed_sweeps_DisplayWidget.display(0)
-        #
-        #     self.sigStartOdmrScan.emit()
-        # else:
-        #     # self._mw.action_run_stop.setEnabled(False)
-        #     # self._mw.action_resume_odmr.setEnabled(False)
-        #     # self._mw.action_toggle_cw.setEnabled(False)
-        #
-        #     # Enable the ui
-        #     self._set_enabled_odmr_ui(True)
-        #
-        #     self._odmr_logic.stopRequested = True
-        #     self.sigStopOdmrScan.emit()
-        # return
+    def run_stop_measurement(self, is_checked):
+        """ Manages what happens if measurement is started/stopped. """
+        if is_checked:
+            # change the axes appearance according to input values:
+            # self._mw.action_run_stop.setEnabled(False)
+            # self._mw.action_resume_odmr.setEnabled(False)
+            # self._mw.odmr_PlotWidget.removeItem(self.odmr_fit_image)
+
+            # Disable the ui later
+            # self._set_enabled_pulsed_ui(False)
+
+            # Reset the sweeps counter
+            # self._mw.elapsed_sweeps_DisplayWidget.display(0)
+            # emit signal to get scan running
+            self.sigStartMeasurement.emit()
+        else:
+            # self._mw.action_run_stop.setEnabled(False)
+            # self._mw.action_resume_odmr.setEnabled(False)
+            # self._mw.action_toggle_cw.setEnabled(False)
+
+            # Enable the ui later
+            # self._set_enabled_odmr_ui(True)
+
+            self._master_pulselogic.stopRequested = True
+
+        return
 
     def start_measurement(self): # This get enabled with the start button?
         # Grab all the parameters from the GUI
         # general tab
         mw_power = self._mw.mw_power.value()
         mw_freq = self._mw.mw_freq.value()
-        method = self._mw.combobox_method.currentText()
+        method = self._mw.comboBox_method.currentText()
         averages = self._mw.averages.value()
         int_time = self._mw.integration_time.value()
         seq_len = self._mw.seq_len.value()
@@ -326,7 +330,7 @@ class PulsedGui(GUIBase):
         apd_max_start_delay = self._mw.apd_max_start_delay.value()
         apd_steps_delay = self._mw.apd_steps_delay.value()
 
-        use_mw_delay = self._mw.use_mw_delay.value()
+        use_mw_delay = self._mw.use_mw_delay.isChecked()
         mw_start_delay = self._mw.mw_start_time_delay.value()
         mw_len_delay = self._mw.mw_len_delay.value()
 
@@ -354,7 +358,7 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.mw_power = mw_power
         self._master_pulselogic.mw_frequency = mw_freq
         self._master_pulselogic.integration_time = int_time
-        self._master_pulselogic.method = str(method)
+        self._master_pulselogic.method = method
         self._master_pulselogic.seq_len = seq_len
         self._master_pulselogic.clk_rate_awg = sampling_rate_awg
         self._master_pulselogic.mw_pulse_setting = use_mw_delay
@@ -372,11 +376,11 @@ class PulsedGui(GUIBase):
         # self._mw.odmr_PlotWidget.setXRange(min(starts), max(stops))
         #This is where the measurement really starts
         self._master_pulselogic.start_measurement()
-
-    def stop_measurement(self): # This gets enabled by the stop button?
+    def clear_all(self): # This gets enabled by the stop button?
         # self._set_enabled_pulsed_ui(True)
         # self._mw.action_run_stop.setChecked(False)
-        self._master_pulselogic.stop_all()
+        self._master_pulselogic.stop_awg()
+
 
     # def _calculate_connect(self, starts, stops, steps):
     #     if len(starts) == 1:
@@ -1024,4 +1028,6 @@ class PulsedGui(GUIBase):
         return
 
     def save_data(self):
-        self._odmr_logic.save_data()
+        method = self._mw.comboBox_method.currentText()
+        self._master_pulselogic.save_data(str(method))
+        # self._odmr_logic.save_data()
