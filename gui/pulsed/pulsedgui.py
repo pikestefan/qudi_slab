@@ -119,9 +119,25 @@ class PulsedGui(GUIBase):
         self._mw.mw_power.setMinimum(-50)
         self._mw.mw_freq.setMaximum(4000e6)
         self._mw.mw_freq.setMaximum(2000e6)
-
+        self.index = 0
         # set up all the important connections:
         self._setup_connections()
+
+        # Set up plot
+        self.plot_fit_image = pg.PlotDataItem(pen=pg.mkPen(palette.c2))
+        self.curr_trace = pg.PlotDataItem(
+            pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+            symbol='o',
+            symbolPen=palette.c1,
+            symbolBrush=palette.c1,
+            symbolSize=7, )
+        self.average_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
+        # This one makes every
+        self._mw.pulsed_PlotWidget.addItem(self.curr_trace)
+        # This one makes the average signal visible
+        self._mw.pulsed_PlotWidget.addItem(self.average_trace)
+        self._mw.pulsed_PlotWidget.setLabel('bottom', 'Time in us')
+        self._mw.pulsed_PlotWidget.setLabel('left', 'Counts')
 
     def _setup_connections(self):
         # this happens during on_activate
@@ -137,15 +153,17 @@ class PulsedGui(GUIBase):
         # self._mw.comboBox.valueChanged.connect(self.change_method)
         #
         # # Internal trigger signals --> connect the signals from the buttons to the gui methods
-        # These are the boxes of the GUI
+        # These are the buttons in the toolbar of the GUI
         # This is the red run button on the left
         self._mw.action_run_stop.triggered.connect(self.run_stop_measurement)
         # This is the clear awg button
         self._mw.clear_awg.triggered.connect(self.clear_all)
         # This is the save button
         self._mw.action_Save.triggered.connect(self.save_data)
-        # This should be the clear data in the plot button:
+        # This should be the clear data in the plot button (later):
         #self._mw.clear_data.triggered.connect(self.clear_plot)
+        # This button goes back to cw mode where we can see the laser
+        self._mw.action_cw_mode.triggered.connect(self.cw_mode)
 
         # # Control/values-changed signals to logic
         self.sigStartMeasurement.connect(self.start_measurement, QtCore.Qt.QueuedConnection)
@@ -172,6 +190,10 @@ class PulsedGui(GUIBase):
         # #                                     QtCore.Qt.QueuedConnection)
         #
         # # Update signals coming from logic:
+        self._master_pulselogic.sigMeasurementDone.connect(self.measurement_done,
+                                                   QtCore.Qt.QueuedConnection)
+        self._master_pulselogic.sigAverageDone.connect(self.refresh_plot, QtCore.Qt.QueuedConnection)
+
         # self._odmr_logic.sigFreqPxAcquired.connect(self.refresh_odmr_plot,
         #                                            QtCore.Qt.QueuedConnection)
         # self._odmr_logic.sigStopOdmr.connect(self.stop_odmr,
@@ -252,53 +274,80 @@ class PulsedGui(GUIBase):
         # self._mw.action_FitSettings.triggered.disconnect()
         #self.sigClearData.disconnect()
         self.sigStartMeasurement.disconnect()
+
         self._mw.close()
         return 0
 
-    # def _set_enabled_odmr_ui(self, val):
-    #     """Set the enabled/disabled state for the odmr setting ui"""
-    #     self._mw.action_toggle_cw.setEnabled(val)
-    #     self._mw.cw_power_DoubleSpinBox.setEnabled(val)
-    #     self._mw.sweep_power_DoubleSpinBox.setEnabled(val)
-    #     self._mw.cw_frequency_DoubleSpinBox.setEnabled(val)
-    #     self._mw.average_level_SpinBox.setEnabled(val)
-    #     self._mw.integration_time_doubleSpinBox.setEnabled(val)
-    #     self._mw.do_fit_PushButton.setEnabled(val)
-    #     dspinbox_dict = self.get_all_dspinboxes_from_groupbox()
-    #     for identifier_name in dspinbox_dict:
-    #         dspinbox_type_list = dspinbox_dict[identifier_name]
-    #         [dspinbox_type.setEnabled(val) for dspinbox_type in dspinbox_type_list]
-    #     self._mw.odmr_control_DockWidget.add_range_button.setEnabled(val)
-    #     self._mw.odmr_control_DockWidget.remove_range_button.setEnabled(val)
-    #     self._mw.action_Save.setEnabled(val)
-    #     self._sd.clock_frequency_DoubleSpinBox.setEnabled(val)
-    #     self._sd.oversampling_SpinBox.setEnabled(val)
-    #     self._sd.lock_in_CheckBox.setEnabled(val)
+    def _set_enabled_ui(self, val):
+        """Set the enabled/disabled state for the pulsed setting ui"""
+        # All the spinBoxes
+        self._mw.mw_power.setEnabled(val)
+        self._mw.mw_freq.setEnabled(val)
+        self._mw.comboBox_method.setEnabled(val)
+        self._mw.averages.setEnabled(val)
+        self._mw.integration_time.setEnabled(val)
+        self._mw.seq_len.setEnabled(val)
+        self._mw.clk_awg.setEnabled(val)
+        self._mw.apd_start_time.setEnabled(val)
+        self._mw.apd_ref_len.setEnabled(val)
+        self._mw.apd_len.setEnabled(val)
+        self._mw.apd_ref_start_time.setEnabled(val)
+        self._mw.laser_in.setEnabled(val)
+        self._mw.laser_off.setEnabled(val)
+        self._mw.laser_re.setEnabled(val)
+        self._mw.apd_len_pulse_delay.setEnabled(val)
+        self._mw.apd_min_start_delay.setEnabled(val)
+        self._mw.apd_max_start_delay.setEnabled(val)
+        self._mw.apd_steps_delay.setEnabled(val)
+        self._mw.use_mw_delay.setEnabled(val)
+        self._mw.mw_start_time_delay.setEnabled(val)
+        self._mw.mw_len_delay.setEnabled(val)
+        self._mw.mw_start_time_rabi.setEnabled(val)
+        self._mw.mw_min_len_rabi.setEnabled(val)
+        self._mw.mw_max_len_rabi.setEnabled(val)
+        self._mw.mw_steps_rabi.setEnabled(val)
+        self._mw.mw_start_time_ramsey.setEnabled(val)
+        self._mw.mw_min_len_ramsey.setEnabled(val)
+        self._mw.mw_max_len_ramsey.setEnabled(val)
+        self._mw.mw_steps_ramsey.setEnabled(val)
+        # buttons
+        # self._mw.do_fit_PushButton.setEnabled(val)
+        # This is the save button
+        self._mw.action_Save.setEnabled(val)
+
+        # self._mw.odmr_control_DockWidget.add_range_button.setEnabled(val)
+        # self._mw.odmr_control_DockWidget.remove_range_button.setEnabled(val)
+        # self._mw.action_Save.setEnabled(val)
+        # self._sd.clock_frequency_DoubleSpinBox.setEnabled(val)
+        # self._sd.oversampling_SpinBox.setEnabled(val)
+        # self._sd.lock_in_CheckBox.setEnabled(val)
 
     def run_stop_measurement(self, is_checked):
         """ Manages what happens if measurement is started/stopped. """
+
         if is_checked:
             # change the axes appearance according to input values:
             # self._mw.action_run_stop.setEnabled(False)
             # self._mw.action_resume_odmr.setEnabled(False)
+
+            # This one only removes the old data
             # self._mw.odmr_PlotWidget.removeItem(self.odmr_fit_image)
 
             # Disable the ui later
-            # self._set_enabled_pulsed_ui(False)
+            self._set_enabled_ui(False)
 
             # Reset the sweeps counter
             # self._mw.elapsed_sweeps_DisplayWidget.display(0)
             # emit signal to get scan running
             self.sigStartMeasurement.emit()
         else:
-            # self._mw.action_run_stop.setEnabled(False)
+            self._master_pulselogic.stopRequested = True
+            self._mw.action_run_stop.setEnabled(True)
             # self._mw.action_resume_odmr.setEnabled(False)
             # self._mw.action_toggle_cw.setEnabled(False)
-
+            self.index = 0
             # Enable the ui later
-            # self._set_enabled_odmr_ui(True)
-
-            self._master_pulselogic.stopRequested = True
+            self._set_enabled_ui(True)
 
         return
 
@@ -306,12 +355,12 @@ class PulsedGui(GUIBase):
         # Grab all the parameters from the GUI
         # general tab
         mw_power = self._mw.mw_power.value()
-        mw_freq = self._mw.mw_freq.value()
+        mw_freq = self._mw.mw_freq.value()*1e6  #in Hz
         method = self._mw.comboBox_method.currentText()
         averages = self._mw.averages.value()
-        int_time = self._mw.integration_time.value()
-        seq_len = self._mw.seq_len.value()
-        sampling_rate_awg = self._mw.clk_awg.value()
+        int_time = self._mw.integration_time.value()*1e-3  #in sec
+        seq_len = self._mw.seq_len.value() #this should be in us
+        sampling_rate_awg = int(self._mw.clk_awg.value())
 
         apd_start = self._mw.apd_start_time.value()
         apd_len = self._mw.apd_len.value()
@@ -372,14 +421,65 @@ class PulsedGui(GUIBase):
         # self.average_odmr_trace.opts['connect'] = connect
         # self.average_odmr_trace.setProperty('styleWasChanged', True)
 
-
-        # self._mw.odmr_PlotWidget.setXRange(min(starts), max(stops))
+        # This one sets the x axis right
+        self._mw.pulsed_PlotWidget.setXRange(min(self.x_axis()), max(self.x_axis()))
         #This is where the measurement really starts
         self._master_pulselogic.start_measurement()
-    def clear_all(self): # This gets enabled by the stop button?
-        # self._set_enabled_pulsed_ui(True)
-        # self._mw.action_run_stop.setChecked(False)
+
+    def clear_all(self): # This gets enabled by the clear awg button?
+        # It stops the replay and clears the memory
         self._master_pulselogic.stop_awg()
+
+    def measurement_done(self):
+        # self._set_enabled_pulsed_ui(True)
+        # Turn the button back to the play icon
+        # self._set_enabled_ui(True)
+        # Enable the saving button
+        self._set_enabled_ui(True)
+        self._mw.action_run_stop.setChecked(False)
+        self._mw.action_Save.setEnabled(True)
+        self.index = 0
+        #print('ready for saving process')
+
+    def cw_mode(self, is_checked):
+        if is_checked:
+            self._master_pulselogic.cw()
+            self._mw.action_run_stop.setEnabled(False)
+            self._mw.action_Save.setEnabled(False)
+            # Laser is on and counts are in the timeseries
+        else:
+            self._master_pulselogic.cw(False)
+            self._mw.action_Save.setEnabled(True)
+            self._mw.action_run_stop.setEnabled(True)
+            # Laser is off but the counts are still in the timeseries
+        return
+
+    def x_axis(self):
+        steps, max_val, min_val = self._master_pulselogic.step_counter()
+        x_axis = np.linspace(min_val, max_val, steps)
+        return x_axis
+
+    def show(self):
+        """Make window visible and put it above all other windows. """
+        self._mw.show()
+        self._mw.activateWindow()
+        self._mw.raise_()
+
+    def get_value(self, counts, ref_counts):
+        self.index += 1
+        x_axis_len = len(self.x_axis())
+        steps = self._master_pulselogic.step_counter()[0]
+        if self.index == steps:
+            self.index == 0
+            # Average is done
+            # begin a new average
+        else:
+
+            self.index +=1
+            #continue plotting
+
+
+
 
 
     # def _calculate_connect(self, starts, stops, steps):
@@ -396,19 +496,21 @@ class PulsedGui(GUIBase):
     #     connect = np.ones(length)
     #     connect[hide_indices[:-1]] = 0
     #     return connect
-    #
 
-    # def refresh_odmr_plot(self):
-    #     # Draw current odmr trace
-    #     self.curr_odmr_trace.setData(self._odmr_logic.freq_axis,
-    #                                  self._odmr_logic.curr_odmr_trace)
-    #
-    #     # Draw average odmr trace
-    #     if self._odmr_logic._average_index > 0:
-    #         self.average_odmr_trace.setData(self._odmr_logic.freq_axis,
-    #                                         self._odmr_logic.average_odmr_trace)
-    #     else:
-    #         self.average_odmr_trace.clear()
+
+    def refresh_plot(self,av_index, current_row, current_average):
+        # Draw current odmr trace
+        # print('curent row', current_row)
+        # This is where the data from the logic should be
+        #maybe have a method on the masterpulselogic which gives all values in one row? They give one plot in the GUI
+        self.curr_trace.setData(self.x_axis(), current_row)
+
+        # Draw average trace
+        if av_index > 0:
+            self.average_trace.setData(self.x_axis(), current_average)
+        else:
+            self.average_trace.clear()
+
 
     # def show(self):
     #     """Make window visible and put it above all other windows. """
@@ -1021,13 +1123,12 @@ class PulsedGui(GUIBase):
     #
     #     return start, stop, step
 
-    def change_runtime(self):
-        """ Change time after which microwave sweep is stopped """
-        runtime = self._mw.runtime_DoubleSpinBox.value()
-        self.sigRuntimeChanged.emit(runtime)
-        return
+    # def change_runtime(self):
+    #     """ Change time after which microwave sweep is stopped """
+    #     runtime = self._mw.runtime_DoubleSpinBox.value()
+    #     self.sigRuntimeChanged.emit(runtime)
+    #     return
 
     def save_data(self):
         method = self._mw.comboBox_method.currentText()
-        self._master_pulselogic.save_data(str(method))
-        # self._odmr_logic.save_data()
+        self._master_pulselogic.save_data(method)
