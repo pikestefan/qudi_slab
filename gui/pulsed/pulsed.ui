@@ -14,7 +14,7 @@
    <enum>Qt::DefaultContextMenu</enum>
   </property>
   <property name="windowTitle">
-   <string>qudi: ODMR</string>
+   <string>qudi: pulsed measurement</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
@@ -84,7 +84,7 @@
           <enum>QTabWidget::Rounded</enum>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>2</number>
          </property>
          <property name="elideMode">
           <enum>Qt::ElideLeft</enum>
@@ -1201,30 +1201,6 @@
             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
            </property>
           </widget>
-          <widget class="QCheckBox" name="storeRetraceConf_2">
-           <property name="geometry">
-            <rect>
-             <x>950</x>
-             <y>160</y>
-             <width>101</width>
-             <height>21</height>
-            </rect>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="accessibleName">
-            <string/>
-           </property>
-           <property name="inputMethodHints">
-            <set>Qt::ImhNone</set>
-           </property>
-           <property name="text">
-            <string>Store retrace</string>
-           </property>
-          </widget>
           <widget class="ScienDSpinBox" name="mw_start_time_rabi">
            <property name="geometry">
             <rect>
@@ -1275,6 +1251,30 @@
            </property>
            <property name="suffix">
             <string>us</string>
+           </property>
+          </widget>
+          <widget class="QCheckBox" name="storeRetraceConf_laser_2">
+           <property name="geometry">
+            <rect>
+             <x>230</x>
+             <y>50</y>
+             <width>151</width>
+             <height>31</height>
+            </rect>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>10</pointsize>
+            </font>
+           </property>
+           <property name="accessibleName">
+            <string/>
+           </property>
+           <property name="inputMethodHints">
+            <set>Qt::ImhNone</set>
+           </property>
+           <property name="text">
+            <string>inverted mw (-1)</string>
            </property>
           </widget>
          </widget>
@@ -1509,7 +1509,7 @@
             <rect>
              <x>0</x>
              <y>-10</y>
-             <width>1061</width>
+             <width>1101</width>
              <height>301</height>
             </rect>
            </property>
@@ -1725,7 +1725,6 @@
    </attribute>
    <addaction name="action_Save"/>
    <addaction name="separator"/>
-   <addaction name="clear_data"/>
    <addaction name="action_cw_mode"/>
   </widget>
   <action name="action_Settings">
