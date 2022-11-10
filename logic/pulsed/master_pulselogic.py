@@ -26,6 +26,8 @@ import time
 import datetime
 from core.connector import Connector
 from logic.generic_logic import GenericLogic
+from core.configoption import ConfigOption
+from core.statusvariable import StatusVar
 from hardware.awg.spectrum_awg.spectrum_netbox import AbstractWaveform
 
 
@@ -37,11 +39,15 @@ from hardware.awg.spectrum_awg.spectrum_netbox import AbstractWaveform
 
 class MasterPulse(GenericLogic):
     pulsegenerator = Connector(interface='PulserInterface')
-    savelogic = Connector(interface='SaveLogic')
-    pulselogic = Connector(interface='Pulse')
+    laser = Connector(interface='SimpleLaserInterface')
     photon_counter = Connector(interface='SnvmScannerInterface')
     mw_source = Connector(interface='MicrowaveInterface')
+    savelogic = Connector(interface='SaveLogic')
+    pulselogic = Connector(interface='Pulse')
+    fitlogic = Connector(interface='FitLogic')
 
+    ## Define status variables
+    fc = StatusVar('fits', None)
 
     # integration_time = 30e-3 # In microseconds for timing...
     #
@@ -51,10 +57,11 @@ class MasterPulse(GenericLogic):
     sigStopAll = QtCore.Signal()
     sigNextLine = QtCore.Signal()
     #
-    # # Update signals, e.g. for GUI module
+    ## Update signals, e.g. for GUI module
     sigMeasurementDone = QtCore.Signal()
     # Gives the current count to the GUi
-    sigAverageDone = QtCore.Signal(int, np.ndarray, np.ndarray) #np.ndarray
+    sigAverageDone = QtCore.Signal(int, np.ndarray, np.ndarray)
+    sigFitUpdated = QtCore.Signal(np.ndarray, np.ndarray, dict, str)
     # sigOutputStateUpdated = QtCore.Signal(str, bool)
     # sigElapsedTimeUpdated = QtCore.Signal(float, int)
 
@@ -67,10 +74,12 @@ class MasterPulse(GenericLogic):
 
         # Get connectors
         self._pulser = self.pulsegenerator()
+        self._laser = self.laser()
         self._photon_counter = self.photon_counter()
         self._mw_device = self.mw_source()
         self._savelogic = self.savelogic()
         self._pulselogic = self.pulselogic()
+        self._fitlogic = self.fitlogic()
         active_channels = self._pulser.get_active_channels()
         self._pulser.clear_all()
         self._pulser.reset()
@@ -86,25 +95,29 @@ class MasterPulse(GenericLogic):
         self.mw_frequency = 2.8685e9
         self.mw_power = -25 # in dBm
         self.integration_time = 100e-3  # in s
+        self.laser_power = 0.6 # in V... Max is 1V!
         # self.step_count = self._pulselogic.get_step_count([2.1, 1, 2, 0.5])  #max value for columns
         self.clk_rate_daq = self._photon_counter.get_counter_clock_frequency() # which is 100000
         self.clk_rate_awg = 800  # in MHz
 
 
         ## Delay Sweep
-        self.seq_len = 5     # in microseconds
-        self.laser_times = [1, 1, 2]  # on off on ...the rest is zeros [1, 5.5, 1.5]
-        self.mw_times_sweep = [0.5, 0.35] # mw_wait_time between laser off and mw on, mw_pulse_time
-        self.apd_times_sweep = [0.05, 1.9, 4.3, 0.1] #length, min_start, max_start, steps in microseconds
-        self.apd_ref_times = [4.5, 0.05]  # [time to start, length of the pulse]
+        # self.seq_len = 5     # in microseconds
+        # self.laser_times = [1, 1, 2]  # on off on ...the rest is zeros [1, 5.5, 1.5]
+        # self.mw_times_sweep = [0.5, 0.35] # mw_wait_time between laser off and mw on, mw_pulse_time
+        # self.apd_times_sweep = [0.05, 1.9, 4.3, 0.1] #length, min_start, max_start, steps in microseconds
+        # self.apd_ref_times = [4.5, 0.05]  # [time to start, length of the pulse]
         self.mw_pulse_setting = True  # this is only for delay sweep
-        self.method = 'delaysweep'
+        # self.method = 'delaysweep'
 
-        # # Rabi
-        # self.seq_len = 8.5
-        # self.laser_times = [1, 6, 1.5] # on off on ...the rest is zeros
-        # self.apd_ref_times = [8, 0.5] #[time to start, length of the pulse]
-        # self.method = 'rabi'    # change this to 'ramsey', 'delaysweep', 'rabi' or 'delaysweep_ref' if needed
+
+        ## Rabi
+        self.seq_len = 8.5
+        self.laser_times = [1, 6, 1.5] # on off on ...the rest is zeros
+        self.apd_ref_times = [8, 0.5] #[time to start, length of the pulse]
+        self.method = 'rabi'    # change this to 'ramsey', 'delaysweep', 'rabi' or 'delaysweep_ref' if needed
+        self.neg_mw = False  # if False it plays +1, if True it applies negative mw pulses -1 (all the pulses are squared)
+
 
 
         self.mw_times_rabi = [1.3, 0, 5, 0.05] # [mw_start_time, mw_len_0, mw_len_max, steps] all in microseconds
@@ -112,6 +125,11 @@ class MasterPulse(GenericLogic):
         self.apd_times = [7.05, 0.5] # [time to start, length] all in microseconds
         self.rep = 100
         self.trigger_setting = True
+
+        ##
+        self.fit_x = None
+        self.fit_y = None
+
         # Declare where the signals should lead to
         self.sigContinueLoop.connect(self.continue_loop, QtCore.Qt.QueuedConnection)
         self.sigStopMeasurement.connect(self.stop_measurement, QtCore.Qt.QueuedConnection)
@@ -127,8 +145,51 @@ class MasterPulse(GenericLogic):
         self.sigAverageDone.disconnect()
         self.sigContinueLoop.disconnect()
         self.sigStopMeasurement.disconnect()
+        self.sigNextLine.disconnect()
         self.sigStopAll.disconnect()
         self.mw_off()
+
+    @fc.constructor
+    def sv_set_fits(self, val):
+        # Setup fit container
+        fc = self.fitlogic().make_fit_container('pulsed', '1d')
+        fc.set_units(['us', 'counts'])
+        if isinstance(val, dict) and len(val) > 0:
+            fc.load_from_dict(val)
+        else:
+            d1 = OrderedDict()
+            d1['Lorentzian dip'] = {
+                'fit_function': 'lorentzian',
+                'estimator': 'dip'
+            }
+            d1['Two Lorentzian dips'] = {
+                'fit_function': 'lorentziandouble',
+                'estimator': 'dip'
+            }
+            d1['N14'] = {
+                'fit_function': 'lorentziantriple',
+                'estimator': 'N14'
+            }
+            d1['N15'] = {
+                'fit_function': 'lorentziandouble',
+                'estimator': 'N15'
+            }
+            d1['Two Gaussian dips'] = {
+                'fit_function': 'gaussiandouble',
+                'estimator': 'dip'
+            }
+            default_fits = OrderedDict()
+            default_fits['1d'] = d1
+            fc.load_from_dict(default_fits)
+        return fc
+
+    @fc.representer
+    def sv_get_fits(self, val):
+        """ save configured fits """
+        if len(val.fit_list) > 0:
+            return val.save_to_dict()
+        else:
+            return None
 
     def trigger(self):
         self._pulselogic.trigger()
@@ -151,6 +212,7 @@ class MasterPulse(GenericLogic):
             second_out = 0. # the APD
             third_out = 0. # The ref APD
             # Counts end up at the very and of the chain in the sepaerate DAQ counter and laser is off
+            # To do: Here should be the function: play_waveform
         self._pulser.waveform_test(msecondsplay=0.5, first_out=first_out, second_out=second_out,
                                    third_out=third_out, clk_mega=50)
 
@@ -238,8 +300,13 @@ class MasterPulse(GenericLogic):
             self.log.error("The methode must be one of the following: delay_sweep, delay_sweep_ref, rabi, ramsey.")
 
         self._pulselogic.play_any(self.clk_rate_awg, self.seq_len, self.laser_times, apd_times, self.apd_ref_times, mw_times, method=method,
-                                  rep=self.rep, mw_pulse=self.mw_pulse_setting, trigger=self.trigger_setting)
+                                  rep=self.rep, mw_pulse=self.mw_pulse_setting, trigger=self.trigger_setting, neg_mw=self.neg_mw)
         return method
+
+    def get_x_axis(self):
+        steps, max_val, min_val = self.step_counter()
+        x_axis = np.linspace(min_val, max_val, steps)
+        return x_axis
 
     def prepare_count_matrix(self):
         '''
@@ -278,6 +345,7 @@ class MasterPulse(GenericLogic):
 
     def start_measurement(self):
         self.stop_awg()
+        self.set_laser_power() #this one talks to the qwg via awg.cw
         self.prepare_count_matrix()
         self.prepare_devices()
         self.awg()
@@ -310,6 +378,7 @@ class MasterPulse(GenericLogic):
                 counts, ref_counts = self.acquire_pixel()
                 # print ('counts: ', counts)
                 # print('ref counts: ', ref_counts)
+                print(f'Current Average: {self.av_index}')
                 self.count_matrix[self.av_index, self.step_index] = counts
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 self.sigStopMeasurement.emit()
@@ -326,11 +395,14 @@ class MasterPulse(GenericLogic):
                 self.step_index = 0
                 # print(self.count_matrix[self.av_index])
                 # print(len(self.count_matrix[self.av_index]))
-                # This doesnt work because the arrays are not the same?
                 self.average_array = np.vstack((self.average_array, self.count_matrix[self.av_index]))
                 self.av_counts = np.mean(self.average_array, axis=0)
-                # The fist value is the average index, the second value is the current row of the matrix and the third value is the current average
-                self.sigAverageDone.emit(self.av_index, self.count_matrix[self.av_index], self.av_counts)
+                # self.average_array_ref = np.vstack((self.average_array_ref, self.count_matrix_ref[self.av_index]))
+                # self.av_counts_ref = np.mean(self.average_array_ref, axis=0)
+                # average index,current row of the count_matrix, current average, current row of the ref_count_matrix, current average_ref
+                self.sigAverageDone.emit(self.av_index, self.count_matrix[self.av_index], self.av_counts
+                                         # ,self.count_matrix_ref[self.av_index], self.av_counts_ref
+                                         )
                 # print('average array', self.average_array)
                 # print('averageds array', self.av_counts)
                 self.av_index = self.av_index + 1
@@ -382,6 +454,7 @@ class MasterPulse(GenericLogic):
         data_raw = OrderedDict()
         data_raw['count data'] = self.count_matrix
         data_raw['REF count data'] = self.count_matrix_ref
+        data_raw['averaged signal'] = self.av_counts
         parameters = OrderedDict()
         parameters['Microwave Power'] = self.mw_power
         parameters['Run Time'] = self.elapsed_time
@@ -441,12 +514,13 @@ class MasterPulse(GenericLogic):
     def stop_all(self):
         self.stopRequested = True
 
-    def cw_ttls_easy(self):
-        #todo: write a real function for that...
-        self._pulser.waveform_test(msecondsplay=0.5, loops=0, first_out=1, second_out=0, clk_mega=50)
+    # def cw_ttls_easy(self): # remove this
+    #     #todo: write a real function for that...
+    #     self._pulser.waveform_test(msecondsplay=0.5, loops=0, first_out=1, second_out=0, clk_mega=50)
 
     def address_ttls(self, seq_len=5.0, first_out=1, second_out=0, third_out=0):
         '''
+        Fix this one and put it in continue loop and stop measurement
         Play ones to the APD channel to make sure the counts get through and can be used in a cw measurement.
         Here I send zeros to all the other channels: Laser, mw, and APD ref
         fist_out = channelX0 connected to laser, this should be high for cw mode
@@ -470,18 +544,20 @@ class MasterPulse(GenericLogic):
         time_ax = np.linspace(0, samples / clk_rate, samples)
 
         do_chan = 1
-        do0 = first_out * np.ones(time_ax.shape, dtype=np.int64)
-        do1 = second_out * np.ones(time_ax.shape, dtype=np.int64)
-        do2 = third_out * np.ones(time_ax.shape, dtype=np.int64)
-        print('do0', len(do0))
-        print('do1', len(do1))
-        print('do2', len(do2))
+        do0 = first_out * np.ones(time_ax.shape, dtype=np.int64) # laser
+        do1 = second_out * np.ones(time_ax.shape, dtype=np.int64) # apd
+        do2 = third_out * np.ones(time_ax.shape, dtype=np.int64) # apd ref
+        # print('do0', do0)
+        # print('do1', do1)
+        # print('do2', do2)
         outchan = 0
         do_output = {1: do0, 2: do1, 3: do2}
+        # digital_output_map = {1: do0, 2: do1, 3: do2}
         digital_output_map = {1: [0, 1, 2]}
+        # digital_output_map = {1: [0], 2: [1], 3: [2]}
         self._pulser.load_waveform(do_waveform_dictionary=do_output,
                            digital_output_map=digital_output_map)
-        self._pulser.play_waveform(self._pulser._waveform_container[-1], loops=loops) # What does this [-1] do?
+        self._pulser.play_waveform(self._pulser._waveform_container[-1], loops=loops) # What does this [-1] do? This referes to another class in the hardware code
 
     def step_counter(self):
 
@@ -500,7 +576,51 @@ class MasterPulse(GenericLogic):
 
         return step_count, max_val, min_val
 
+    def set_laser_power(self):
+        # self.cw()
+        self._laser.set_voltage(self.laser_power)
 
+    def do_fit(self, fit_function=None):
+        """
+        Execute the currently configured fit on the measurement data. Optionally on passed data
+        """
+        # load x_data and y_data
+        x_data = self.get_x_axis()
+        y_data = self.av_counts
+
+        if isinstance(fit_function, str):
+            if fit_function in self.get_fit_functions():
+                self.fc.set_current_fit(fit_function)
+            else:
+                self.fc.set_current_fit('No Fit')
+                if fit_function != 'No Fit':
+                    self.log.warning('Fit function "{0}" not available in ODMRLogic fit container.'
+                                     ''.format(fit_function))
+
+        self.fit_x, self.fit_y, result = self.fc.do_fit(x_data, y_data)
+
+        if fit_function != 'No Fit':
+            self.fit_performed = (self.fit_x, self.fit_y, result, self.fc.current_fit)
+        # else:
+        #     if key in self.fits_performed:
+        #         self.fits_performed.pop(key)
+
+        if result is None:
+            result_str_dict = {}
+        else:
+            result_str_dict = result.result_str_dict
+
+        print('emmitting update fit')
+        self.sigFitUpdated.emit(
+            self.fit_x, self.fit_y, result_str_dict, self.fc.current_fit
+        )
+        return
+
+    def get_fit_functions(self):
+        """ Return the hardware constraints/limits
+        @return list(str): list of fit function names
+        """
+        return list(self.fc.fit_list)
 
         # self._pulser.start_card(card_idx)
         # self._pulser.arm_trigger(card_idx)

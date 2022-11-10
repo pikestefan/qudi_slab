@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1253</width>
+    <width>1153</width>
     <height>824</height>
    </rect>
   </property>
@@ -62,7 +62,7 @@
         <string>Pulse parameters</string>
        </property>
        <widget class="QWidget" name="dockWidgetContents_10">
-        <widget class="QTabWidget" name="input_tab">
+        <widget class="QTabWidget" name="laser_power">
          <property name="enabled">
           <bool>true</bool>
          </property>
@@ -616,30 +616,6 @@
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
            </property>
           </widget>
-          <widget class="QCheckBox" name="storeRetraceConf_laser">
-           <property name="geometry">
-            <rect>
-             <x>230</x>
-             <y>50</y>
-             <width>101</width>
-             <height>16</height>
-            </rect>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="accessibleName">
-            <string/>
-           </property>
-           <property name="inputMethodHints">
-            <set>Qt::ImhNone</set>
-           </property>
-           <property name="text">
-            <string>Store retrace</string>
-           </property>
-          </widget>
           <widget class="QLabel" name="label_73">
            <property name="geometry">
             <rect>
@@ -730,6 +706,46 @@
            </property>
            <property name="value">
             <double>2.000000000000000</double>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_79">
+           <property name="geometry">
+            <rect>
+             <x>250</x>
+             <y>50</y>
+             <width>101</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>10</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>Laserpower(V)</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+          <widget class="ScienDSpinBox" name="laser_power_2">
+           <property name="geometry">
+            <rect>
+             <x>360</x>
+             <y>50</y>
+             <width>81</width>
+             <height>22</height>
+            </rect>
+           </property>
+           <property name="suffix">
+            <string>V</string>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="value">
+            <double>0.600000000000000</double>
            </property>
           </widget>
          </widget>
@@ -934,30 +950,6 @@
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-           </property>
-          </widget>
-          <widget class="QCheckBox" name="storeRetrace">
-           <property name="geometry">
-            <rect>
-             <x>450</x>
-             <y>60</y>
-             <width>161</width>
-             <height>20</height>
-            </rect>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="accessibleName">
-            <string/>
-           </property>
-           <property name="inputMethodHints">
-            <set>Qt::ImhNone</set>
-           </property>
-           <property name="text">
-            <string>Store retrace</string>
            </property>
           </widget>
           <widget class="QLabel" name="label_74">
@@ -1253,7 +1245,7 @@
             <string>us</string>
            </property>
           </widget>
-          <widget class="QCheckBox" name="storeRetraceConf_laser_2">
+          <widget class="QCheckBox" name="use_neg_mw">
            <property name="geometry">
             <rect>
              <x>230</x>
@@ -1326,30 +1318,6 @@
             <set>Qt::AlignCenter</set>
            </property>
           </widget>
-          <widget class="QCheckBox" name="storeRetraceConf_7">
-           <property name="geometry">
-            <rect>
-             <x>930</x>
-             <y>140</y>
-             <width>101</width>
-             <height>21</height>
-            </rect>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="accessibleName">
-            <string/>
-           </property>
-           <property name="inputMethodHints">
-            <set>Qt::ImhNone</set>
-           </property>
-           <property name="text">
-            <string>Store retrace</string>
-           </property>
-          </widget>
           <widget class="QLabel" name="label_66">
            <property name="geometry">
             <rect>
@@ -1365,7 +1333,7 @@
             </font>
            </property>
            <property name="text">
-            <string>minimal length</string>
+            <string>minimal distance</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1395,9 +1363,9 @@
           <widget class="QLabel" name="label_38">
            <property name="geometry">
             <rect>
-             <x>40</x>
+             <x>20</x>
              <y>80</y>
-             <width>71</width>
+             <width>81</width>
              <height>20</height>
             </rect>
            </property>
@@ -1407,7 +1375,7 @@
             </font>
            </property>
            <property name="text">
-            <string>max length</string>
+            <string>max distance</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -1546,7 +1514,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1253</width>
+     <width>1153</width>
      <height>21</height>
     </rect>
    </property>
@@ -1601,33 +1569,6 @@
      </sizepolicy>
     </property>
     <layout class="QGridLayout" name="gridLayout_2">
-     <item row="1" column="1">
-      <widget class="QSpinBox" name="fit_range_SpinBox">
-       <property name="maximum">
-        <number>-1</number>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="0">
-      <widget class="QLabel" name="label_12">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="text">
-        <string>Fit Results   :</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="fit_range_Label">
-       <property name="text">
-        <string>Fit range</string>
-       </property>
-      </widget>
-     </item>
      <item row="0" column="0">
       <widget class="QLabel" name="label_9">
        <property name="sizePolicy">
@@ -1641,21 +1582,8 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="2">
-      <widget class="QPushButton" name="do_fit_PushButton">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="text">
-        <string>Fit</string>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="1">
-      <widget class="QTextBrowser" name="odmr_fit_results_DisplayWidget">
+     <item row="1" column="1">
+      <widget class="QTextBrowser" name="fit_results_DisplayWidget">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Ignored" vsizetype="Expanding">
          <horstretch>0</horstretch>
@@ -1683,6 +1611,32 @@
          <horstretch>0</horstretch>
          <verstretch>0</verstretch>
         </sizepolicy>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="label_12">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="text">
+        <string>Fit Results   :</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="QPushButton" name="do_fit_PushButton">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="text">
+        <string>Fit</string>
        </property>
       </widget>
      </item>
@@ -1726,6 +1680,8 @@
    <addaction name="action_Save"/>
    <addaction name="separator"/>
    <addaction name="action_cw_mode"/>
+   <addaction name="show_reference_counts"/>
+   <addaction name="action_use_ref_counts"/>
   </widget>
   <action name="action_Settings">
    <property name="icon">
@@ -1829,16 +1785,16 @@
     <bool>true</bool>
    </property>
   </action>
-  <action name="clear_data">
+  <action name="show_reference_counts">
    <property name="icon">
     <iconset>
-     <normaloff>../../artwork/icons/oxygen/22x22/view-refresh.png</normaloff>../../artwork/icons/oxygen/22x22/view-refresh.png</iconset>
+     <normaloff>../../artwork/icons/qudiTheme/22x22/poi-new.png</normaloff>../../artwork/icons/qudiTheme/22x22/poi-new.png</iconset>
    </property>
    <property name="text">
-    <string>clear plotted data</string>
+    <string>show reference counts</string>
    </property>
    <property name="toolTip">
-    <string>clear_plotted_data</string>
+    <string>show ref counts </string>
    </property>
   </action>
   <action name="action_cw_mode">
@@ -1851,6 +1807,15 @@
    </property>
    <property name="text">
     <string>cw mode</string>
+   </property>
+  </action>
+  <action name="action_use_ref_counts">
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/qudiTheme/22x22/goto-poi.png</normaloff>../../artwork/icons/qudiTheme/22x22/goto-poi.png</iconset>
+   </property>
+   <property name="text">
+    <string>use ref counts</string>
    </property>
   </action>
  </widget>

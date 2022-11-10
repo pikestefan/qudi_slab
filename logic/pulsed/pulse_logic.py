@@ -90,7 +90,7 @@ class Pulse(GenericLogic):
         self._pulser.stop_replay(1)
 
 
-    def play_any(self, clk_rate, seq_len, laser_times, apd_times=[], apd_ref=[], mw_times=[], method=None, rep=100, mw_pulse=False, trigger=True):
+    def play_any(self, clk_rate, seq_len, laser_times, apd_times=[], apd_ref=[], mw_times=[], method=None, rep=100, mw_pulse=False, trigger=True, neg_mw=False):
         '''
         clk_rate =  clock rate of the AWG in microseconds
         seq_len =   whole length of the sequence in microseconds
@@ -130,7 +130,7 @@ class Pulse(GenericLogic):
         elif method == 'rabi':
             # Do Rabi
             # print("It does Rabi.")
-            self.play_rabi(seq_len, laser_times, apd_times, apd_ref, mw_times, rep, trigger=trigger)
+            self.play_rabi(seq_len, laser_times, apd_times, apd_ref, mw_times, rep, trigger=trigger, neg_mw=False)
 
         else:
             self.log.error("Method can only be: rabi, ramsey, delaysweep or delaysweep_ref")
@@ -272,7 +272,7 @@ class Pulse(GenericLogic):
 
 ###############     Different seqeuences    ###############
 
-    def play_rabi(self, seq_len, laser_times, apd_times, apd_ref, mw_times, rep=100, trigger=True):
+    def play_rabi(self, seq_len, laser_times, apd_times, apd_ref, mw_times, rep=100, trigger=True, neg_mw=False):
         '''
         laser_times = [laser_in, wait, laser_re] all in microseconds
                 laser_in:   length of initialisation laser pulse (it starts right at the beginning) in microseconds
@@ -324,7 +324,10 @@ class Pulse(GenericLogic):
             else:
                 # build mw waveform for every possible length
                 mw_wait = np.zeros(int(round(clk_rate * mw_times_s[0])))
-                mw_on = np.ones(int(round(clk_rate * i)))  # this changes
+                if neg_mw:
+                    mw_on = (-1) * np.ones(int(round(clk_rate * i)))  # this changes
+                else:
+                    mw_on = np.ones(int(round(clk_rate * i)))  # this changes
                 rest_array = np.zeros(int(round(clk_rate * (seq_len_s - (mw_times_s[0] + i)))))
                 mw_ao_waveform = np.concatenate((mw_wait, mw_on, rest_array))
                 len_mw_ao_waveform = self._pulser.waveform_padding(len(mw_ao_waveform))
