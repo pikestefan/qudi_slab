@@ -28,7 +28,7 @@ from core.connector import Connector
 from logic.generic_logic import GenericLogic
 from core.configoption import ConfigOption
 from core.statusvariable import StatusVar
-from hardware.awg.spectrum_awg.spectrum_netbox import AbstractWaveform
+
 
 
 
@@ -126,9 +126,10 @@ class MasterPulse(GenericLogic):
         self.rep = 100
         self.trigger_setting = True
 
-        ##
+        ## Fit
         self.fit_x = None
         self.fit_y = None
+        self.fits_performed = {}
 
         # Declare where the signals should lead to
         self.sigContinueLoop.connect(self.continue_loop, QtCore.Qt.QueuedConnection)
@@ -158,25 +159,13 @@ class MasterPulse(GenericLogic):
             fc.load_from_dict(val)
         else:
             d1 = OrderedDict()
-            d1['Lorentzian dip'] = {
-                'fit_function': 'lorentzian',
-                'estimator': 'dip'
+            d1['Rabi'] = {
+                'fit_function': 'sineexponentialdecay',
+                'estimator': 'generic'
             }
-            d1['Two Lorentzian dips'] = {
-                'fit_function': 'lorentziandouble',
-                'estimator': 'dip'
-            }
-            d1['N14'] = {
-                'fit_function': 'lorentziantriple',
-                'estimator': 'N14'
-            }
-            d1['N15'] = {
-                'fit_function': 'lorentziandouble',
-                'estimator': 'N15'
-            }
-            d1['Two Gaussian dips'] = {
-                'fit_function': 'gaussiandouble',
-                'estimator': 'dip'
+            d1['Ramsey'] = {
+                'fit_function': 'sinedoublewithtwoexpdecay',
+                'estimator': 'generic'
             }
             default_fits = OrderedDict()
             default_fits['1d'] = d1
@@ -601,7 +590,7 @@ class MasterPulse(GenericLogic):
         self.fit_x, self.fit_y, result = self.fc.do_fit(x_data, y_data)
 
         if fit_function != 'No Fit':
-            self.fit_performed = (self.fit_x, self.fit_y, result, self.fc.current_fit)
+            self.fits_performed[self.fc.current_fit] = (self.fit_x, self.fit_y, result)
         # else:
         #     if key in self.fits_performed:
         #         self.fits_performed.pop(key)
@@ -611,7 +600,7 @@ class MasterPulse(GenericLogic):
         else:
             result_str_dict = result.result_str_dict
 
-        print('emmitting update fit')
+        print('emitting update fit')
         self.sigFitUpdated.emit(
             self.fit_x, self.fit_y, result_str_dict, self.fc.current_fit
         )
