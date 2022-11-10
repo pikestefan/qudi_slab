@@ -60,7 +60,7 @@ class MasterPulse(GenericLogic):
     ## Update signals, e.g. for GUI module
     sigMeasurementDone = QtCore.Signal()
     # Gives the current count to the GUi
-    sigAverageDone = QtCore.Signal(int, np.ndarray, np.ndarray)
+    sigAverageDone = QtCore.Signal(int, np.ndarray, np.ndarray, np.ndarray)
     sigFitUpdated = QtCore.Signal(np.ndarray, np.ndarray, dict, str)
     # sigOutputStateUpdated = QtCore.Signal(str, bool)
     # sigElapsedTimeUpdated = QtCore.Signal(float, int)
@@ -326,6 +326,8 @@ class MasterPulse(GenericLogic):
         self.count_matrix_ref = count_matrix_ref
         # print(count_matrix)
         self.average_array = np.full((int(0), int(self.step_count)), 0)
+        self.average_array_ref= np.full((int(0), int(self.step_count)), 0)
+
         return count_matrix, count_matrix_ref
     #
     def prepare_devices(self):
@@ -397,12 +399,11 @@ class MasterPulse(GenericLogic):
                 # print(len(self.count_matrix[self.av_index]))
                 self.average_array = np.vstack((self.average_array, self.count_matrix[self.av_index]))
                 self.av_counts = np.mean(self.average_array, axis=0)
-                # self.average_array_ref = np.vstack((self.average_array_ref, self.count_matrix_ref[self.av_index]))
-                # self.av_counts_ref = np.mean(self.average_array_ref, axis=0)
+                self.average_array_ref = np.vstack((self.average_array_ref, self.count_matrix_ref[self.av_index]))
+                self.av_counts_ref = np.mean(self.average_array_ref, axis=0)
                 # average index,current row of the count_matrix, current average, current row of the ref_count_matrix, current average_ref
                 self.sigAverageDone.emit(self.av_index, self.count_matrix[self.av_index], self.av_counts
-                                         # ,self.count_matrix_ref[self.av_index], self.av_counts_ref
-                                         )
+                                         , self.av_counts_ref)
                 # print('average array', self.average_array)
                 # print('averageds array', self.av_counts)
                 self.av_index = self.av_index + 1

@@ -68,10 +68,10 @@
          </property>
          <property name="geometry">
           <rect>
-           <x>0</x>
+           <x>-10</x>
            <y>0</y>
            <width>1101</width>
-           <height>191</height>
+           <height>181</height>
           </rect>
          </property>
          <property name="maximumSize">
@@ -84,7 +84,7 @@
           <enum>QTabWidget::Rounded</enum>
          </property>
          <property name="currentIndex">
-          <number>2</number>
+          <number>1</number>
          </property>
          <property name="elideMode">
           <enum>Qt::ElideLeft</enum>
@@ -125,19 +125,22 @@
             </rect>
            </property>
            <property name="suffix">
-            <string>MHz</string>
+            <string>Hz</string>
            </property>
            <property name="decimals">
-            <number>4</number>
+            <number>0</number>
            </property>
            <property name="minimum">
-            <double>1500.000000000000000</double>
+            <double>1500000000.000000000000000</double>
            </property>
            <property name="maximum">
-            <double>40000.000000000000000</double>
+            <double>40000000000.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>1.000000000000000</double>
            </property>
            <property name="value">
-            <double>2876.000000000000000</double>
+            <double>2876000000.000000000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_111">
@@ -187,7 +190,7 @@
             <rect>
              <x>360</x>
              <y>30</y>
-             <width>71</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
@@ -245,18 +248,27 @@
             <rect>
              <x>360</x>
              <y>50</y>
-             <width>71</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>ms</string>
+            <string>s</string>
            </property>
            <property name="decimals">
-            <number>1</number>
+            <number>4</number>
+           </property>
+           <property name="minimum">
+            <double>0.000000000000000</double>
+           </property>
+           <property name="maximum">
+            <double>0.500000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.001000000000000</double>
            </property>
            <property name="value">
-            <double>30.000000000000000</double>
+            <double>0.030000000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="clk_awg">
@@ -264,7 +276,7 @@
             <rect>
              <x>360</x>
              <y>70</y>
-             <width>71</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
@@ -373,18 +385,21 @@
             <rect>
              <x>360</x>
              <y>90</y>
-             <width>71</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
            </property>
            <property name="decimals">
-            <number>3</number>
+            <number>10</number>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
            <property name="value">
-            <double>7.000000000000000</double>
+            <double>0.000008000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_60">
@@ -457,12 +472,24 @@
             <rect>
              <x>810</x>
              <y>50</y>
-             <width>81</width>
+             <width>111</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_ref_len">
@@ -470,12 +497,24 @@
             <rect>
              <x>810</x>
              <y>70</y>
-             <width>81</width>
+             <width>111</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_len">
@@ -483,12 +522,24 @@
             <rect>
              <x>590</x>
              <y>70</y>
-             <width>91</width>
+             <width>111</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_65">
@@ -561,12 +612,24 @@
             <rect>
              <x>590</x>
              <y>50</y>
-             <width>91</width>
+             <width>111</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>8</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000002000000000</double>
            </property>
           </widget>
          </widget>
@@ -670,10 +733,19 @@
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
            <property name="value">
-            <double>2.000000000000000</double>
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="laser_off">
@@ -686,10 +758,19 @@
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
            <property name="value">
-            <double>2.000000000000000</double>
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="laser_re">
@@ -702,10 +783,19 @@
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
            <property name="value">
-            <double>2.000000000000000</double>
+            <double>0.000005000000000</double>
            </property>
           </widget>
           <widget class="QLabel" name="label_79">
@@ -999,15 +1089,24 @@
             <rect>
              <x>150</x>
              <y>40</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
            <property name="value">
-            <double>0.500000000000000</double>
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_min_start_delay">
@@ -1015,12 +1114,21 @@
             <rect>
              <x>150</x>
              <y>60</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_max_start_delay">
@@ -1028,15 +1136,24 @@
             <rect>
              <x>150</x>
              <y>80</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
            <property name="value">
-            <double>1.000000000000000</double>
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="apd_steps_delay">
@@ -1044,15 +1161,24 @@
             <rect>
              <x>150</x>
              <y>100</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
            <property name="value">
-            <double>0.050000000000000</double>
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_start_time_delay">
@@ -1060,12 +1186,24 @@
             <rect>
              <x>350</x>
              <y>46</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000002000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_len_delay">
@@ -1073,12 +1211,21 @@
             <rect>
              <x>350</x>
              <y>66</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000001000000000</double>
            </property>
           </widget>
          </widget>
@@ -1198,12 +1345,24 @@
             <rect>
              <x>130</x>
              <y>50</y>
-             <width>81</width>
+             <width>111</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>9</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000002000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_min_len_rabi">
@@ -1211,12 +1370,21 @@
             <rect>
              <x>130</x>
              <y>70</y>
-             <width>81</width>
+             <width>111</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>9</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_max_len_rabi">
@@ -1224,12 +1392,24 @@
             <rect>
              <x>130</x>
              <y>90</y>
-             <width>81</width>
+             <width>111</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000002000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_steps_rabi">
@@ -1237,18 +1417,30 @@
             <rect>
              <x>130</x>
              <y>110</y>
-             <width>81</width>
+             <width>111</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="QCheckBox" name="use_neg_mw">
            <property name="geometry">
             <rect>
-             <x>230</x>
+             <x>270</x>
              <y>50</y>
              <width>151</width>
              <height>31</height>
@@ -1386,12 +1578,24 @@
             <rect>
              <x>110</x>
              <y>40</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000002000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_min_len_ramsey">
@@ -1399,12 +1603,21 @@
             <rect>
              <x>110</x>
              <y>60</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_max_len_ramsey">
@@ -1412,12 +1625,24 @@
             <rect>
              <x>110</x>
              <y>80</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000002000000000</double>
            </property>
           </widget>
           <widget class="ScienDSpinBox" name="mw_steps_ramsey">
@@ -1425,12 +1650,70 @@
             <rect>
              <x>110</x>
              <y>100</y>
-             <width>81</width>
+             <width>101</width>
              <height>22</height>
             </rect>
            </property>
            <property name="suffix">
-            <string>us</string>
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000001000000000</double>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_63">
+           <property name="geometry">
+            <rect>
+             <x>10</x>
+             <y>120</y>
+             <width>91</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>10</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>length of pulse</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+          <widget class="ScienDSpinBox" name="mw_len_ramsey">
+           <property name="geometry">
+            <rect>
+             <x>110</x>
+             <y>120</y>
+             <width>101</width>
+             <height>22</height>
+            </rect>
+           </property>
+           <property name="suffix">
+            <string>s</string>
+           </property>
+           <property name="decimals">
+            <number>10</number>
+           </property>
+           <property name="maximum">
+            <double>1.000000000000000</double>
+           </property>
+           <property name="singleStep">
+            <double>0.000001000000000</double>
+           </property>
+           <property name="value">
+            <double>0.000001000000000</double>
            </property>
           </widget>
          </widget>
@@ -1786,6 +2069,9 @@
    </property>
   </action>
   <action name="show_reference_counts">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset>
      <normaloff>../../artwork/icons/qudiTheme/22x22/poi-new.png</normaloff>../../artwork/icons/qudiTheme/22x22/poi-new.png</iconset>
@@ -1810,6 +2096,9 @@
    </property>
   </action>
   <action name="action_use_ref_counts">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
    <property name="icon">
     <iconset>
      <normaloff>../../artwork/icons/qudiTheme/22x22/goto-poi.png</normaloff>../../artwork/icons/qudiTheme/22x22/goto-poi.png</iconset>

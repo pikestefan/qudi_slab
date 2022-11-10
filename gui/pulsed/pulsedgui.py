@@ -62,7 +62,7 @@ class PulsedGui(GUIBase):
 
     # some signals which are also used in the master pulse logic
     sigStartMeasurement = QtCore.Signal() # This starts the measurement
-
+    sigGetValues = QtCore.Signal() # This gets the value from the masterpulse logic when the ref button is pushed
     sigDoFit = QtCore.Signal(str)
 
     def __init__(self, config, **kwargs):
@@ -119,7 +119,7 @@ class PulsedGui(GUIBase):
         #     symbolSize=7,
         # )
         self.average_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
-        # self.average_trace_ref = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='g'))
+        self.average_trace_ref = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='g'))
         self.fit_image = pg.PlotDataItem(pen=pg.mkPen(palette.c3))
 
         # This one makes every
@@ -153,10 +153,11 @@ class PulsedGui(GUIBase):
         self._mw.action_cw_mode.triggered.connect(self.cw_mode)
         self._mw.do_fit_PushButton.clicked.connect(self.do_fit)
         # This button enables the reference counts in the plot
-        # self._mw.show_reference_counts.triggered.connect(self.show_ref_counts)
+        self._mw.show_reference_counts.triggered.connect(self.ref_button)
 
         # # Control/values-changed signals to logic
         self.sigStartMeasurement.connect(self.start_measurement, QtCore.Qt.QueuedConnection)
+        self.sigGetValues.connect(self.show_ref_counts, QtCore.Qt.QueuedConnection)
 
 
         self.sigDoFit.connect(self._master_pulselogic.do_fit, QtCore.Qt.QueuedConnection)
@@ -165,7 +166,7 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.sigMeasurementDone.connect(self.measurement_done,
                                                    QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigAverageDone.connect(self.refresh_plot, QtCore.Qt.QueuedConnection)
-        # self._master_pulselogic.sigAverageDone.connect(self.show_ref_counts, QtCore.Qt.QueuedConnection)
+        self._master_pulselogic.sigAverageDone.connect(self.show_ref_counts, QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigFitUpdated.connect(self.update_fit, QtCore.Qt.QueuedConnection)
 
 
@@ -181,7 +182,7 @@ class PulsedGui(GUIBase):
         self._mw.clear_awg.triggered.disconnect()
         self._mw.action_Save.triggered.disconnect()
         self._mw.action_cw_mode.triggered.disconnect()
-        # self._mw.show_reference_counts.triggered.disconnect()
+        self._mw.show_reference_counts.triggered.disconnect()
         self.sigStartMeasurement.disconnect()
         self._mw.close()
         return 0
@@ -220,6 +221,7 @@ class PulsedGui(GUIBase):
         self._mw.mw_max_len_ramsey.setEnabled(val)
         self._mw.mw_steps_ramsey.setEnabled(val)
         self._mw.laser_power_2.setEnabled(val)
+        self._mw.mw_len_ramsey.setEnabled(val)
         # buttons
         # self._mw.do_fit_PushButton.setEnabled(val)
         # This is the save button
@@ -253,53 +255,54 @@ class PulsedGui(GUIBase):
         # Grab all the parameters from the GUI
         # general tab
         mw_power = self._mw.mw_power.value()
-        mw_freq = self._mw.mw_freq.value()*1e6  #in Hz
+        mw_freq = self._mw.mw_freq.value()  #in Hz
         method = self._mw.comboBox_method.currentText()
         averages = self._mw.averages.value()
         int_time = self._mw.integration_time.value()*1e-3  #in sec
-        seq_len = self._mw.seq_len.value() #this should be in us
+        seq_len = self._mw.seq_len.value()*1e6 #this should be in us
         sampling_rate_awg = int(self._mw.clk_awg.value())
 
-        apd_start = self._mw.apd_start_time.value()
-        apd_len = self._mw.apd_len.value()
+        apd_start = self._mw.apd_start_time.value()*1e6
+        apd_len = self._mw.apd_len.value()*1e6
 
-        apd_ref_start = self._mw.apd_ref_start_time.value()
-        apd_ref_len = self._mw.apd_ref_len.value()
+        apd_ref_start = self._mw.apd_ref_start_time.value()*1e6
+        apd_ref_len = self._mw.apd_ref_len.value()*1e6
 
         # laser times tab
-        laser_in = self._mw.laser_in.value()
-        laser_off = self._mw.laser_off.value()
-        laser_re = self._mw.laser_re.value()
+        laser_in = self._mw.laser_in.value()*1e6
+        laser_off = self._mw.laser_off.value()*1e6
+        laser_re = self._mw.laser_re.value()*1e6
         laser_power = self._mw.laser_power_2.value()
 
         # delay_sweep tab
-        apd_len_delay = self._mw.apd_len_pulse_delay.value()
-        apd_min_start_delay = self._mw.apd_min_start_delay.value()
-        apd_max_start_delay = self._mw.apd_max_start_delay.value()
-        apd_steps_delay = self._mw.apd_steps_delay.value()
+        apd_len_delay = self._mw.apd_len_pulse_delay.value()*1e6
+        apd_min_start_delay = self._mw.apd_min_start_delay.value()*1e6
+        apd_max_start_delay = self._mw.apd_max_start_delay.value()*1e6
+        apd_steps_delay = self._mw.apd_steps_delay.value()*1e6
 
         use_mw_delay = self._mw.use_mw_delay.isChecked()
-        mw_start_delay = self._mw.mw_start_time_delay.value()
-        mw_len_delay = self._mw.mw_len_delay.value()
+        mw_start_delay = self._mw.mw_start_time_delay.value()*1e6
+        mw_len_delay = self._mw.mw_len_delay.value()*1e6
 
         # rabi tab
-        mw_start_time_rabi = self._mw.mw_start_time_rabi.value()
-        mw_min_len_rabi = self._mw.mw_min_len_rabi.value()
-        mw_max_len_rabi = self._mw.mw_max_len_rabi.value()
-        mw_steps_rabi = self._mw.mw_steps_rabi.value()
+        mw_start_time_rabi = self._mw.mw_start_time_rabi.value()*1e6
+        mw_min_len_rabi = self._mw.mw_min_len_rabi.value()*1e6
+        mw_max_len_rabi = self._mw.mw_max_len_rabi.value()*1e6
+        mw_steps_rabi = self._mw.mw_steps_rabi.value()*1e6
         use_neg_mw = self._mw.use_neg_mw.isChecked()
 
         # ramsey tab
-        mw_start_time_ramsey = self._mw.mw_start_time_ramsey.value()
-        mw_min_len_ramsey = self._mw.mw_min_len_ramsey.value()
-        mw_max_len_ramsey = self._mw.mw_max_len_ramsey.value()
-        mw_steps_ramsey = self._mw.mw_steps_ramsey.value()
+        mw_start_time_ramsey = self._mw.mw_start_time_ramsey.value()*1e6
+        mw_min_len_ramsey = self._mw.mw_min_len_ramsey.value()*1e6
+        mw_max_len_ramsey = self._mw.mw_max_len_ramsey.value()*1e6
+        mw_steps_ramsey = self._mw.mw_steps_ramsey.value()*1e6
+        mw_len_ramsey = self._mw.mw_len_ramsey.value()*1e6
 
         # now send all the parameters from above to the masterlogic
 
         self._master_pulselogic.laser_times = [laser_in, laser_off, laser_re]
         self._master_pulselogic.laser_power = laser_power
-        self._master_pulselogic.mw_times_ramsey = [mw_start_time_ramsey, mw_min_len_ramsey, mw_max_len_ramsey, mw_steps_ramsey]
+        self._master_pulselogic.mw_times_ramsey = [mw_start_time_ramsey, mw_min_len_ramsey, mw_max_len_ramsey, mw_steps_ramsey, mw_len_ramsey]
         self._master_pulselogic.mw_times_rabi = [mw_start_time_rabi, mw_min_len_rabi, mw_max_len_rabi, mw_steps_rabi]
         self._master_pulselogic.neg_mw = use_neg_mw
         self._master_pulselogic.apd_times = [apd_start, apd_len]
@@ -372,7 +375,7 @@ class PulsedGui(GUIBase):
             self.index +=1
             #continue plotting
 
-    def refresh_plot(self, av_index, current_row, current_average):
+    def refresh_plot(self, av_index, current_row, current_average, ref_average):
         # Draw current odmr trace
         # print('curent row', current_row)
         # This is where the data from the logic should be
@@ -385,13 +388,25 @@ class PulsedGui(GUIBase):
         else:
             self.average_trace.clear()
 
-    # def show_ref_counts(self, av_index, current_row, current_average, current_row_ref, current_average_ref):
-    #     # Draw the current average of the ref counts
-    #     # Draw average trace
-    #     if av_index > 0:
-    #         self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), current_average_ref)
-    #     else:
-    #         self.average_trace.clear()
+    def ref_button(self, is_checked):
+        """ Manages what happens if measurement is started/stopped. """
+
+        if is_checked:
+            self.sigGetValues.emit()
+            # get the values from the get_values method
+            # and plots them
+
+        else:
+            # dont do anything
+            pass
+
+    def show_ref_counts(self, av_index, current_row, current_average, ref_average):
+        # This should fish the signal from sigAverageDone from masterpulse logic
+        # Draw average trace
+        if av_index > 0:
+            self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), ref_average)
+        else:
+            self.average_trace.clear()
 
     def update_fit(self, x_fit, y_fit, result_str_dict, current_fit):
         print(x_fit, y_fit, result_str_dict, current_fit)
@@ -434,29 +449,29 @@ class PulsedGui(GUIBase):
         fit_function = self._mw.fit_methods_ComboBox.getCurrentFit()[0]
         self.sigDoFit.emit(fit_function)
 
-    def update_fit(self, x_data, y_data, result_str_dict, current_fit):
-        """ Update the shown fit. """
-        if current_fit != 'No Fit':
-            # display results as formatted text
-            self._mw.fit_results_DisplayWidget.clear()
-            try:
-                formated_results = units.create_formatted_output(result_str_dict)
-            except:
-                formated_results = 'this fit does not return formatted results'
-            self._mw.fit_results_DisplayWidget.setPlainText(formated_results)
-
-        self._mw.fit_methods_ComboBox.blockSignals(True)
-        self._mw.fit_methods_ComboBox.setCurrentFit(current_fit)
-        self._mw.fit_methods_ComboBox.blockSignals(False)
-
-        # check which Fit method is used and remove or add again the
-        # odmr_fit_image, check also whether a odmr_fit_image already exists.
-        if current_fit == 'No Fit':
-            return
-
-        self.fit_image.setData(x=x_data, y=y_data)
-        self._mw.pulsed_PlotWidget.getViewBox().updateAutoRange()
-        return
+    # def update_fit(self, x_data, y_data, result_str_dict, current_fit):
+    #     """ Update the shown fit. """
+    #     if current_fit != 'No Fit':
+    #         # display results as formatted text
+    #         self._mw.fit_results_DisplayWidget.clear()
+    #         try:
+    #             formated_results = units.create_formatted_output(result_str_dict)
+    #         except:
+    #             formated_results = 'this fit does not return formatted results'
+    #         self._mw.fit_results_DisplayWidget.setPlainText(formated_results)
+    #
+    #     self._mw.fit_methods_ComboBox.blockSignals(True)
+    #     self._mw.fit_methods_ComboBox.setCurrentFit(current_fit)
+    #     self._mw.fit_methods_ComboBox.blockSignals(False)
+    #
+    #     # check which Fit method is used and remove or add again the
+    #     # odmr_fit_image, check also whether a odmr_fit_image already exists.
+    #     if current_fit == 'No Fit':
+    #         return
+    #
+    #     self.fit_image.setData(x=x_data, y=y_data)
+    #     self._mw.pulsed_PlotWidget.getViewBox().updateAutoRange()
+    #     return
 
 
     def change_sweep_params(self):
