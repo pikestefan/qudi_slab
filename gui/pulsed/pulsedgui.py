@@ -152,6 +152,7 @@ class PulsedGui(GUIBase):
         # This button goes back to cw mode where we can see the laser
         self._mw.action_cw_mode.triggered.connect(self.cw_mode)
         self._mw.do_fit_PushButton.clicked.connect(self.do_fit)
+        self._mw.fill_puls_times_pushButton.clicked.connect(self.fill_pulse_times)
         # This button enables the reference counts in the plot
         # self._mw.show_reference_counts.triggered.connect(self.show_ref_counts)
 
@@ -414,11 +415,6 @@ class PulsedGui(GUIBase):
         # if current_fit == 'No Fit':
         #     return
 
-        print('x_fit')
-        print(x_fit)
-        print('y_fit')
-        print(y_fit)
-
         self.fit_image.setData(x=x_fit, y=y_fit)
         # if self.fit_image not in self._mw.pulsed_PlotWidget.listDataItems():
         #     self._mw.pulsed_PlotWidget.addItem(self.fit_image)
@@ -429,6 +425,18 @@ class PulsedGui(GUIBase):
         self._mw.pulsed_PlotWidget.getViewBox().updateAutoRange()
         return
 
+    def fill_pulse_times(self):
+        if 'Rabi' not in self._master_pulselogic.performed_fits:
+            return
+
+        # Extract Rabi frequency
+        _, _, result = self._master_pulselogic.performed_fits['Rabi']
+        rabi_freq = result.values['frequency']
+        pi_puls = 1 / (2 * rabi_freq)
+        pi_half_puls = pi_puls / 2
+
+        # Fill in Puls Times
+        self._mw.mw_len_delay.setValue(pi_puls)
 
     def do_fit(self):
         fit_function = self._mw.fit_methods_ComboBox.getCurrentFit()[0]
