@@ -32,7 +32,6 @@ from interface.pulser_interface import PulserInterface, PulserConstraints
 
 
 class SpectrumNetbox(Base, PulserInterface):
-    # TODO: one day, maybe implement an autodetection if the ip is not provided.
     _card_ip = ConfigOption('card_ip', missing='error')
     _netbox_type = ConfigOption('netbox_type', 'DN2.663-04', missing='info')
     _max_frequency = ConfigOption('max_frequency', 100e6, missing='info')
@@ -60,7 +59,7 @@ class SpectrumNetbox(Base, PulserInterface):
     __digout_channels = [SPCM_X0_MODE, SPCM_X1_MODE, SPCM_X2_MODE]
 
     def on_activate(self):
-        #FIXME: maybe implement a network discovery. If so, it should be fast.
+        #TODO: maybe implement a network discovery. If so, it should be fast.
         if self._netbox_type == 'DN2.663-04':
             self._card_num = 2
             self._ao_chans_percard = 2
@@ -391,37 +390,6 @@ class SpectrumNetbox(Base, PulserInterface):
         self.start_card(card_idx)
         self.arm_trigger(card_idx)
 
-    def waveform_test(self, msecondsplay=0.5, loops=0, first_out=0, second_out=1, third_out=1, clk_mega=50):
-        '''
-        loops = 0 means it plays the waveform infinitely
-        '''
-
-        msecondsplay *= 1e-3
-
-        clk_rate = MEGA(clk_mega)
-
-        card_idx = 1
-        self.set_sample_rate(card_idx, clk_rate)
-
-        # # This sequence immediately starts after the sequences are loaded
-        self.configure_ORmask(card_idx, 'immediate')
-        self.configure_ANDmask(card_idx, None)
-
-        samples = self.waveform_padding(msecondsplay * clk_rate)
-        time_ax = np.linspace(0, samples/clk_rate, samples)
-
-        do0 = first_out * np.ones(time_ax.shape, dtype=np.int64)
-        do1 = second_out * np.ones(time_ax.shape, dtype=np.int64)
-        do2 = third_out * np.ones(time_ax.shape, dtype=np.int64)
-
-        do_output = {0: do0, 1: do1, 2: do2}
-        digital_output_map = {1: [0, 1, 2]}
-        self.load_waveform(do_waveform_dictionary=do_output,
-                           digital_output_map=digital_output_map)
-        self.play_waveform(self._waveform_container[-1], loops=loops)
-        self.start_card(card_idx)
-        self.arm_trigger(card_idx)
-
     def play_waveform(self, waveform=None, loops=0):
 
         if waveform is None:
@@ -603,7 +571,7 @@ class SpectrumNetbox(Base, PulserInterface):
                     spcm_dwSetParam_i64(mastercard, self.__digout_channels[xoutput], x_chan_mode)
 
     def _create_waveform_buffers(self, analog_waveforms=dict(), digital_waveforms=dict(),
-                                 sequence_step=None):
+                                 sequence_step=None, rescale_maxbit_all=True):
         """
         Given a bunch of waveforms, it prepares the buffers for data transfer. Channels have to be activated somewhere
         else, this function just prepares and returns the buffers for data transfer.
@@ -648,6 +616,10 @@ class SpectrumNetbox(Base, PulserInterface):
             if card_idx == masteridx and digital_waveforms:
                 req_do_channels = list(digital_waveforms.keys())
 
+                if rescale_maxbit_all:
+                    #Get the maximum number of waveforms assigned to a single channel
+                    maximum_dw_number = max(map(len, digital_waveforms.values()))
+
                 # Check the lengths of the digital waveforms to be loaded, they need to be the same.
                 do_sizes = [wform.shape[1] for wform in digital_waveforms.values()]
                 if len(set(do_sizes)) > 1:
@@ -671,7 +643,13 @@ class SpectrumNetbox(Base, PulserInterface):
                 maxADC_chan = maxADC - 1
                 if card_idx == masteridx and digital_waveforms and channel in digital_waveforms:
                     # If there are digital channels, you need to sacrifice one bit for each digital channel
-                    maxADC_chan = (maxADC // 2 ** (len(digital_waveforms[channel]))) - 1
+
+                    if rescale_maxbit_all:
+                        # If this is requested, the ao channels are all going to be rescaled to the channel with the
+                        # smallest number of available ao bits.
+                        maxADC_chan = (maxADC // 2 **maximum_dw_number) - 1
+                    else:
+                        maxADC_chan = (maxADC // 2 ** len(digital_waveforms[channel])) - 1
                     channel_do_matrix = (digital_waveforms[channel].T *
                                          2 ** (15 - np.arange(len(digital_waveforms[channel])))).astype(c_int16)
                     #                    The line above shifts puts each do signal in its right bit
