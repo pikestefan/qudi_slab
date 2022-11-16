@@ -25,6 +25,7 @@ import math
 import time
 import datetime
 from core.connector import Connector
+from core.util.mutex import Mutex
 from logic.generic_logic import GenericLogic
 from core.configoption import ConfigOption
 from core.statusvariable import StatusVar
@@ -45,29 +46,76 @@ class MasterPulse(GenericLogic):
     savelogic = Connector(interface='SaveLogic')
     pulselogic = Connector(interface='Pulse')
     fitlogic = Connector(interface='FitLogic')
+    timeseries_logic = Connector(interface='TimeSeriesReaderLogic')
 
     ## Define status variables
     fc = StatusVar('fits', None)
+    # status vars
+    averages = StatusVar('averages', 10)  # max value for rows
+    mw_frequency = StatusVar('mw_frequency', 2.8685e9)
+    mw_power = StatusVar('mw_power', -30)  # in dBm
+    integration_time = StatusVar('integration_time', 30e-3)  # in s
+    laser_power = StatusVar('laser_power', 0.628)  # in V... Max is 1V!
+    clk_rate_awg = StatusVar('clk_rate_awg', int(800e6))  # in MHz
 
-    # integration_time = 30e-3 # In microseconds for timing...
+    ## Delay Sweep
+    mw_pulse_setting = StatusVar('mw_pulse_setting', True)  # this is only for delay sweep
+    seq_len = StatusVar('seq_len', 8.5e-6)
+    neg_mw = StatusVar('neg_mw', False)  # if False it plays +1, if True it applies negative mw pulses -1 (all the pulses are squared)
+    method = StatusVar('method', 'rabi')  # change this to 'ramsey', 'delaysweep', 'rabi' or 'delaysweep_ref' if needed
+
+    # StatusVar for arrays:
+    apd_start = StatusVar('apd_start', 3.05e-6)
+    apd_len = StatusVar('apd_len', 250e-9)
+    apd_ref_start = StatusVar('apd_ref_start', 4.5e-6)
+    apd_ref_len = StatusVar('apd_ref_len', 250e-9)
+
+    # laser times tab
+    laser_in = StatusVar('laser_in', 1e-6)
+    laser_off = StatusVar('laser_off', 2e-6)
+    laser_re = StatusVar('laser_re', 2e-6)
+
+    # delay_sweep tab
+    apd_len_delay = StatusVar('apd_len_delay', 50e-9)
+    apd_min_start_delay = StatusVar('apd_min_start_delay', 0e-6)
+    apd_max_start_delay = StatusVar('apd_max_start_delay', 2.6e-6)
+    apd_steps_delay = StatusVar('apd_steps_delay', 50e-9)
+
+    mw_start_delay = StatusVar('mw_start_delay', 1.3e-6)
+    mw_len_delay = StatusVar('mw_len_delay', 500e-9) #What ever the pi pulse is
+
+    # rabi tab
+    mw_start_time_rabi = StatusVar('mw_start_time_rabi', 1.3e-6)
+    mw_min_len_rabi = StatusVar('mw_min_len_rabi', 0e-6)
+    mw_max_len_rabi = StatusVar('mw_max_len_rabi', 900e-9)
+    mw_steps_rabi = StatusVar('mw_steps_rabi', 100e-9)
+
+    # ramsey tab
+    mw_start_time_ramsey = StatusVar('mw_start_time_ramsey', 1.3e-6)
+    mw_min_len_ramsey = StatusVar('mw_min_len_ramsey', 0e-6)
+    mw_max_len_ramsey = StatusVar('mw_max_len_ramsey', 900e-9)
+    mw_steps_ramsey = StatusVar('mw_steps_ramsey', 50e-9)
+    mw_len_ramsey = StatusVar('mw_len_ramsey', 200e-9) #whatever the rabi says
+
     #
     # Internal signals
     sigContinueLoop = QtCore.Signal()
     sigStopMeasurement = QtCore.Signal()
     sigStopAll = QtCore.Signal()
-    sigNextLine = QtCore.Signal()
+    # sigNextLine = QtCore.Signal()
     #
     ## Update signals, e.g. for GUI module
     sigMeasurementDone = QtCore.Signal()
     # Gives the current count to the GUi
-    sigAverageDone = QtCore.Signal(int, np.ndarray, np.ndarray, np.ndarray)
+    sigAverageDone = QtCore.Signal(int, np.ndarray, np.ndarray, np.ndarray) # number of averages, counts and average counts
+    # sigGetRefValues = QtCore.Signal(int, np.ndarray) # number of averages, ref_average counts
     sigFitUpdated = QtCore.Signal(np.ndarray, np.ndarray, dict, str)
     # sigOutputStateUpdated = QtCore.Signal(str, bool)
     # sigElapsedTimeUpdated = QtCore.Signal(float, int)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
-        # self.threadlock = Mutex()
+        self.threadlock = Mutex()
 
     def on_activate(self):
         # Initialisation performed during activation of the module
@@ -80,9 +128,11 @@ class MasterPulse(GenericLogic):
         self._savelogic = self.savelogic()
         self._pulselogic = self.pulselogic()
         self._fitlogic = self.fitlogic()
+        self._timeseries = self.timeseries_logic()
         active_channels = self._pulser.get_active_channels()
         self._pulser.clear_all()
         self._pulser.reset()
+
         # These are the index for the matrix (step_index: columns and av_index: rows)
         #  Elapsed measurement time and number of sweeps
         self.elapsed_time = 0.0
@@ -91,38 +141,11 @@ class MasterPulse(GenericLogic):
         self.count_matrix = None  # This matrix is used to store the DAQ card values.
         self.av_index = 0  # value right now, row
         self.step_index = 0 # value right now, column
-        self.averages = 5 # max value for rows
-        self.mw_frequency = 2.8685e9
-        self.mw_power = -25 # in dBm
-        self.integration_time = 100e-3  # in s
-        self.laser_power = 0.6 # in V... Max is 1V!
+
+
         # self.step_count = self._pulselogic.get_step_count([2.1, 1, 2, 0.5])  #max value for columns
         self.clk_rate_daq = self._photon_counter.get_counter_clock_frequency() # which is 100000
-        self.clk_rate_awg = 800  # in MHz
 
-
-        ## Delay Sweep
-        # self.seq_len = 5     # in microseconds
-        # self.laser_times = [1, 1, 2]  # on off on ...the rest is zeros [1, 5.5, 1.5]
-        # self.mw_times_sweep = [0.5, 0.35] # mw_wait_time between laser off and mw on, mw_pulse_time
-        # self.apd_times_sweep = [0.05, 1.9, 4.3, 0.1] #length, min_start, max_start, steps in microseconds
-        # self.apd_ref_times = [4.5, 0.05]  # [time to start, length of the pulse]
-        self.mw_pulse_setting = True  # this is only for delay sweep
-        # self.method = 'delaysweep'
-
-
-        ## Rabi
-        self.seq_len = 8.5
-        self.laser_times = [1, 6, 1.5] # on off on ...the rest is zeros
-        self.apd_ref_times = [8, 0.5] #[time to start, length of the pulse]
-        self.method = 'rabi'    # change this to 'ramsey', 'delaysweep', 'rabi' or 'delaysweep_ref' if needed
-        self.neg_mw = False  # if False it plays +1, if True it applies negative mw pulses -1 (all the pulses are squared)
-
-
-
-        self.mw_times_rabi = [1.3, 0, 5, 0.05] # [mw_start_time, mw_len_0, mw_len_max, steps] all in microseconds
-        self.mw_times_ramsey = [1.3, 0, 2, 0.01, 0.23153164696900955] #[start, distance_min, distance_max, steps, pulse length] all in microseconds 0.22624434389140272
-        self.apd_times = [7.05, 0.5] # [time to start, length] all in microseconds
         self.rep = 100
         self.trigger_setting = True
 
@@ -137,7 +160,26 @@ class MasterPulse(GenericLogic):
         self.sigStopAll.connect(self.stop_all, QtCore.Qt.QueuedConnection)
         self.stopRequested = False
 
+        self._build_pulse_arrays()
+
         return active_channels
+
+    def _build_pulse_arrays(self):
+        # Build arrays from the StatusVar
+        self.apd_times = [self.apd_start, self.apd_len]  # [time to start, length] all in microseconds
+        self.apd_ref_times = [self.apd_ref_start, self.apd_ref_len]
+
+        self.laser_times = [self.laser_in, self.laser_off, self.laser_re]  # on off on ...the rest is zeros
+        # [mw_start_time, mw_len_0, mw_len_max, steps] all in microsecond
+        self.mw_times_rabi = [self.mw_start_time_rabi, self.mw_min_len_rabi, self.mw_max_len_rabi, self.mw_steps_rabi]
+        # [start, distance_min, distance_max, steps, pulse length] all in microseconds
+        self.mw_times_ramsey = [self.mw_start_time_ramsey, self.mw_min_len_ramsey, self.mw_max_len_ramsey,
+                                self.mw_steps_ramsey, self.mw_len_ramsey]
+
+        # mw_wait_time between laser off and mw on, mw_pulse_time
+        self.mw_times_sweep = [self.mw_start_delay, self.mw_len_delay]
+        self.apd_times_sweep = [self.apd_len_delay, self.apd_min_start_delay, self.apd_max_start_delay, self.apd_steps_delay]  # length, min_start, max_start, steps in microseconds
+
 
     def on_deactivate(self):
         self._pulser.clear_all()
@@ -146,7 +188,7 @@ class MasterPulse(GenericLogic):
         self.sigAverageDone.disconnect()
         self.sigContinueLoop.disconnect()
         self.sigStopMeasurement.disconnect()
-        self.sigNextLine.disconnect()
+        # self.sigNextLine.disconnect()
         self.sigStopAll.disconnect()
         self.mw_off()
 
@@ -159,11 +201,11 @@ class MasterPulse(GenericLogic):
             fc.load_from_dict(val)
         else:
             d1 = OrderedDict()
-            d1['Rabi'] = {
+            d1['rabi'] = {
                 'fit_function': 'sineexponentialdecay',
                 'estimator': 'generic'
             }
-            d1['Ramsey'] = {
+            d1['ramsey'] = {
                 'fit_function': 'sinedoublewithtwoexpdecay',
                 'estimator': 'generic'
             }
@@ -191,6 +233,7 @@ class MasterPulse(GenericLogic):
         # change to paly waveform
         #self._pulselogic.do_cw(self.seq_len)
         self._pulser.reset()
+        # self._time_series_logic_con.start_reading()
         if on:
             first_out = 1. # The laser
             second_out = 0. # The APD
@@ -313,9 +356,6 @@ class MasterPulse(GenericLogic):
         # These are the index for the matrix (step_index: columns and av_index: rows)
         self.count_matrix = count_matrix
         self.count_matrix_ref = count_matrix_ref
-        # print(count_matrix)
-        self.average_array = np.full((int(0), int(self.step_count)), 0)
-        self.average_array_ref= np.full((int(0), int(self.step_count)), 0)
 
         return count_matrix, count_matrix_ref
     #
@@ -335,6 +375,7 @@ class MasterPulse(GenericLogic):
         self._mw_device.set_mod(True)
 
     def start_measurement(self):
+        self._build_pulse_arrays()
         self.stop_awg()
         self.set_laser_power() #this one talks to the qwg via awg.cw
         self.prepare_count_matrix()
@@ -384,16 +425,11 @@ class MasterPulse(GenericLogic):
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 #print(self.count_matrix[self.av_index])
                 self.step_index = 0
-                # print(self.count_matrix[self.av_index])
-                # print(len(self.count_matrix[self.av_index]))
-                self.average_array = np.vstack((self.average_array, self.count_matrix[self.av_index]))
-                self.av_counts = np.mean(self.average_array, axis=0)
-                self.average_array_ref = np.vstack((self.average_array_ref, self.count_matrix_ref[self.av_index]))
-                self.av_counts_ref = np.mean(self.average_array_ref, axis=0)
-                # average index,current row of the count_matrix, current average, current row of the ref_count_matrix, current average_ref
-                self.sigAverageDone.emit(self.av_index, self.count_matrix[self.av_index], self.av_counts
-                                         , self.av_counts_ref)
-                # print('average array', self.average_array)
+                idx = self.av_index + 1
+                self.av_counts = self.count_matrix[:idx, :].mean(axis=0)
+                self.av_counts_ref = self.count_matrix_ref[:idx, :].mean(axis=0)
+                self.sigAverageDone.emit(self.av_index, self.count_matrix[self.av_index], self.av_counts, self.av_counts_ref)
+                # self.sigGetRefValues.emit(self.av_index, self.av_counts_ref)
                 # print('averageds array', self.av_counts)
                 self.av_index = self.av_index + 1
                 self.sigContinueLoop.emit()
@@ -429,8 +465,8 @@ class MasterPulse(GenericLogic):
         #self.save_data(self.method)
 
     def save_data(self, method):
-
         timestamp = datetime.datetime.now()
+
         if method == 'rabi':
             apd_times = self.apd_times
             mw_times = self.mw_times_rabi
@@ -445,6 +481,7 @@ class MasterPulse(GenericLogic):
         data_raw['count data'] = self.count_matrix
         data_raw['REF count data'] = self.count_matrix_ref
         data_raw['averaged signal'] = self.av_counts
+
         parameters = OrderedDict()
         parameters['Microwave Power'] = self.mw_power
         parameters['Run Time'] = self.elapsed_time
@@ -462,8 +499,18 @@ class MasterPulse(GenericLogic):
         parameters['MW pulse used?'] = self.mw_pulse_setting
         parameters['software trigger'] = self.trigger_setting
         parameters['timestamp'] = timestamp.strftime('%Y-%m-%d, %H:%M:%S')
-        self._savelogic.save_hdf5_data(data_raw, attributes={'count data': parameters, 'REF count data': parameters}, filename= timestamp.strftime('%Y-%m-%d-%H-%M-%S') + '_' + self.method +'.h5')
 
+        attributes = {'count data': parameters, 'REF count data': parameters}
+
+        # Check if a fit has been performed
+        if method in self.fits_performed:
+            x_fit, y_fit, result = self.fits_performed[method]
+            data_raw['fit values'] = np.stack((x_fit, y_fit))
+            attributes['fit values'] = result.values
+
+        self._savelogic.save_hdf5_data(data_raw,
+                                       attributes=attributes,
+                                       filename=timestamp.strftime('%Y-%m-%d-%H-%M-%S') + '_' + self.method + '.h5')
 
     def acquire_pixel(self):
         # Requests the counts from the DAQ card, gives one number only
@@ -521,7 +568,7 @@ class MasterPulse(GenericLogic):
         seq_len *= 1e-6
         card_idx = 1
         loops = 0 # This lets the waveform play infinitely
-        self._pulser.set_sample_rate(card_idx = card_idx, clk_rate=50000000) # low sampling rate is fine for that
+        self._pulser.set_sample_rate(card_idx = card_idx, clk_rate=int(50000000)) # low sampling rate is fine for that
         clk_rate = self._pulser.get_sample_rate(card_idx)
 
         #self.set_sample_rate(card_idx, clk_rate)
@@ -550,6 +597,7 @@ class MasterPulse(GenericLogic):
         self._pulser.play_waveform(self._pulser._waveform_container[-1], loops=loops) # What does this [-1] do? This referes to another class in the hardware code
 
     def step_counter(self):
+        self._build_pulse_arrays()
 
         if self.method == 'rabi':
             step_count = self._pulselogic.get_step_count(self.mw_times_rabi)
@@ -558,7 +606,7 @@ class MasterPulse(GenericLogic):
         elif self.method == 'ramsey':
             step_count = self._pulselogic.get_step_count(self.mw_times_ramsey)
             max_val = self.mw_times_ramsey[2]
-            min_val = self.mw_times_ramsy[1]
+            min_val = self.mw_times_ramsey[1]
         else:
             step_count = self._pulselogic.get_step_count(self.apd_times_sweep)
             max_val = self.apd_times_sweep[2]
@@ -614,3 +662,10 @@ class MasterPulse(GenericLogic):
 
         # self._pulser.start_card(card_idx)
         # self._pulser.arm_trigger(card_idx)
+
+    def start_stop_timetrace(self, val):
+        if val == True:
+            #Start timetrace
+            self._timeseries.start_reading()
+        else:
+            self._timeseries.stop_reading()

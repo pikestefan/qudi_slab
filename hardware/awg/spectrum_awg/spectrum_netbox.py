@@ -340,7 +340,7 @@ class SpectrumNetbox(Base, PulserInterface):
         clk_rate = MEGA(100)
 
         card_idx = 1
-        self.set_sample_rate(card_idx, clk_rate)
+        self.set_sample_rate(card_idx, int(clk_rate))
 
         samples = self.waveform_padding(msecondsplay * clk_rate)
         time_ax = np.linspace(0, samples/clk_rate, samples)
@@ -401,7 +401,7 @@ class SpectrumNetbox(Base, PulserInterface):
         clk_rate = MEGA(clk_mega)
 
         card_idx = 1
-        self.set_sample_rate(card_idx, clk_rate)
+        self.set_sample_rate(card_idx, int(clk_rate))
 
         # # This sequence immediately starts after the sequences are loaded
         self.configure_ORmask(card_idx, 'immediate')

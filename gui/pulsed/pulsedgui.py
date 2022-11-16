@@ -34,6 +34,8 @@ from qtpy import QtCore
 from qtpy import QtCore, QtWidgets, uic
 from qtwidgets.scientific_spinbox import ScienDSpinBox
 from qtpy import uic
+import time
+import datetime
 from functools import partial
 
 
@@ -62,8 +64,9 @@ class PulsedGui(GUIBase):
 
     # some signals which are also used in the master pulse logic
     sigStartMeasurement = QtCore.Signal() # This starts the measurement
-    sigGetValues = QtCore.Signal() # This gets the value from the masterpulse logic when the ref button is pushed
     sigDoFit = QtCore.Signal(str)
+
+
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -76,7 +79,7 @@ class PulsedGui(GUIBase):
         """
 
         self._master_pulselogic = self.master_pulselogic()
-        # Use the inherited class 'Ui_ODMRGuiUI' to create now the GUI element:
+
         self._mw = PulsedMainWindow()
         # self._sd = ODMRSettingDialog()
         # Create a QSettings object for the mainwindow and store the actual GUI layout
@@ -102,43 +105,19 @@ class PulsedGui(GUIBase):
 
         # set up all the important connections:
         self._setup_connections()
+        self._setup_plots()
 
-        # Set up plot
-        self.curr_trace = pg.PlotDataItem(
-            pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
-            symbol='o',
-            symbolPen=palette.c1,
-            symbolBrush=palette.c1,
-            symbolSize=7,
-        )
-        # self.curr_trace_ref = pg.PlotDataItem(
-        #     pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
-        #     symbol='x',
-        #     symbolPen=palette.c1,
-        #     symbolBrush=palette.c1,
-        #     symbolSize=7,
-        # )
-        self.average_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
-        self.average_trace_ref = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='g'))
-        self.fit_image = pg.PlotDataItem(pen=pg.mkPen(palette.c3))
+        # Grab the saved status variable parameters from the logic
+        self._get_parameters_from_logic()
 
-        # This one makes every
-        self._mw.pulsed_PlotWidget.addItem(self.curr_trace)
-        # This one makes the average signal visible
-        self._mw.pulsed_PlotWidget.addItem(self.average_trace)
-        self._mw.pulsed_PlotWidget.addItem(self.fit_image)
-        self._mw.pulsed_PlotWidget.setLabel('bottom', 'Time in us')
-        self._mw.pulsed_PlotWidget.setLabel('left', 'Counts')
+
+
 
     def _setup_connections(self):
         # this happens during on_activate
         ########################################################################
         #                       Connect signals                                #
         ########################################################################
-        # # Internal user input changed signals
-
-
-        #
         # # Internal trigger signals --> connect the signals from the buttons to the gui methods
         # These are the buttons in the toolbar of the GUI
         # This is the red run button on the left
@@ -155,22 +134,53 @@ class PulsedGui(GUIBase):
         self._mw.fill_puls_times_pushButton.clicked.connect(self.fill_pulse_times)
         # This button enables the reference counts in the plot
         self._mw.show_reference_counts.triggered.connect(self.ref_button)
+        self._mw.pulse_type_tabWidget.currentChanged.connect(self.tab_changed)
+        self._mw.laser_power_2.valueChanged.connect(self.changed_laser_power)
 
         # # Control/values-changed signals to logic
         self.sigStartMeasurement.connect(self.start_measurement, QtCore.Qt.QueuedConnection)
-        self.sigGetValues.connect(self.show_ref_counts, QtCore.Qt.QueuedConnection)
+
+
 
 
         self.sigDoFit.connect(self._master_pulselogic.do_fit, QtCore.Qt.QueuedConnection)
+
 
         # # Update signals coming from logic:
         self._master_pulselogic.sigMeasurementDone.connect(self.measurement_done,
                                                    QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigAverageDone.connect(self.refresh_plot, QtCore.Qt.QueuedConnection)
-        self._master_pulselogic.sigAverageDone.connect(self.show_ref_counts, QtCore.Qt.QueuedConnection)
+        # self._master_pulselogic.sigGetRefValues.connect(self.show_ref_counts, QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigFitUpdated.connect(self.update_fit, QtCore.Qt.QueuedConnection)
 
+    def _setup_plots(self):
+        # Set up the plots
+        self.curr_trace = pg.PlotDataItem(
+            pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+            symbol='o',
+            symbolPen=palette.c1,
+            symbolBrush=palette.c1,
+            symbolSize=7,
+        )
+        # self.curr_trace_ref = pg.PlotDataItem(
+        #     pen=pg.mkPen(palette.c1, style=QtCore.Qt.DotLine),
+        #     symbol='x',
+        #     symbolPen=palette.c1,
+        #     symbolBrush=palette.c1,
+        #     symbolSize=7,
+        # )
+        self.average_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
+        self.average_trace_ref = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='g'))
+        self.fit_image = pg.PlotDataItem(pen=pg.mkPen(palette.c2))
 
+        # This one makes every
+        self._mw.pulsed_PlotWidget.addItem(self.curr_trace)
+        # This one makes the average signal visible
+        self._mw.pulsed_PlotWidget.addItem(self.average_trace_ref)
+        self._mw.pulsed_PlotWidget.addItem(self.average_trace)
+        self._mw.pulsed_PlotWidget.addItem(self.fit_image)
+        self._mw.pulsed_PlotWidget.setLabel('bottom', 'Time in us')
+        self._mw.pulsed_PlotWidget.setLabel('left', 'Counts')
 
     def on_deactivate(self):
         """ Reverse steps of activation
@@ -252,78 +262,194 @@ class PulsedGui(GUIBase):
 
         return
 
-    def start_measurement(self): # This get enabled with the start button?
-        # Grab all the parameters from the GUI
+    def _send_parameters_to_logic(self):
+        # Grabs all the parameters from the GUI and sends them to the master_pulslogic
+
         # general tab
         mw_power = self._mw.mw_power.value()
-        mw_freq = self._mw.mw_freq.value()  #in Hz
+        mw_freq = self._mw.mw_freq.value()  # in Hz
         method = self._mw.comboBox_method.currentText()
         averages = self._mw.averages.value()
-        int_time = self._mw.integration_time.value()*1e-3  #in sec
-        seq_len = self._mw.seq_len.value()*1e6 #this should be in us
-        sampling_rate_awg = int(self._mw.clk_awg.value())
-
-        apd_start = self._mw.apd_start_time.value()*1e6
-        apd_len = self._mw.apd_len.value()*1e6
-
-        apd_ref_start = self._mw.apd_ref_start_time.value()*1e6
-        apd_ref_len = self._mw.apd_ref_len.value()*1e6
+        int_time = self._mw.integration_time.value()  # in sec
+        seq_len = self._mw.seq_len.value() * 1e6  # this should be in us
+        sampling_rate_awg = int(self._mw.clk_awg.value() * 1e-6)  # in MHz
+        apd_start = self._mw.apd_start_time.value() * 1e6
+        apd_len = self._mw.apd_len.value() * 1e6
+        apd_ref_start = self._mw.apd_ref_start_time.value() * 1e6
+        apd_ref_len = self._mw.apd_ref_len.value() * 1e6
 
         # laser times tab
-        laser_in = self._mw.laser_in.value()*1e6
-        laser_off = self._mw.laser_off.value()*1e6
-        laser_re = self._mw.laser_re.value()*1e6
+        laser_in = self._mw.laser_in.value() * 1e6
+        laser_off = self._mw.laser_off.value() * 1e6
+        laser_re = self._mw.laser_re.value() * 1e6
         laser_power = self._mw.laser_power_2.value()
 
         # delay_sweep tab
-        apd_len_delay = self._mw.apd_len_pulse_delay.value()*1e6
-        apd_min_start_delay = self._mw.apd_min_start_delay.value()*1e6
-        apd_max_start_delay = self._mw.apd_max_start_delay.value()*1e6
-        apd_steps_delay = self._mw.apd_steps_delay.value()*1e6
-
+        apd_len_delay = self._mw.apd_len_pulse_delay.value() * 1e6
+        apd_min_start_delay = self._mw.apd_min_start_delay.value() * 1e6
+        apd_max_start_delay = self._mw.apd_max_start_delay.value() * 1e6
+        apd_steps_delay = self._mw.apd_steps_delay.value() * 1e6
         use_mw_delay = self._mw.use_mw_delay.isChecked()
-        mw_start_delay = self._mw.mw_start_time_delay.value()*1e6
-        mw_len_delay = self._mw.mw_len_delay.value()*1e6
+        mw_start_delay = self._mw.mw_start_time_delay.value() * 1e6
+        mw_len_delay = self._mw.mw_len_delay.value() * 1e6
 
         # rabi tab
-        mw_start_time_rabi = self._mw.mw_start_time_rabi.value()*1e6
-        mw_min_len_rabi = self._mw.mw_min_len_rabi.value()*1e6
-        mw_max_len_rabi = self._mw.mw_max_len_rabi.value()*1e6
-        mw_steps_rabi = self._mw.mw_steps_rabi.value()*1e6
+        mw_start_time_rabi = self._mw.mw_start_time_rabi.value() * 1e6
+        mw_min_len_rabi = self._mw.mw_min_len_rabi.value() * 1e6
+        mw_max_len_rabi = self._mw.mw_max_len_rabi.value() * 1e6
+        mw_steps_rabi = self._mw.mw_steps_rabi.value() * 1e6
         use_neg_mw = self._mw.use_neg_mw.isChecked()
 
         # ramsey tab
-        mw_start_time_ramsey = self._mw.mw_start_time_ramsey.value()*1e6
-        mw_min_len_ramsey = self._mw.mw_min_len_ramsey.value()*1e6
-        mw_max_len_ramsey = self._mw.mw_max_len_ramsey.value()*1e6
-        mw_steps_ramsey = self._mw.mw_steps_ramsey.value()*1e6
-        mw_len_ramsey = self._mw.mw_len_ramsey.value()*1e6
+        mw_start_time_ramsey = self._mw.mw_start_time_ramsey.value() * 1e6
+        mw_min_len_ramsey = self._mw.mw_min_len_ramsey.value() * 1e6
+        mw_max_len_ramsey = self._mw.mw_max_len_ramsey.value() * 1e6
+        mw_steps_ramsey = self._mw.mw_steps_ramsey.value() * 1e6
+        mw_len_ramsey = self._mw.mw_len_ramsey.value() * 1e6
 
-        # now send all the parameters from above to the masterlogic
-
-        self._master_pulselogic.laser_times = [laser_in, laser_off, laser_re]
-        self._master_pulselogic.laser_power = laser_power
-        self._master_pulselogic.mw_times_ramsey = [mw_start_time_ramsey, mw_min_len_ramsey, mw_max_len_ramsey, mw_steps_ramsey, mw_len_ramsey]
-        self._master_pulselogic.mw_times_rabi = [mw_start_time_rabi, mw_min_len_rabi, mw_max_len_rabi, mw_steps_rabi]
-        self._master_pulselogic.neg_mw = use_neg_mw
-        self._master_pulselogic.apd_times = [apd_start, apd_len]
-        self._master_pulselogic.apd_ref_times = [apd_ref_start, apd_ref_len]
-        self._master_pulselogic.apd_times_sweep = [apd_len_delay, apd_min_start_delay, apd_max_start_delay, apd_steps_delay]
-        self._master_pulselogic.averages = averages
+        # Now send all the parameters from above to the masterlogic
         self._master_pulselogic.mw_power = mw_power
-        self._master_pulselogic.mw_frequency = mw_freq
-        self._master_pulselogic.integration_time = int_time
+        self._master_pulselogic.mw_freq = mw_freq
         self._master_pulselogic.method = method
+        self._master_pulselogic.int_time = int_time
         self._master_pulselogic.seq_len = seq_len
-        self._master_pulselogic.clk_rate_awg = sampling_rate_awg
+        self._master_pulselogic.sampling_rate_awg = sampling_rate_awg
+        self._master_pulselogic.averages = averages
+
+        self._master_pulselogic.apd_start = apd_start
+        self._master_pulselogic.apd_len = apd_len
+        self._master_pulselogic.apd_ref_start = apd_ref_start
+        self._master_pulselogic.apd_ref_len = apd_ref_len
+
+        # laser times tab
+        self._master_pulselogic.laser_in = laser_in
+        self._master_pulselogic.laser_off = laser_off
+        self._master_pulselogic.laser_re = laser_re
+        self._master_pulselogic.laser_power = laser_power
+
+        # delay_sweep tab
+        self._master_pulselogic.apd_len_delay = apd_len_delay
+        self._master_pulselogic.apd_min_start_delay = apd_min_start_delay
+        self._master_pulselogic.apd_max_start_delay = apd_max_start_delay
+        self._master_pulselogic.apd_steps_delay = apd_steps_delay
         self._master_pulselogic.mw_pulse_setting = use_mw_delay
-        self._master_pulselogic.mw_times_sweep = [mw_start_delay, mw_len_delay]
+        self._master_pulselogic.mw_start_delay = mw_start_delay
+        self._master_pulselogic.mw_len_delay = mw_len_delay
 
+        # rabi tab
+        self._master_pulselogic.mw_start_time_rabi = mw_start_time_rabi
+        self._master_pulselogic.mw_min_len_rabi = mw_min_len_rabi
+        self._master_pulselogic.mw_max_len_rabi = mw_max_len_rabi
+        self._master_pulselogic.mw_steps_rabi = mw_steps_rabi
+        self._master_pulselogic.use_neg_mw = use_neg_mw
 
+        # ramsey tab
+        self._master_pulselogic.mw_start_time_ramsey = mw_start_time_ramsey
+        self._master_pulselogic.mw_min_len_ramsey = mw_min_len_ramsey
+        self._master_pulselogic.mw_max_len_ramsey = mw_max_len_ramsey
+        self._master_pulselogic.mw_steps_ramsey = mw_steps_ramsey
+        self._master_pulselogic.mw_len_ramsey = mw_len_ramsey
+
+    def _get_parameters_from_logic(self):
+        # Grabs all the parameters from the logic and fills them into the GUI
+
+        # Grab the parameters
+        mw_power = self._master_pulselogic.mw_power
+        mw_freq = self._master_pulselogic.mw_frequency
+        method = self._master_pulselogic.method
+        int_time = self._master_pulselogic.integration_time
+        seq_len = self._master_pulselogic.seq_len
+        sampling_rate_awg = self._master_pulselogic.clk_rate_awg
+        averages = self._master_pulselogic.averages
+
+        apd_start = self._master_pulselogic.apd_start
+        apd_len = self._master_pulselogic.apd_len
+        apd_ref_start = self._master_pulselogic.apd_ref_start
+        apd_ref_len = self._master_pulselogic.apd_ref_len
+
+        # laser times tab
+        laser_in = self._master_pulselogic.laser_in
+        laser_off = self._master_pulselogic.laser_off
+        laser_re = self._master_pulselogic.laser_re
+        laser_power = self._master_pulselogic.laser_power
+
+        # delay_sweep tab
+        apd_len_delay = self._master_pulselogic.apd_len_delay
+        apd_min_start_delay = self._master_pulselogic.apd_min_start_delay
+        apd_max_start_delay = self._master_pulselogic.apd_max_start_delay
+        apd_steps_delay = self._master_pulselogic.apd_steps_delay
+        use_mw_delay = self._master_pulselogic.mw_pulse_setting
+        mw_start_delay = self._master_pulselogic.mw_start_delay
+        mw_len_delay = self._master_pulselogic.mw_len_delay
+
+        # rabi tab
+        mw_start_time_rabi = self._master_pulselogic.mw_start_time_rabi
+        mw_min_len_rabi = self._master_pulselogic.mw_min_len_rabi
+        mw_max_len_rabi = self._master_pulselogic.mw_max_len_rabi
+        mw_steps_rabi = self._master_pulselogic.mw_steps_rabi
+        use_neg_mw = self._master_pulselogic.neg_mw
+
+        # ramsey tab
+        mw_start_time_ramsey = self._master_pulselogic.mw_start_time_ramsey
+        mw_min_len_ramsey = self._master_pulselogic.mw_min_len_ramsey
+        mw_max_len_ramsey = self._master_pulselogic.mw_max_len_ramsey
+        mw_steps_ramsey = self._master_pulselogic.mw_steps_ramsey
+        mw_len_ramsey = self._master_pulselogic.mw_len_ramsey
+
+        # Fill in the values into the GUI
+        # Some values need to be converted from us -> s
+
+        # general tab
+        self._mw.mw_power.setValue(mw_power)
+        self._mw.mw_freq.setValue(mw_freq)  # in Hz
+        self._mw.comboBox_method.setCurrentText(method)
+        self._mw.averages.setValue(averages)
+        self._mw.integration_time.setValue(int_time)  # in sec
+        self._mw.seq_len.setValue(seq_len * 1e-6)  # this should be in us
+        self._mw.clk_awg.setValue(int(sampling_rate_awg * 1e6))  # in MHz
+        self._mw.apd_start_time.setValue(apd_start * 1e-6)
+        self._mw.apd_len.setValue(apd_len * 1e-6)
+        self._mw.apd_ref_start_time.setValue(apd_ref_start * 1e-6)
+        self._mw.apd_ref_len.setValue(apd_ref_len * 1e-6)
+
+        # laser times tab
+        self._mw.laser_in.setValue(laser_in * 1e-6)
+        self._mw.laser_off.setValue(laser_off * 1e-6)
+        self._mw.laser_re.setValue(laser_re * 1e-6)
+        self._mw.laser_power_2.setValue(laser_power)
+
+        # delay_sweep tab
+        self._mw.apd_len_pulse_delay.setValue(apd_len_delay * 1e-6)
+        self._mw.apd_min_start_delay.setValue(apd_min_start_delay * 1e-6)
+        self._mw.apd_max_start_delay.setValue(apd_max_start_delay * 1e-6)
+        self._mw.apd_steps_delay.setValue(apd_steps_delay * 1e-6)
+        self._mw.use_mw_delay.setChecked(use_mw_delay)
+        self._mw.mw_start_time_delay.setValue(mw_start_delay * 1e-6)
+        self._mw.mw_len_delay.setValue(mw_len_delay * 1e-6)
+
+        # rabi tab
+        self._mw.mw_start_time_rabi.setValue(mw_start_time_rabi * 1e-6)
+        self._mw.mw_min_len_rabi.setValue(mw_min_len_rabi * 1e-6)
+        self._mw.mw_max_len_rabi.setValue(mw_max_len_rabi * 1e-6)
+        self._mw.mw_steps_rabi.setValue(mw_steps_rabi * 1e-6)
+        self._mw.use_neg_mw.setChecked(use_neg_mw)
+
+        # ramsey tab
+        self._mw.mw_start_time_ramsey.setValue(mw_start_time_ramsey * 1e-6)
+        self._mw.mw_min_len_ramsey.setValue(mw_min_len_ramsey * 1e-6)
+        self._mw.mw_max_len_ramsey.setValue(mw_max_len_ramsey * 1e-6)
+        self._mw.mw_steps_ramsey.setValue(mw_steps_ramsey * 1e-6)
+        self._mw.mw_len_ramsey.setValue(mw_len_ramsey * 1e-6)
+
+    def start_measurement(self):
+        self._master_pulselogic.start_stop_timetrace(False)
+        self._send_parameters_to_logic()
+        self.fit_image.clear()
         # This one sets the x axis right
         x_axis = self._master_pulselogic.get_x_axis()
         self._mw.pulsed_PlotWidget.setXRange(min(x_axis), max(x_axis))
-        #This is where the measurement really starts
+
+        # This is where the measurement really starts
         self._master_pulselogic.start_measurement()
 
     def clear_all(self): # This gets enabled by the clear awg button?
@@ -341,9 +467,11 @@ class PulsedGui(GUIBase):
         self.index = 0
         #print('ready for saving process')
 
-    def cw_mode(self, is_checked):
+    def cw_mode(self, is_checked): #checks if the House button is checked in general
         if is_checked:
-            laser_power = self._mw.laser_power_2.value()
+            self._master_pulselogic.start_stop_timetrace(True)
+            # print(self._mw.laser_power_2.valueChanged(), self._mw.laser_power_2.valueChanged)
+            laser_power = self._mw.laser_power_2.value() # Takes the value from the box
             self._master_pulselogic.laser_power = laser_power
             self._master_pulselogic.cw(True)
             self._master_pulselogic.set_laser_power()
@@ -357,11 +485,28 @@ class PulsedGui(GUIBase):
             # Laser is off but the counts are still in the timeseries
         return
 
+    def changed_laser_power(self):
+        if self._mw.action_cw_mode.isChecked():
+            # print('is checked')
+            laser_power = self._mw.laser_power_2.value()
+            self._master_pulselogic.laser_power = laser_power
+            self._master_pulselogic.set_laser_power()
+        else:
+            pass
+            # print('is not checked')
+        return
+
+
     def show(self):
         """Make window visible and put it above all other windows. """
         self._mw.show()
         self._mw.activateWindow()
         self._mw.raise_()
+
+    def tab_changed(self, current_tab):
+        # For now, ignore the tab and just send the pararmeters to the logic
+        # This way they can be saved as status variables
+        self._send_parameters_to_logic()
 
     def get_value(self, counts, ref_counts):
         self.index += 1
@@ -376,7 +521,7 @@ class PulsedGui(GUIBase):
             self.index +=1
             #continue plotting
 
-    def refresh_plot(self, av_index, current_row, current_average, ref_average):
+    def refresh_plot(self, av_index, current_row, current_average, av_counts_ref):
         # Draw current odmr trace
         # print('curent row', current_row)
         # This is where the data from the logic should be
@@ -389,22 +534,27 @@ class PulsedGui(GUIBase):
         else:
             self.average_trace.clear()
 
+        if self._mw.show_reference_counts.isChecked():
+            self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), av_counts_ref)
+        else:
+            self.average_trace_ref.clear()
+
+
     def ref_button(self, is_checked):
-        """ Manages what happens if measurement is started/stopped. """
+        """ Manages what happens if the 'add ref counts' button is pressed. """
 
         if is_checked:
-            self.sigGetValues.emit()
-            # get the values from the get_values method
-            # and plots them
+            pass
+            # If its checked the signal should be emitted
+            # Signal gets the value from the masterpulse logic
 
         else:
             # dont do anything
             pass
 
-    def show_ref_counts(self, av_index, current_row, current_average, ref_average):
-        # This should fish the signal from sigAverageDone from masterpulse logic
-        # Draw average trace
-        if av_index > 0:
+    def show_ref_counts(self, av_index, ref_average):
+        # Get ref_count data from the masterpulse_logic
+        if av_index > 0: #leave out the first measurement
             self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), ref_average)
         else:
             self.average_trace.clear()
@@ -441,11 +591,11 @@ class PulsedGui(GUIBase):
         return
 
     def fill_pulse_times(self):
-        if 'Rabi' not in self._master_pulselogic.performed_fits:
+        if 'Rabi' not in self._master_pulselogic.fits_performed:
             return
 
         # Extract Rabi frequency
-        _, _, result = self._master_pulselogic.performed_fits['Rabi']
+        _, _, result = self._master_pulselogic.fits_performed['Rabi']
         rabi_freq = result.values['frequency']
         pi_puls = 1 / (2 * rabi_freq)
         pi_half_puls = pi_puls / 2
