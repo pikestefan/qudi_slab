@@ -57,7 +57,7 @@
           <rect>
            <x>0</x>
            <y>0</y>
-           <width>1091</width>
+           <width>621</width>
            <height>181</height>
           </rect>
          </property>
@@ -71,7 +71,7 @@
           <enum>QTabWidget::Rounded</enum>
          </property>
          <property name="currentIndex">
-          <number>1</number>
+          <number>0</number>
          </property>
          <property name="elideMode">
           <enum>Qt::ElideLeft</enum>
@@ -83,7 +83,7 @@
           <widget class="ScienDSpinBox" name="mw_power">
            <property name="geometry">
             <rect>
-             <x>130</x>
+             <x>80</x>
              <y>30</y>
              <width>101</width>
              <height>22</height>
@@ -108,7 +108,7 @@
           <widget class="ScienDSpinBox" name="mw_freq">
            <property name="geometry">
             <rect>
-             <x>130</x>
+             <x>80</x>
              <y>50</y>
              <width>101</width>
              <height>22</height>
@@ -136,7 +136,7 @@
           <widget class="QLabel" name="label_111">
            <property name="geometry">
             <rect>
-             <x>40</x>
+             <x>-10</x>
              <y>30</y>
              <width>81</width>
              <height>16</height>
@@ -157,7 +157,7 @@
           <widget class="QLabel" name="label_112">
            <property name="geometry">
             <rect>
-             <x>40</x>
+             <x>-10</x>
              <y>50</y>
              <width>81</width>
              <height>16</height>
@@ -178,9 +178,9 @@
           <widget class="ScienDSpinBox" name="averages">
            <property name="geometry">
             <rect>
-             <x>375</x>
+             <x>320</x>
              <y>31</y>
-             <width>43</width>
+             <width>61</width>
              <height>20</height>
             </rect>
            </property>
@@ -194,7 +194,7 @@
           <widget class="QLabel" name="label_113">
            <property name="geometry">
             <rect>
-             <x>251</x>
+             <x>196</x>
              <y>31</y>
              <width>117</width>
              <height>16</height>
@@ -215,7 +215,7 @@
           <widget class="QLabel" name="label_114">
            <property name="geometry">
             <rect>
-             <x>251</x>
+             <x>196</x>
              <y>57</y>
              <width>95</width>
              <height>16</height>
@@ -236,9 +236,9 @@
           <widget class="ScienDSpinBox" name="integration_time">
            <property name="geometry">
             <rect>
-             <x>375</x>
+             <x>320</x>
              <y>57</y>
-             <width>64</width>
+             <width>61</width>
              <height>20</height>
             </rect>
            </property>
@@ -264,9 +264,9 @@
           <widget class="ScienDSpinBox" name="clk_awg">
            <property name="geometry">
             <rect>
-             <x>375</x>
+             <x>320</x>
              <y>83</y>
-             <width>97</width>
+             <width>61</width>
              <height>20</height>
             </rect>
            </property>
@@ -286,7 +286,7 @@
           <widget class="QLabel" name="label_115">
            <property name="geometry">
             <rect>
-             <x>251</x>
+             <x>196</x>
              <y>83</y>
              <width>115</width>
              <height>16</height>
@@ -307,7 +307,7 @@
           <widget class="QLabel" name="label_116">
            <property name="geometry">
             <rect>
-             <x>60</x>
+             <x>10</x>
              <y>90</y>
              <width>61</width>
              <height>20</height>
@@ -328,7 +328,7 @@
           <widget class="QComboBox" name="comboBox_method">
            <property name="geometry">
             <rect>
-             <x>130</x>
+             <x>80</x>
              <y>90</y>
              <width>101</width>
              <height>22</height>
@@ -358,7 +358,7 @@
           <widget class="QLabel" name="label_78">
            <property name="geometry">
             <rect>
-             <x>251</x>
+             <x>196</x>
              <y>109</y>
              <width>98</width>
              <height>16</height>
@@ -379,9 +379,9 @@
           <widget class="ScienDSpinBox" name="seq_len">
            <property name="geometry">
             <rect>
-             <x>375</x>
+             <x>320</x>
              <y>109</y>
-             <width>58</width>
+             <width>61</width>
              <height>20</height>
             </rect>
            </property>
@@ -401,8 +401,8 @@
           <widget class="QLabel" name="label_60">
            <property name="geometry">
             <rect>
-             <x>790</x>
-             <y>7</y>
+             <x>400</x>
+             <y>80</y>
              <width>211</width>
              <height>16</height>
             </rect>
@@ -424,8 +424,8 @@
           <widget class="QLabel" name="label_156">
            <property name="geometry">
             <rect>
-             <x>750</x>
-             <y>70</y>
+             <x>390</x>
+             <y>123</y>
              <width>91</width>
              <height>20</height>
             </rect>
@@ -445,8 +445,8 @@
           <widget class="QLabel" name="label_157">
            <property name="geometry">
             <rect>
-             <x>760</x>
-             <y>50</y>
+             <x>400</x>
+             <y>103</y>
              <width>81</width>
              <height>16</height>
             </rect>
@@ -466,8 +466,8 @@
           <widget class="ScienDSpinBox" name="apd_ref_start_time">
            <property name="geometry">
             <rect>
-             <x>850</x>
-             <y>50</y>
+             <x>490</x>
+             <y>103</y>
              <width>111</width>
              <height>22</height>
             </rect>
@@ -491,8 +491,8 @@
           <widget class="ScienDSpinBox" name="apd_ref_len">
            <property name="geometry">
             <rect>
-             <x>850</x>
-             <y>70</y>
+             <x>490</x>
+             <y>123</y>
              <width>111</width>
              <height>22</height>
             </rect>
@@ -516,8 +516,8 @@
           <widget class="ScienDSpinBox" name="apd_len">
            <property name="geometry">
             <rect>
-             <x>630</x>
-             <y>70</y>
+             <x>490</x>
+             <y>50</y>
              <width>111</width>
              <height>22</height>
             </rect>
@@ -541,8 +541,8 @@
           <widget class="QLabel" name="label_65">
            <property name="geometry">
             <rect>
-             <x>540</x>
-             <y>50</y>
+             <x>400</x>
+             <y>30</y>
              <width>81</width>
              <height>20</height>
             </rect>
@@ -562,8 +562,8 @@
           <widget class="QLabel" name="label_70">
            <property name="geometry">
             <rect>
-             <x>530</x>
-             <y>70</y>
+             <x>390</x>
+             <y>50</y>
              <width>91</width>
              <height>20</height>
             </rect>
@@ -583,8 +583,8 @@
           <widget class="QLabel" name="label_71">
            <property name="geometry">
             <rect>
-             <x>530</x>
-             <y>4</y>
+             <x>390</x>
+             <y>7</y>
              <width>241</width>
              <height>20</height>
             </rect>
@@ -606,8 +606,8 @@
           <widget class="ScienDSpinBox" name="apd_start_time">
            <property name="geometry">
             <rect>
-             <x>630</x>
-             <y>50</y>
+             <x>490</x>
+             <y>30</y>
              <width>111</width>
              <height>22</height>
             </rect>
@@ -631,7 +631,7 @@
          </widget>
          <widget class="QWidget" name="tab">
           <attribute name="title">
-           <string>laser times</string>
+           <string>laser</string>
           </attribute>
           <widget class="QLabel" name="label_68">
            <property name="geometry">
@@ -873,9 +873,9 @@
           <widget class="QLabel" name="label_56">
            <property name="geometry">
             <rect>
-             <x>270</x>
+             <x>260</x>
              <y>46</y>
-             <width>81</width>
+             <width>101</width>
              <height>20</height>
             </rect>
            </property>
@@ -885,7 +885,7 @@
             </font>
            </property>
            <property name="text">
-            <string>Time to Start</string>
+            <string>Delay after Laser</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -915,7 +915,7 @@
           <widget class="QLabel" name="label_61">
            <property name="geometry">
             <rect>
-             <x>250</x>
+             <x>260</x>
              <y>66</y>
              <width>101</width>
              <height>20</height>
@@ -936,9 +936,9 @@
           <widget class="QCheckBox" name="use_mw_delay">
            <property name="geometry">
             <rect>
-             <x>340</x>
+             <x>355</x>
              <y>20</y>
-             <width>141</width>
+             <width>140</width>
              <height>20</height>
             </rect>
            </property>
@@ -1143,7 +1143,7 @@
           <widget class="ScienDSpinBox" name="mw_start_time_delay">
            <property name="geometry">
             <rect>
-             <x>360</x>
+             <x>370</x>
              <y>46</y>
              <width>101</width>
              <height>22</height>
@@ -1168,7 +1168,7 @@
           <widget class="ScienDSpinBox" name="mw_len_delay">
            <property name="geometry">
             <rect>
-             <x>360</x>
+             <x>370</x>
              <y>66</y>
              <width>101</width>
              <height>22</height>
@@ -1196,8 +1196,8 @@
            <property name="geometry">
             <rect>
              <x>60</x>
-             <y>90</y>
-             <width>71</width>
+             <y>70</y>
+             <width>141</width>
              <height>20</height>
             </rect>
            </property>
@@ -1207,7 +1207,7 @@
             </font>
            </property>
            <property name="text">
-            <string>Max Length</string>
+            <string>time delay to laser_re</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
@@ -1216,9 +1216,9 @@
           <widget class="QLabel" name="label_41">
            <property name="geometry">
             <rect>
-             <x>50</x>
+             <x>40</x>
              <y>50</y>
-             <width>71</width>
+             <width>151</width>
              <height>20</height>
             </rect>
            </property>
@@ -1228,7 +1228,7 @@
             </font>
            </property>
            <property name="text">
-            <string>Start Time</string>
+            <string>time delay to laser_off</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -1237,7 +1237,7 @@
           <widget class="QLabel" name="label_42">
            <property name="geometry">
             <rect>
-             <x>30</x>
+             <x>300</x>
              <y>70</y>
              <width>91</width>
              <height>20</height>
@@ -1281,8 +1281,8 @@
           <widget class="QLabel" name="label_44">
            <property name="geometry">
             <rect>
-             <x>90</x>
-             <y>112</y>
+             <x>350</x>
+             <y>52</y>
              <width>41</width>
              <height>16</height>
             </rect>
@@ -1299,10 +1299,10 @@
             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
            </property>
           </widget>
-          <widget class="ScienDSpinBox" name="mw_start_time_rabi">
+          <widget class="ScienDSpinBox" name="mw_start_distance_rabi">
            <property name="geometry">
             <rect>
-             <x>130</x>
+             <x>200</x>
              <y>50</y>
              <width>111</width>
              <height>22</height>
@@ -1327,7 +1327,7 @@
           <widget class="ScienDSpinBox" name="mw_min_len_rabi">
            <property name="geometry">
             <rect>
-             <x>130</x>
+             <x>400</x>
              <y>70</y>
              <width>111</width>
              <height>22</height>
@@ -1346,11 +1346,11 @@
             <double>0.000001000000000</double>
            </property>
           </widget>
-          <widget class="ScienDSpinBox" name="mw_max_len_rabi">
+          <widget class="ScienDSpinBox" name="mw_stop_distance_rabi">
            <property name="geometry">
             <rect>
-             <x>130</x>
-             <y>90</y>
+             <x>200</x>
+             <y>70</y>
              <width>111</width>
              <height>22</height>
             </rect>
@@ -1374,8 +1374,8 @@
           <widget class="ScienDSpinBox" name="mw_steps_rabi">
            <property name="geometry">
             <rect>
-             <x>130</x>
-             <y>110</y>
+             <x>400</x>
+             <y>50</y>
              <width>111</width>
              <height>22</height>
             </rect>
@@ -1396,30 +1396,6 @@
             <double>0.000000000000000</double>
            </property>
           </widget>
-          <widget class="QCheckBox" name="use_neg_mw">
-           <property name="geometry">
-            <rect>
-             <x>270</x>
-             <y>50</y>
-             <width>151</width>
-             <height>31</height>
-            </rect>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="accessibleName">
-            <string/>
-           </property>
-           <property name="inputMethodHints">
-            <set>Qt::ImhNone</set>
-           </property>
-           <property name="text">
-            <string>Inverted MW (-1)</string>
-           </property>
-          </widget>
          </widget>
          <widget class="QWidget" name="tab_2">
           <attribute name="title">
@@ -1428,8 +1404,8 @@
           <widget class="QLabel" name="label_59">
            <property name="geometry">
             <rect>
-             <x>68</x>
-             <y>103</y>
+             <x>298</x>
+             <y>63</y>
              <width>41</width>
              <height>16</height>
             </rect>
@@ -1472,8 +1448,8 @@
           <widget class="QLabel" name="label_66">
            <property name="geometry">
             <rect>
-             <x>10</x>
-             <y>60</y>
+             <x>240</x>
+             <y>40</y>
              <width>91</width>
              <height>16</height>
             </rect>
@@ -1493,30 +1469,9 @@
           <widget class="QLabel" name="label_67">
            <property name="geometry">
             <rect>
-             <x>30</x>
+             <x>40</x>
              <y>40</y>
-             <width>71</width>
-             <height>16</height>
-            </rect>
-           </property>
-           <property name="font">
-            <font>
-             <pointsize>10</pointsize>
-            </font>
-           </property>
-           <property name="text">
-            <string>Start Time</string>
-           </property>
-           <property name="alignment">
-            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-           </property>
-          </widget>
-          <widget class="QLabel" name="label_38">
-           <property name="geometry">
-            <rect>
-             <x>26</x>
-             <y>80</y>
-             <width>81</width>
+             <width>91</width>
              <height>20</height>
             </rect>
            </property>
@@ -1526,16 +1481,37 @@
             </font>
            </property>
            <property name="text">
-            <string>Max Distance</string>
+            <string>distance to start</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+          <widget class="QLabel" name="label_38">
+           <property name="geometry">
+            <rect>
+             <x>36</x>
+             <y>60</y>
+             <width>101</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>10</pointsize>
+            </font>
+           </property>
+           <property name="text">
+            <string>distance to stop</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
            </property>
           </widget>
-          <widget class="ScienDSpinBox" name="mw_start_time_ramsey">
+          <widget class="ScienDSpinBox" name="mw_start_distance_ramsey">
            <property name="geometry">
             <rect>
-             <x>110</x>
+             <x>140</x>
              <y>40</y>
              <width>101</width>
              <height>22</height>
@@ -1560,8 +1536,8 @@
           <widget class="ScienDSpinBox" name="mw_min_len_ramsey">
            <property name="geometry">
             <rect>
-             <x>110</x>
-             <y>60</y>
+             <x>340</x>
+             <y>40</y>
              <width>101</width>
              <height>22</height>
             </rect>
@@ -1579,11 +1555,11 @@
             <double>0.000001000000000</double>
            </property>
           </widget>
-          <widget class="ScienDSpinBox" name="mw_max_len_ramsey">
+          <widget class="ScienDSpinBox" name="mw_stop_distance_ramsey">
            <property name="geometry">
             <rect>
-             <x>110</x>
-             <y>80</y>
+             <x>140</x>
+             <y>60</y>
              <width>101</width>
              <height>22</height>
             </rect>
@@ -1607,8 +1583,8 @@
           <widget class="ScienDSpinBox" name="mw_steps_ramsey">
            <property name="geometry">
             <rect>
-             <x>110</x>
-             <y>100</y>
+             <x>340</x>
+             <y>60</y>
              <width>101</width>
              <height>22</height>
             </rect>
@@ -1632,9 +1608,9 @@
           <widget class="QLabel" name="label_63">
            <property name="geometry">
             <rect>
-             <x>15</x>
-             <y>120</y>
-             <width>91</width>
+             <x>35</x>
+             <y>80</y>
+             <width>101</width>
              <height>20</height>
             </rect>
            </property>
@@ -1653,8 +1629,8 @@
           <widget class="ScienDSpinBox" name="mw_len_ramsey">
            <property name="geometry">
             <rect>
-             <x>110</x>
-             <y>120</y>
+             <x>140</x>
+             <y>80</y>
              <width>101</width>
              <height>22</height>
             </rect>
@@ -1732,6 +1708,22 @@
           </widget>
          </widget>
         </widget>
+        <widget class="PlotWidget" name="sequence_plot">
+         <property name="geometry">
+          <rect>
+           <x>650</x>
+           <y>20</y>
+           <width>351</width>
+           <height>141</height>
+          </rect>
+         </property>
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>1</horstretch>
+           <verstretch>1</verstretch>
+          </sizepolicy>
+         </property>
+        </widget>
        </widget>
       </widget>
      </widget>
@@ -1798,43 +1790,22 @@
      </sizepolicy>
     </property>
     <layout class="QGridLayout" name="gridLayout_2">
-     <item row="1" column="1">
-      <widget class="FitSettingsComboBox" name="fit_methods_ComboBox">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="0">
-      <widget class="QLabel" name="label_12">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
+     <item row="0" column="0">
+      <widget class="QLabel" name="label_80">
+       <property name="font">
+        <font>
+         <pointsize>10</pointsize>
+        </font>
        </property>
        <property name="text">
-        <string>Fit Results   :</string>
+        <string>Laserpower(V)</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
      </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="label_9">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="text">
-        <string>Fit Function :</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="3">
+     <item row="4" column="3">
       <widget class="QPushButton" name="fill_puls_times_pushButton">
        <property name="text">
         <string>Fill in Rabi Frequency</string>
@@ -1847,7 +1818,7 @@
        </property>
       </widget>
      </item>
-     <item row="1" column="2">
+     <item row="4" column="4">
       <widget class="QPushButton" name="do_fit_PushButton">
        <property name="sizePolicy">
         <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
@@ -1866,29 +1837,43 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="1" colspan="3">
-      <widget class="QTextBrowser" name="fit_results_DisplayWidget">
+     <item row="4" column="0">
+      <widget class="QLabel" name="label_12">
        <property name="sizePolicy">
-        <sizepolicy hsizetype="Ignored" vsizetype="Expanding">
+        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
          <horstretch>0</horstretch>
          <verstretch>0</verstretch>
         </sizepolicy>
        </property>
-       <property name="baseSize">
-        <size>
-         <width>0</width>
-         <height>1</height>
-        </size>
-       </property>
-       <property name="sizeAdjustPolicy">
-        <enum>QAbstractScrollArea::AdjustToContents</enum>
-       </property>
-       <property name="tabChangesFocus">
-        <bool>true</bool>
+       <property name="text">
+        <string>Fit Results   :</string>
        </property>
       </widget>
      </item>
-     <item row="0" column="1">
+     <item row="4" column="2">
+      <widget class="FitSettingsComboBox" name="fit_methods_ComboBox">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QLabel" name="label_9">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="text">
+        <string>Fit Function :</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
       <widget class="ScienDSpinBox" name="laser_power_2">
        <property name="readOnly">
         <bool>false</bool>
@@ -1910,18 +1895,45 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="0">
-      <widget class="QLabel" name="label_80">
-       <property name="font">
-        <font>
-         <pointsize>10</pointsize>
-        </font>
-       </property>
+     <item row="0" column="3">
+      <widget class="QPushButton" name="laser_button_cw">
        <property name="text">
-        <string>Laserpower(V)</string>
+        <string>628 mV</string>
        </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="4">
+      <widget class="QPushButton" name="laser_button_high">
+       <property name="text">
+        <string>800 mV</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="3">
+      <widget class="QTextBrowser" name="fit_results_DisplayWidget">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Ignored" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="baseSize">
+        <size>
+         <width>0</width>
+         <height>1</height>
+        </size>
+       </property>
+       <property name="sizeAdjustPolicy">
+        <enum>QAbstractScrollArea::AdjustToContents</enum>
+       </property>
+       <property name="tabChangesFocus">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -1978,6 +1990,7 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
+   <addaction name="action_show_seq"/>
   </widget>
   <action name="action_Settings">
    <property name="icon">
@@ -2118,6 +2131,18 @@
    </property>
    <property name="text">
     <string>use ref counts</string>
+   </property>
+  </action>
+  <action name="action_show_seq">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normaloff>../../artwork/icons/qudiTheme/22x22/auto_pois.png</normaloff>../../artwork/icons/qudiTheme/22x22/auto_pois.png</iconset>
+   </property>
+   <property name="text">
+    <string>Show sequence</string>
    </property>
   </action>
  </widget>
