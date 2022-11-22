@@ -19,6 +19,7 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 
 import time
 import numpy as np
+from scipy.interpolate import interp1d
 
 from core.module import Base
 from core.configoption import ConfigOption
@@ -26,7 +27,6 @@ from core.connector import Connector
 from core.statusvariable import StatusVar
 from interface.pulser_interface import PulserInterface
 from interface.microwave_interface import MicrowaveInterface
-from scipy.interpolate import interp1d
 
 
 class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
@@ -137,14 +137,17 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
             range(phases_number), phases, t_centrewidth_list
         ):
             Imodulation = (
-                Iamp * np.cos(2 * np.pi * self.if_modulation_freq + phase) + Ioff
+                    Iamp * np.cos(2 * np.pi * self.if_modulation_freq * timeaxis + phase) + Ioff
             )
             Qmodulation = (
-                Qamp * np.cos(2 * np.pi * self.if_modulation_freq + phase + np.pi / 2)
-                + Qoff
+                    Qamp * np.cos(2 * np.pi * self.if_modulation_freq * timeaxis + phase + np.pi / 2)
+                    + Qoff
             )
-            Icomp = envelope_function(timeaxis, t_centrewidth) * Imodulation
-            Qcomp = envelope_function(timeaxis, t_centrewidth) * Qmodulation
+
+            pulse_sequence = envelope_function(timeaxis, t_centrewidth)
+
+            Icomp = pulse_sequence * Imodulation
+            Qcomp = pulse_sequence * Qmodulation
 
             pulse_matrix[0, phase_idx] = Icomp
             pulse_matrix[1, phase_idx] = Qcomp
