@@ -44,12 +44,22 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
     calibration_interpolation_method = ConfigOption(
         "calibration_file_interpolation_method", "linear", missing="warning"
     )
+    laser_channel = ConfigOption("laser_channel", "x0", missing='warning')
+    apd_signal_channel = ConfigOption('apd_signal_channel', 'x1', missing='warning')
+    apd_read_channel = ConfigOption('apd_read_channel', 'x2', missing='warning')
+    imod_channel = ConfigOption('imod_channel', 'ch2', missing='warning')
+    qmod_channel = ConfigOption('qmod_channel', 'ch3', missing='warning')
 
     def on_activate(self):
         self._mwsource = self.mw_source
         self._awg = self.awg
 
         self._if_freq = self.if_modulation_freq
+        self._laser = self.laser_channel
+        self._apdsig = self.apd_signal_channel
+        self._apdread = self.apd_read_channel
+        self._ichan = self.imod_channel
+        self._qchan = self.qmod_channel
 
         # This dictionary builds up the map between user-friendly names and functions used to generate
         # the pulse envelopes
@@ -155,8 +165,8 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         Ipulses, Qpulses = pulse_matrix.sum(axis=1)
 
         return Ipulses, Qpulses
-
-    def box_envelope(self, timeaxis, t_centrewidths):
+    @staticmethod
+    def box_envelope(timeaxis, t_centrewidths):
         """
         Method used to generate a square envelope.
 
