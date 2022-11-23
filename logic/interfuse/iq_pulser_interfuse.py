@@ -51,15 +51,21 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
     qmod_channel = ConfigOption("qmod_channel", "ch3", missing="warning")
 
     def on_activate(self):
-        self._mwsource = self.mw_source
-        self._awg = self.awg
-
         self._if_freq = self.if_modulation_freq
         self._laser = self.laser_channel
         self._apdsig = self.apd_signal_channel
         self._apdread = self.apd_read_channel
         self._ichan = self.imod_channel
         self._qchan = self.qmod_channel
+
+        # Make a dictionary to map the channel names to the awg channel names.
+        self._channel_dictionary = {
+            "laser": int(self.laser_channel[-1]),
+            "apd_sig": int(self.apd_signal_channel[-1]),
+            "apd_read": int(self.apd_read_channel[-1]),
+            "i_chan": int(self.imod_channel[-1]),
+            "q_chan": int(self.qmod_channel[-1]),
+        }
 
         # This dictionary builds up the map between user-friendly names and functions used to generate
         # the pulse envelopes
@@ -84,7 +90,7 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         # Store the minimum and maximum frequency of the calibration file for warning purposes
         self._freqminmax = frequency[[0, -1]]
 
-        # This function spits out the I amplitude, I offset, Q amplitude, Q offset and phase imbalane in this order
+        # This function spits out the I amplitude, I offset, Q amplitude, Q offset and phase imbalance in this order
         # for a given frequency. If a requested frequency falls outside the range of frequencies in the calibration file,
         # the function will return the calibration parameters of the closest frequency in the calibration file.
         self._iq_interpfunc = interp1d(
@@ -96,15 +102,59 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
             fill_value=(calibration_values[0], calibration_values[-1]),
         )
 
+        self._mwsource = self.mw_source
+        self._awg = self.awg
+
     def set_frequency(self, freq=0.0):
+        """
+        Sets the frequency of the mw source. The actual value is set to be freq - if modulation frequency.
+        @param float freq: The desired output frequency.
+        @return:
+        """
         lo_frequency = freq - self._if_freq
         self._mwsource.set_frequency(lo_frequency)
+
+    def load_waveform(
+        self, iq_dictionary=dict(), digital_pulses=dict(), digital_output_map=dict()
+    ):
+        """
+        Method overloading the awg load_waveform.
+        @param dict iq_dictionary: the dictionary for i and q channels. Valid keys are i_chan and q_chan.
+        @param dict digital_pulses: the dictionary for the digital pulses. Valid keys are laser, apd_sig, apd_ref.
+        @param dict digital_output_map: the digital output map, as used in the overloaded method.
+
+        @return int error_code: 0: ok, -1: error occurred
+        """
+        try:
+            ao_waveform_dictionary = {
+                self._channel_dictionary[chan_name]: waveform
+                for chan_name, waveform in iq_dictionary.items()
+            }
+        except:
+            self.log.error("The requested analog channel name is not valid.")
+            return -1
+
+        try:
+            do_waveform_dictionary = {
+                self._channel_dictionary[chan_name]: waveform
+                for chan_name, waveform in digital_pulses.items()
+            }
+        except:
+            self.log.error("The requested digital channel name is not valid.")
+
+        self._awg.load_waveform(
+            ao_waveform_dictionary=ao_waveform_dictionary,
+            do_waveform_dictionary=do_waveform_dictionary,
+            digital_output_map=digital_output_map,
+        )
+
+        return 0
 
     def iq_pulses(
         self,
         timeaxis,
         t_centrewidth_list,
-        lo_frequency,
+        output_frequency,
         phases=None,
         pulsenvelope="square",
     ):
@@ -115,9 +165,10 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         @param list t_centrewidth_list: a list of matrices containing the central times and widths of the pulses, as
                                         given by the envelope functions. Each element of the list corresponds to a
                                         waveform with a given phase.
-        @param np.ndarray phases: The
+        @param output_frequency: the desired frequency of the pulses (i.e. local oscillator + if modulation).
+        @param np.ndarray phases: The array containing the phases
         @param str pulsenvelope:
-        @return: the I and Q waveforms.
+        @return tuple: the I and Q waveforms.
         """
         envelope_function = self._envelope_dictionary[pulsenvelope]
 
@@ -126,6 +177,7 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
 
         phases_number = len(phases)
 
+        lo_frequency = output_frequency - self._if_freq
         if not self._freqminmax[0] < lo_frequency < self._freqminmax[-1]:
             self.log.warning(
                 "Requested local oscillator frequency: {:.3f} GHz, falls outside the calibration file ranges. "
