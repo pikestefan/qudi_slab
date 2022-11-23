@@ -123,7 +123,7 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         @param dict digital_pulses: the dictionary for the digital pulses. Valid keys are laser, apd_sig, apd_ref.
         @param dict digital_output_map: the digital output map, as used in the overloaded method.
 
-        @return int error_code: 0: ok, -1: error occurred
+        @return int: Error code. 0: ok, -1: error occurred
         """
         try:
             ao_waveform_dictionary = {
@@ -228,9 +228,9 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         """
         Method used to generate a square envelope.
 
-        @param timeaxis: the time axis
-        @param t_centrewidths: 2D matrix. Each row contains the central time and width of the square pulse.
-        @return: the pulse train.
+        @param np.ndarray timeaxis: the time axis
+        @param np.ndarray t_centrewidths: 2D matrix. Each row contains the central time and width of the square pulse.
+        @return np.ndarray: the pulse train.
         """
 
         tstart = t_centrewidths[:, 0] - t_centrewidths[:, 1] / 2
