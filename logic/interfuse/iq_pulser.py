@@ -44,11 +44,11 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
     calibration_interpolation_method = ConfigOption(
         "calibration_file_interpolation_method", "linear", missing="warning"
     )
-    laser_channel = ConfigOption("laser_channel", "x0", missing='warning')
-    apd_signal_channel = ConfigOption('apd_signal_channel', 'x1', missing='warning')
-    apd_read_channel = ConfigOption('apd_read_channel', 'x2', missing='warning')
-    imod_channel = ConfigOption('imod_channel', 'ch2', missing='warning')
-    qmod_channel = ConfigOption('qmod_channel', 'ch3', missing='warning')
+    laser_channel = ConfigOption("laser_channel", "x0", missing="warning")
+    apd_signal_channel = ConfigOption("apd_signal_channel", "x1", missing="warning")
+    apd_read_channel = ConfigOption("apd_read_channel", "x2", missing="warning")
+    imod_channel = ConfigOption("imod_channel", "ch2", missing="warning")
+    qmod_channel = ConfigOption("qmod_channel", "ch3", missing="warning")
 
     def on_activate(self):
         self._mwsource = self.mw_source
@@ -66,29 +66,27 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         self._envelope_dictionary = {"square": self.box_envelope}
 
         # The calibration file should be order in columns of:
-        # frequency | i amplitude | i offset | q amplitude | q offset
-        self._calibration = np.loadtxt(self.calibfile_dir)
-        if self._calibration.size <= 1:
-            self.log.warning(
-                "Calibration file is empty or contains only one value. Using default offsets and amplitudes."
-            )
-
-            frequency = np.array([2.87e9, 2.88e9])
-            calibration_values = np.zeros((2, 4))
-            calibration_values[:, [0, 2]] = 1.0
-
-        else:
+        # frequency | i amplitude | i offset | q amplitude | q offset | phase_imbalance
+        try:
+            self._calibration = np.loadtxt(self.calibfile_dir)
             frequency, calibration_values = (
                 self._calibration[:, 0],
                 self._calibration[:, 1:],
             )
+        except:
+            self.log.warning(
+                "Calibration file is empty or contains only one value. Using default offsets and amplitudes."
+            )
+            frequency = np.array([2.87e9, 2.88e9])
+            calibration_values = np.zeros((2, 5))
+            calibration_values[:, [0, 2]] = 1.0
 
         # Store the minimum and maximum frequency of the calibration file for warning purposes
         self._freqminmax = frequency[[0, -1]]
 
-        # This function spits out the I amplitude, I offset, Q amplitude, Q offset in this order for a given
-        # frequency. If a requested frequency falls outside the range of frequencies in the calibration file, the
-        # function will return the calibration parameters of the closest frequency in the calibration file.
+        # This function spits out the I amplitude, I offset, Q amplitude, Q offset and phase imbalane in this order
+        # for a given frequency. If a requested frequency falls outside the range of frequencies in the calibration file,
+        # the function will return the calibration parameters of the closest frequency in the calibration file.
         self._iq_interpfunc = interp1d(
             frequency,
             calibration_values,
@@ -131,11 +129,11 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         if not self._freqminmax[0] < lo_frequency < self._freqminmax[-1]:
             self.log.warning(
                 "Requested local oscillator frequency: {:.3f} GHz, falls outside the calibration file ranges. "
-                "Using the closest frequency instead."
+                "Using the closest frequency instead.".format(lo_frequency / 1e9)
             )
 
         # Get the calibrated amplitudes and offset from the interpolation function.
-        Iamp, Ioff, Qamp, Qoff = self._iq_interpfunc(lo_frequency)
+        Iamp, Ioff, Qamp, Qoff, phase_inbalance = self._iq_interpfunc(lo_frequency)
 
         # Create a matrix with as many rows (in the second index) as the number of requested phases. Essentially,
         # create sinusoidal oscillations (for I and Q) at each phase for the whole time axis duration, then chop
@@ -147,11 +145,18 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
             range(phases_number), phases, t_centrewidth_list
         ):
             Imodulation = (
-                    Iamp * np.cos(2 * np.pi * self.if_modulation_freq * timeaxis + phase) + Ioff
+                Iamp * np.cos(2 * np.pi * self.if_modulation_freq * timeaxis + phase)
+                + Ioff
             )
             Qmodulation = (
-                    Qamp * np.cos(2 * np.pi * self.if_modulation_freq * timeaxis + phase + np.pi / 2)
-                    + Qoff
+                Qamp
+                * np.cos(
+                    2 * np.pi * self.if_modulation_freq * timeaxis
+                    + phase
+                    + phase_inbalance
+                    + np.pi / 2
+                )
+                + Qoff
             )
 
             pulse_sequence = envelope_function(timeaxis, t_centrewidth)
@@ -165,6 +170,7 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         Ipulses, Qpulses = pulse_matrix.sum(axis=1)
 
         return Ipulses, Qpulses
+
     @staticmethod
     def box_envelope(timeaxis, t_centrewidths):
         """
