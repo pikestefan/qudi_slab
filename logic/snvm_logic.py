@@ -512,7 +512,7 @@ class SnvmLogic(GenericLogic):
             #If the index of the ODMR is less than the averages, keep acquiring
             if self._odmr_rep_index < self.odmr_averages:
                 counts, ainput = self.acquire_pixel()
-                counts = counts[0] / self.px_time
+                counts = counts[0] / self.px_time[self._active_stack]
                 self.temp_freq_matrix[self._odmr_rep_index, self._freq_scanning_index] = counts
                 self._temp_afm_matrix[self._odmr_rep_index, self._freq_scanning_index] = ainput.mean()
 

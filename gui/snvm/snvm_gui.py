@@ -542,7 +542,6 @@ class SnvmGui(GUIBase):
 
 
     def snvm_confocal_finished(self, was_snvm):
-        self.enable_conf_interactions()
         self.enable_opti_interactions()
 
         xrange, yrange = self._scanning_logic.get_xy_image_range(multiplier=1 / self.xy_range_multiplier)
@@ -550,8 +549,10 @@ class SnvmGui(GUIBase):
         if was_snvm:
             self._mainwindow.multiFreqPlotView.set_crosshair_range([xrange, yrange])
             self._mainwindow.afmPlotView.set_crosshair_range([xrange, yrange])
+            self.enable_snvm_interactions()
         else:
             self._mainwindow.confocalScannerView.set_crosshair_range([xrange, yrange])
+            self.enable_conf_interactions()
 
     def disable_snvm_interactions(self):
         self._mainwindow.actionStart_snvm_scan.setEnabled(False)
