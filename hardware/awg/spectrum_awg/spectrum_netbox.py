@@ -222,6 +222,8 @@ class SpectrumNetbox(Base, PulserInterface):
         errorout = self._get_error_msg(card)
         if errorout:
             return -1
+        else:
+            return 0
 
     def get_sample_rate(self, card_idx):
         """
