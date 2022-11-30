@@ -21,7 +21,7 @@ import time
 import numpy as np
 from scipy.interpolate import interp1d
 
-from core.module import Base
+from logic.generic_logic import GenericLogic
 from core.configoption import ConfigOption
 from core.connector import Connector
 from core.statusvariable import StatusVar
@@ -29,26 +29,26 @@ from interface.pulser_interface import PulserInterface
 from interface.microwave_interface import MicrowaveInterface
 
 
-class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
+class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
     """
     An interfuse that merges together the functionality of AWG and IQ-modulated microwave source, in order to
     facilitate single sideband upconversion scheme.
     """
 
-    mw_source = Connector(interface="PulserInterface")
-    awg = Connector(interface="MicrowaveInterface")
+    mw_source = Connector(interface="MicrowaveInterface")
+    awg = Connector(interface="PulserInterface")
 
     if_modulation_freq = StatusVar(default=100e6)
 
     calibfile_dir = ConfigOption("calibration_file_directory", missing="error")
     calibration_interpolation_method = ConfigOption(
-        "calibration_file_interpolation_method", "linear", missing="warning"
+        "calibration_file_interpolation_method", "linear", missing="warn"
     )
-    laser_channel = ConfigOption("laser_channel", "x0", missing="warning")
-    apd_signal_channel = ConfigOption("apd_signal_channel", "x1", missing="warning")
-    apd_read_channel = ConfigOption("apd_read_channel", "x2", missing="warning")
-    imod_channel = ConfigOption("imod_channel", "ch2", missing="warning")
-    qmod_channel = ConfigOption("qmod_channel", "ch3", missing="warning")
+    laser_channel = ConfigOption("laser_channel", "x0", missing="warn")
+    apd_signal_channel = ConfigOption("apd_signal_channel", "x1", missing="warn")
+    apd_read_channel = ConfigOption("apd_read_channel", "x2", missing="warn")
+    imod_channel = ConfigOption("imod_channel", "ch2", missing="warn")
+    qmod_channel = ConfigOption("qmod_channel", "ch3", missing="warn")
 
     def on_activate(self):
         self._if_freq = self.if_modulation_freq
@@ -102,8 +102,11 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
             fill_value=(calibration_values[0], calibration_values[-1]),
         )
 
-        self._mwsource = self.mw_source
-        self._awg = self.awg
+        self._mwsource = self.mw_source()
+        self._awg = self.awg()
+
+    def on_deactivate(self):
+        pass
 
     def set_frequency(self, freq=0.0):
         """
@@ -241,3 +244,185 @@ class IQPulserInterfuse(Base, PulserInterface, MicrowaveInterface):
         pulses = np.logical_and(start_edges, end_edges).astype(np.float64)
 
         return pulses.sum(axis=0)
+
+    ################################################################################################
+    # More custom methods that are not related to the original MicrowaveInterface and PulserInterface
+    ################################################################################################
+    def set_chan_amplitude(self, channels, amplitudes):
+        err_code = self._awg.set_chan_amplitude(channels, amplitudes)
+        return err_code
+
+    def set_output_filters(self, channels, filter_active):
+        err_code = self._awg.set_output_filters(channels, filter_active)
+        return err_code
+    def configure_ORmask(self, card_idx, *masks_to_enable):
+        err_code = self._awg.configure_ORmask(card_idx, *masks_to_enable)
+
+    def configure_ANDmask(self, card_idx, *masks_to_enable):
+        err_code = self._awg.configure_ANDmask(card_idx, *masks_to_enable)
+        return err_code
+
+    def send_software_trig(self, card_idx):
+        self._awg.send_software_trig(card_idx)
+
+    def start_card(self, card_idx):
+        self._awg.start_card(card_idx)
+
+    def arm_trigger(self, card_idx):
+        self._awg.arm_trigger(card_idx)
+
+    def disable_trigger(self, card_idx):
+        self._awg.disable_trigger(card_idx)
+
+    def configuration_sequence_mode(self, card_idx):
+        self._awg.configuration_sequence_mode(card_idx)
+
+    def configuration_single_mode(self, card_idx):
+        self._awg.configuration_single_mode(card_idx)
+
+    def stop_replay(self, card_idx):
+        self._awg.stop_replay(card_idx)
+
+    def waveform_padding(self, waveform_len):
+        return self._awg.waveform_padding(waveform_len)
+
+    def set_IQmod(self, on):
+        self._mwsource.set_IQmod(on)
+
+    ################################################################################################
+    # Overloading section for the MicrowaveInterface
+    ################################################################################################
+    def off(self):
+        return self._mwsource.off()
+
+    def get_status(self):
+        return self._mwsource.get_status()
+
+    def get_power(self):
+        return self._mwsource.get_power()
+
+    def get_frequency(self):
+        return self._mwsource.get_frequency()
+
+    def cw_on(self):
+        return self._mwsource.cw_on()
+
+    def set_cw(self, frequency=None, power=None, useinterleave=None):
+        return self._mwsource.set_cw(
+            frequency=frequency, power=power, useinterleave=useinterleave
+        )
+
+    def list_on(self):
+        return self._mwsource.list_on()
+
+    def set_list(self, frequency=None, power=None):
+        return self._mwsource.set_list(frequency=frequency, power=power)
+
+    def reset_listpos(self):
+        return self._mwsource.reset_listpos()
+
+    def sweep_on(self):
+        return self._mwsource.sweep_on()
+
+    def set_sweep(self, start=None, stop=None, step=None, power=None):
+        return self._mwsource.set_sweep(start=start, stop=stop, step=step, power=power)
+
+    def reset_sweeppos(self):
+        return self._mwsource.reset_sweeppos()
+
+    def set_ext_trigger(self, pol, timing):
+        return self._mwsource.set_ext_trigger(pol, timing)
+
+    def trigger(self):
+        return self._mwsource.trigger()
+
+    def get_limits(self):
+        return self._mwsource.get_limits()
+
+    ################################################################################################
+    # Overloading section for the PulserInterface
+    ################################################################################################
+    def get_constraints(self):
+        return self._awg.get_constraints()
+
+    def pulser_on(self):
+        self._awg.pulser_on()
+
+    def pulser_off(self):
+        self._awg.pulser_off()
+
+    def load_sequence(
+        self,
+        waveform_list=None,
+        segment_map=np.array([]),
+        loops_list=np.array([]),
+        stop_condition_list=np.array([]),
+    ):
+        error_out = self._awg.load_sequence(
+            waveform_list=None,
+            segment_map=np.array([]),
+            loops_list=np.array([]),
+            stop_condition_list=np.array([]),
+        )
+        return error_out
+
+    def get_loaded_assets(self):
+        return self._awg.get_loaded_assets()
+
+    def clear_all(self):
+        return self._awg.clear_all()
+
+    def get_status(self):
+        return self._awg.get_status()
+
+    def get_sample_rate(self, card_idx):
+        return self._awg.get_sample_rate(card_idx)
+
+    def set_sample_rate(self, card_idx, clk_rate):
+        error_code = self._awg.set_sample_rate(card_idx, clk_rate)
+        return error_code
+
+    def get_analog_level(self):
+        return self._awg.get_analog_level()
+
+    def set_analog_level(self):
+        self._awg.set_analog_level()
+
+    def get_digital_level(self):
+        return self._awg.get_digital_level()
+
+    def set_digital_level(self):
+        self._awg.set_digital_level()
+
+    def get_active_channels(self, ch=None):
+        return self._awg.get_active_channels()
+
+    def set_active_channels(self, *channels):
+        self._awg.set_active_channels(*channels)
+
+    def write_waveform(self):
+        self._awg.write_waveform()
+
+    def write_sequence(self):
+        self._awg.write_waveform()
+
+    def get_waveform_names(self):
+        return self._awg.get_waveform_names()
+
+    def get_sequence_names(self):
+        return self._awg.get_sequence_names()
+
+    def delete_waveform(self):
+        return self._awg.delete_waveform()
+
+    def delete_sequence(self):
+        return self._awg.delete_sequence
+
+    def get_interleave(self):
+        return self._awg.get_interleave()
+
+    def set_interleave(self):
+        self._awg.set_interleave()
+
+    def reset(self):
+        self._awg.reset()
