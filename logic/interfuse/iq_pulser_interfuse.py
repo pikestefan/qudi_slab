@@ -28,6 +28,9 @@ from core.statusvariable import StatusVar
 from interface.pulser_interface import PulserInterface
 from interface.microwave_interface import MicrowaveInterface
 
+from hardware.awg.spectrum_awg.spcm_tools import *
+from hardware.awg.spectrum_awg.pyspcm import *
+
 
 class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
     """
@@ -245,9 +248,76 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
         return pulses.sum(axis=0)
 
+    def sequence_test(self):
+        """
+        Function for early debugging of the awg. Remove from the final class.
+
+        The steps to a successful initialization of a sequence are:
+        - Define the clock rate
+        - create the arrays that will represent the sequences
+        - configure the trigger masks
+        - load the sequence
+        - start the card
+        - arm the trigger
+        """
+        useconds = 50
+
+        clk_rate = 800
+
+        self._if_freq /= 1e6
+
+        card_idx = 1
+        self.set_sample_rate(card_idx, int(clk_rate * 1e6))
+
+        samples = self.waveform_padding((useconds * clk_rate))
+        time_ax = np.linspace(0, samples / clk_rate, samples)
+
+        mw_times = [np.array([[5, 0.1], [40, 0.1]]), np.array([[15, 0.05], [30, 0.05]])]
+
+        lassie = [np.array([[5, 0.1]]), np.array([[15, 0.1]])]
+
+        for step in range(len(mw_times)):
+
+            iw, qw = self.iq_pulses(time_ax, [mw_times[step]], 2.87e9)
+
+            analogs = {"i_chan": iw, "q_chan": qw}
+            lasah = self.box_envelope(time_ax, lassie[step])
+
+            self.load_waveform(
+                iq_dictionary=analogs,
+                digital_pulses={"laser": lasah},
+                digital_output_map={0: [0]},
+            )
+
+        # # This sequence immediately starts after the sequences are loaded
+        # self.configure_ORmask(card_idx, 'immediate')
+        # self.configure_ANDmask(card_idx, None)
+        # stop_condition_list = np.array([])
+
+        # This sequence waits for a software trigger to start playing and moving to the next step.
+        self.configure_ORmask(card_idx, None)
+        self.configure_ANDmask(card_idx, None)
+        loops = np.ones(len(mw_times), dtype=np.int64)
+        stop_condition_list = np.array(
+            [SPCSEQ_ENDLOOPONTRIG, SPCSEQ_ENDLOOPONTRIG],
+            dtype=np.int64,
+        )
+
+        self.load_sequence(
+            loops_list=loops,
+            stop_condition_list=stop_condition_list,
+            segment_map=[0, 1],
+        )
+
+        self.start_card(card_idx)
+        self.arm_trigger(card_idx)
+
+        self._if_freq *= 1e6
+
     ################################################################################################
     # More custom methods that are not related to the original MicrowaveInterface and PulserInterface
     ################################################################################################
+
     def set_chan_amplitude(self, channels, amplitudes):
         err_code = self._awg.set_chan_amplitude(channels, amplitudes)
         return err_code
@@ -255,8 +325,14 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
     def set_output_filters(self, channels, filter_active):
         err_code = self._awg.set_output_filters(channels, filter_active)
         return err_code
+
+    def play_waveform(self, waveform=None, loops=0):
+        err_code = self._awg.play_waveform(waveform=waveform, loops=loops)
+        return err_code
+
     def configure_ORmask(self, card_idx, *masks_to_enable):
         err_code = self._awg.configure_ORmask(card_idx, *masks_to_enable)
+        return err_code
 
     def configure_ANDmask(self, card_idx, *masks_to_enable):
         err_code = self._awg.configure_ANDmask(card_idx, *masks_to_enable)
@@ -359,10 +435,10 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         stop_condition_list=np.array([]),
     ):
         error_out = self._awg.load_sequence(
-            waveform_list=None,
-            segment_map=np.array([]),
-            loops_list=np.array([]),
-            stop_condition_list=np.array([]),
+            waveform_list=waveform_list,
+            segment_map=segment_map,
+            loops_list=loops_list,
+            stop_condition_list=stop_condition_list,
         )
         return error_out
 
