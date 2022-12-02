@@ -556,6 +556,7 @@ class SpectrumNetbox(Base, PulserInterface):
         """
         for card_idx in range(self._netbox.card_amount()):
             self._card_reset(self._netbox.card(card_idx))
+        self._waveform_container = []
 
     def get_interleave(self):
         """
