@@ -186,8 +186,10 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         lo_frequency = output_frequency - self._if_freq
         if not self._freqminmax[0] < lo_frequency < self._freqminmax[-1]:
             self.log.warning(
-                "Requested local oscillator frequency: {:.3f} GHz, falls outside the calibration file ranges. "
-                "Using the closest frequency instead.".format(lo_frequency / 1e9)
+                "Requested local oscillator frequency: {:.3f} GHz, falls outside the calibration file range "
+                "[{:.3f}, {:.3f}]. Using the closest frequency instead.".format(lo_frequency / 1e9,
+                                                                                self._freqminmax[0],
+                                                                                self._freqminmax[-1])
             )
 
         # Get the calibrated amplitudes and offset from the interpolation function.
@@ -272,21 +274,16 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         samples = self.waveform_padding((useconds * clk_rate))
         time_ax = np.linspace(0, samples / clk_rate, samples)
 
-        mw_times = [np.array([[5, 0.1], [40, 0.1]]), np.array([[15, 0.05], [30, 0.05]])]
-
-        lassie = [np.array([[5, 0.1]]), np.array([[15, 0.1]])]
+        mw_times = [np.array([[25, 10]]), np.array([[25, 10]])]
 
         for step in range(len(mw_times)):
 
             iw, qw = self.iq_pulses(time_ax, [mw_times[step]], 2.87e9)
 
             analogs = {"i_chan": iw, "q_chan": qw}
-            lasah = self.box_envelope(time_ax, lassie[step])
 
             self.load_waveform(
-                iq_dictionary=analogs,
-                digital_pulses={"laser": lasah},
-                digital_output_map={0: [0]},
+                iq_dictionary=analogs
             )
 
         # # This sequence immediately starts after the sequences are loaded
@@ -414,6 +411,9 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
     def get_limits(self):
         return self._mwsource.get_limits()
+
+    def set_power(self, power=0.):
+        self._mwsource.set_power(power=power)
 
     ################################################################################################
     # Overloading section for the PulserInterface
