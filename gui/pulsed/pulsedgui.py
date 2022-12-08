@@ -313,6 +313,7 @@ class PulsedGui(GUIBase):
 
     def _get_parameters_from_logic(self):
         # Grabs all the parameters from the logic and fills them into the GUI
+        # The parameters from the logic are in microseconds
 
         # Grab the parameters
         mw_power = self._master_pulselogic.mw_power
@@ -405,7 +406,7 @@ class PulsedGui(GUIBase):
         self._send_parameters_to_logic()
         self.fit_image.clear()
         # This one sets the x axis right
-        x_axis = self._master_pulselogic.get_x_axis()
+        x_axis = self._master_pulselogic.get_x_axis() # in microseconds
         self._mw.pulsed_PlotWidget.setXRange(min(x_axis), max(x_axis))
 
         # This is where the measurement really starts
@@ -556,3 +557,9 @@ class PulsedGui(GUIBase):
         method = self._mw.comboBox_method.currentText()
         self._master_pulselogic.save_data(method)
 
+    def get_val_instance_plot(self, instnace_number):
+        t_axis = self._master_pulselogic.get_t_axis()
+        method, laser_times, apd_times, apd_times_sweep, apd_ref_times, mw_times_rabi, mw_times_ramsey = \
+            self._master_pulselogic.get_revant_parameters()
+        return method, laser_times, apd_times, apd_times_sweep, apd_ref_times, mw_times_rabi, mw_times_ramsey
+# continue here

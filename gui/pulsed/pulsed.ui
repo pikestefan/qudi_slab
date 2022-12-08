@@ -1724,6 +1724,152 @@
           </sizepolicy>
          </property>
         </widget>
+        <widget class="QCheckBox" name="laser_plot">
+         <property name="geometry">
+          <rect>
+           <x>1010</x>
+           <y>20</y>
+           <width>140</width>
+           <height>20</height>
+          </rect>
+         </property>
+         <property name="font">
+          <font>
+           <pointsize>10</pointsize>
+          </font>
+         </property>
+         <property name="accessibleName">
+          <string/>
+         </property>
+         <property name="inputMethodHints">
+          <set>Qt::ImhNone</set>
+         </property>
+         <property name="text">
+          <string>Laser</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="QCheckBox" name="mw_plot">
+         <property name="geometry">
+          <rect>
+           <x>1010</x>
+           <y>40</y>
+           <width>140</width>
+           <height>20</height>
+          </rect>
+         </property>
+         <property name="font">
+          <font>
+           <pointsize>10</pointsize>
+          </font>
+         </property>
+         <property name="accessibleName">
+          <string/>
+         </property>
+         <property name="inputMethodHints">
+          <set>Qt::ImhNone</set>
+         </property>
+         <property name="text">
+          <string>MW</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="QCheckBox" name="apd_plot">
+         <property name="geometry">
+          <rect>
+           <x>1010</x>
+           <y>60</y>
+           <width>140</width>
+           <height>20</height>
+          </rect>
+         </property>
+         <property name="font">
+          <font>
+           <pointsize>10</pointsize>
+          </font>
+         </property>
+         <property name="accessibleName">
+          <string/>
+         </property>
+         <property name="inputMethodHints">
+          <set>Qt::ImhNone</set>
+         </property>
+         <property name="text">
+          <string>APD</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="QCheckBox" name="apd_ref_plot">
+         <property name="geometry">
+          <rect>
+           <x>1010</x>
+           <y>80</y>
+           <width>140</width>
+           <height>20</height>
+          </rect>
+         </property>
+         <property name="font">
+          <font>
+           <pointsize>10</pointsize>
+          </font>
+         </property>
+         <property name="accessibleName">
+          <string/>
+         </property>
+         <property name="autoFillBackground">
+          <bool>false</bool>
+         </property>
+         <property name="inputMethodHints">
+          <set>Qt::ImhNone</set>
+         </property>
+         <property name="text">
+          <string>Apd_ref</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="laser_button_cw_2">
+         <property name="geometry">
+          <rect>
+           <x>1010</x>
+           <y>110</y>
+           <width>101</width>
+           <height>23</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Plot instance</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="ScienDSpinBox" name="instance_number">
+         <property name="geometry">
+          <rect>
+           <x>1010</x>
+           <y>140</y>
+           <width>61</width>
+           <height>20</height>
+          </rect>
+         </property>
+         <property name="decimals">
+          <number>0</number>
+         </property>
+         <property name="maximum">
+          <double>200.000000000000000</double>
+         </property>
+         <property name="value">
+          <double>2.000000000000000</double>
+         </property>
+        </widget>
        </widget>
       </widget>
      </widget>

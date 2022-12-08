@@ -266,24 +266,37 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
         clk_rate = 800
 
-        self._if_freq /= 1e6
+        self._if_freq /= 1e6 # in MHz
 
         card_idx = 1
         self.set_sample_rate(card_idx, int(clk_rate * 1e6))
 
         samples = self.waveform_padding((useconds * clk_rate))
         time_ax = np.linspace(0, samples / clk_rate, samples)
+        #print(time_ax)
+        mw_times = [np.array([[25, 10]]), np.array([[25, 10]]),
+                    np.array([[25, 10]]), np.array([[25, 10]]),
+                    np.array([[25, 10]]), np.array([[25, 10]]),
+                    np.array([[25, 10]]), np.array([[25, 10]]),
+                    np.array([[25, 10]]), np.array([[25, 10]])]     #This needs to be build by the loop in play_rabi
+        # --> for each step there needs to be a new np.array with a different t0 but the same width
 
-        mw_times = [np.array([[25, 10]]), np.array([[25, 10]])]
+        laser_times = np.copy(mw_times)
 
         for step in range(len(mw_times)):
+            #print([mw_times[step]])
+            #print(laser_times[step])
+            iwaveform, qwwaveform = self.iq_pulses(time_ax, [mw_times[step]], 2.87e9)
 
-            iw, qw = self.iq_pulses(time_ax, [mw_times[step]], 2.87e9)
+            laser_waveform = self.box_envelope(time_ax, laser_times[step])
 
-            analogs = {"i_chan": iw, "q_chan": qw}
+            analogs = {"i_chan": iwaveform, "q_chan": qwwaveform}
+            digitals = {"laser": laser_waveform}
 
             self.load_waveform(
-                iq_dictionary=analogs
+                iq_dictionary=analogs,
+                digital_pulses=digitals,
+                digital_output_map={0: [0]}
             )
 
         # # This sequence immediately starts after the sequences are loaded
@@ -296,14 +309,13 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         self.configure_ANDmask(card_idx, None)
         loops = np.ones(len(mw_times), dtype=np.int64)
         stop_condition_list = np.array(
-            [SPCSEQ_ENDLOOPONTRIG, SPCSEQ_ENDLOOPONTRIG],
+            [SPCSEQ_ENDLOOPONTRIG, ] * len(mw_times),
             dtype=np.int64,
         )
 
         self.load_sequence(
             loops_list=loops,
             stop_condition_list=stop_condition_list,
-            segment_map=[0, 1],
         )
 
         self.start_card(card_idx)
@@ -414,6 +426,13 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
     def set_power(self, power=0.):
         self._mwsource.set_power(power=power)
+
+    def on(self):
+        self._mwsource.on()
+        return 0
+
+    def set_mod(self, on):
+        self._mwsource.set_mod(on)
 
     ################################################################################################
     # Overloading section for the PulserInterface
