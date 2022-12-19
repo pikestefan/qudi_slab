@@ -59,8 +59,8 @@ class MasterPulse(GenericLogic):
     clk_rate_awg = StatusVar('clk_rate_awg', int(800e6))  # in MHz
 
     ## Delay Sweep
-    mw_pulse_setting = StatusVar('mw_pulse_setting', True)  # this is only for delay sweep
-    seq_len = StatusVar('seq_len', 8.5e-6)
+    mw_pulse_setting = StatusVar('mw_pulse_setting', False)  # this is only for delay sweep
+    seq_len = StatusVar('seq_len', 7e-6)
     neg_mw = StatusVar('neg_mw', False)  # if False it plays +1, if True it applies negative mw pulses -1 (all the pulses are squared)
     method = StatusVar('method', 'ramsey')  # change this to 'ramsey', 'delaysweep', 'rabi' or 'delaysweep_ref' if needed
 
@@ -68,7 +68,7 @@ class MasterPulse(GenericLogic):
     apd_start = StatusVar('apd_start', 3.05e-6)
     apd_len = StatusVar('apd_len', 250e-9)
     apd_ref_start = StatusVar('apd_ref_start', 4.5e-6)
-    apd_ref_len = StatusVar('apd_ref_len', 250e-9)
+    apd_ref_len = StatusVar('apd_ref_len', 100e-9)
 
     # laser times tab
     laser_in = StatusVar('laser_in', 1e-6)
@@ -152,6 +152,7 @@ class MasterPulse(GenericLogic):
         self.sigContinueLoop.connect(self.continue_loop, QtCore.Qt.QueuedConnection)
         self.sigStopMeasurement.connect(self.stop_measurement, QtCore.Qt.QueuedConnection)
         self.sigStopAll.connect(self.stop_all, QtCore.Qt.QueuedConnection)
+        # self._pulselogic.sigUsedArrays.connect(self.get_used_arrays, QtCore.Qt.QueuedConnection)
         self.stopRequested = False
         self._build_pulse_arrays()
 
@@ -344,13 +345,40 @@ class MasterPulse(GenericLogic):
         return t_axis
     def get_revant_parameters(self):
         method = self.method
-        laser_times = self.laser_times
-        apd_times = self.apd_times
-        apd_times_sweep = self.apd_times_sweep
-        apd_ref_times = self.apd_ref_times
-        mw_times_rabi = self.mw_times_rabi
-        mw_times_ramsey = self.mw_times_ramsey
-        return method, laser_times, apd_times, apd_times_sweep, apd_ref_times, mw_times_rabi, mw_times_ramsey
+        # laser_times = self.laser_array
+        if method == 'delaysweep':
+            laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array = self.get_delay_sweep_arrays()
+        elif method == 'delaysweep_ref':
+            laser_array, mw_i_array, mw_q_array, apd_ref_array, apd_array = self.get_delay_sweep_arrays()
+        elif method == 'rabi':
+            laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array = self.get_rabi_arrays()
+        elif method == 'ramsey':
+            laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array = self.get_ramsey_arrays()
+        else:
+            self.log.warning('method is weird.')
+            laser_array = [0]
+            apd_array = [0]
+            apd_ref_array = [0]
+            mw_i_array = [0]
+            mw_q_array = [0]
+
+        return method, laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array
+    def get_used_arrays(self, analogs, digitals):
+        if analogs != None and digitals != None:
+            self.iwaveform = analogs["i_chan"]
+            self.qwwaveform = analogs["q_chan"]
+            self.laser_array = digitals["laser"]
+            self.apd_array = digitals["apd_sig"]
+            self.apd_ref_array = digitals["apd_read"]
+        else:
+            self.log.warning('Arrays are empty, run the sequence first.')
+            t_axis = self.get_t_axis()
+            self.iwaveform = np.repeat(0, len(t_axis))
+            self.qwwaveform = np.repeat(0, len(t_axis))
+            self.laser_array = np.repeat(0, len(t_axis))
+            self.apd_array = np.repeat(0, len(t_axis))
+            self.apd_ref_array = np.repeat(0, len(t_axis))
+        return self.iwaveform, self.qwwaveform, self.laser_array, self.apd_array, self.apd_ref_array
 
 
     def prepare_count_matrix(self):
@@ -417,14 +445,14 @@ class MasterPulse(GenericLogic):
         else:
             if self.step_index == self.step_count - 1 and self.av_index == self.averages -1:
                 counts, ref_counts = self.acquire_pixel()
-                print(f'Current Average: {self.av_index}')
+                # print(f'Current Average: {self.av_index}')
                 self.count_matrix[self.av_index, self.step_index] = counts
                 self.count_matrix_ref[self.av_index, self.step_index] = ref_counts
                 self.sigStopMeasurement.emit()
 
             elif self.step_index == self.step_count - 1 and self.av_index < self.averages - 1: # moves to the next average row
 
-                print(f'Current Average: {self.av_index}')
+                # print(f'Current Average: {self.av_index}')
                 counts, ref_counts = self.acquire_pixel()
 
                 self.count_matrix[self.av_index, self.step_index] = counts
@@ -549,69 +577,6 @@ class MasterPulse(GenericLogic):
     def stop_all(self):
         self.stopRequested = True
 
-
-    # def address_ttls(self, seq_len=5.0, laser_out=True, apd_out=False, apd_ref_out=False, clk_rate = 50):
-    #     '''
-    #     an attempt to fix this...
-    #     '''
-    #     card_idx = 1
-    #     self._pulser.set_sample_rate(card_idx, int(clk_rate * 1e6))
-    #     time_ax =self._pulselogic.time_axis (seq_len)
-    #     self.clk_rate = self._pulser.get_sample_rate(card_idx)
-    #
-    #     laser_pulse, apd_sig_pulse, apd_ref_pulse = self.get_val_cw_mode(seq_len, laser_out, apd_out, apd_ref_out, self.clk_rate)
-    #
-    #     digitals = {"laser": laser_pulse, "apd_sig": apd_sig_pulse, "apd_read": apd_ref_pulse}
-    #     print(digitals)
-    #     self._pulser.load_waveform(
-    #             digital_pulses=digitals,
-    #             digital_output_map={0: [0]}
-    #             )
-    #     # This sequence waits for a software trigger to start playing and moving to the next step.
-    #     self._pulser.configure_ORmask(card_idx, None)
-    #     self._pulser.configure_ANDmask(card_idx, None)
-    #     loops = np.ones(1, dtype=np.int64)
-    #     array = np.array([0x40000000], dtype=np.int64)
-    #     stop_condition_list = np.repeat(array, 1)
-    #
-    #     self._pulser.load_sequence(
-    #         loops_list=loops,
-    #         stop_condition_list=stop_condition_list,
-    #     )
-    #
-    #     self._pulser.start_card(card_idx)
-    #     self._pulser.arm_trigger(card_idx)
-    #
-    #     # card_idx = 1
-    #     # loops = 0 # This lets the waveform play infinitely
-    #     # self._pulser.set_sample_rate(card_idx = card_idx, clk_rate=int(50000000)) # low sampling rate is fine for that
-    #     # clk_rate = self._pulser.get_sample_rate(card_idx)
-    #     #
-    #     # #self.set_sample_rate(card_idx, clk_rate)
-    #     #
-    #     # # # This sequence immediately starts after the sequences are loaded
-    #     # self._pulser.configure_ORmask(card_idx, 'immediate')
-    #     # self._pulser.configure_ANDmask(card_idx, None)
-    #     #
-    #     # samples = self._pulser.waveform_padding(int(seq_len * clk_rate))
-    #     # time_ax = np.linspace(0, samples / clk_rate, samples)
-    #     #
-    #     # do_chan = 1
-    #     # do0 = first_out * np.ones(time_ax.shape, dtype=np.int64) # laser
-    #     # do1 = second_out * np.ones(time_ax.shape, dtype=np.int64) # apd
-    #     # do2 = third_out * np.ones(time_ax.shape, dtype=np.int64) # apd ref
-    #     # # print('do0', do0)
-    #     # # print('do1', do1)
-    #     # # print('do2', do2)
-    #     # outchan = 0
-    #     # do_output = {1: do0, 2: do1, 3: do2}
-    #     # # digital_output_map = {1: do0, 2: do1, 3: do2}
-    #     # digital_output_map = {1: [0, 1, 2]}
-    #     # # digital_output_map = {1: [0], 2: [1], 3: [2]}
-    #     # self._pulser.load_waveform(do_waveform_dictionary=do_output,
-    #     #                    digital_output_map=digital_output_map)
-    #     # self._pulser.play_waveform(self._pulser._waveform_container[-1], loops=loops) # What does this [-1] do? This referes to another class in the hardware code
-
     def step_counter(self):
         self._build_pulse_arrays()
         # in microseconds
@@ -683,26 +648,160 @@ class MasterPulse(GenericLogic):
         else:
             self._timeseries.stop_reading()
 
-    # def get_val_cw_mode(self, seq_len=0.5, laser_out=True, apd_sig=False, apd_ref=False, clock_rate=50000000):
-    #    # for cw we need laser high and
-    #    # for the ttl switchen both ttls need to be low
-    #    # set the clock rate of the awg low because we dont want to wait and we dont care
-    #     self._pulser.set_sample_rate(1, clock_rate)
-    #     timeaxis = self._pulselogic.time_axis(seq_len)
-    #    # go to box_envelope function directly
-    #
-    #     if laser_out: #high
-    #        laser_pulse = self._pulser.box_envelope(timeaxis, np.array([[seq_len / 2, seq_len * 2]]))
-    #     else:
-    #        laser_pulse = self._pulser.box_envelope(timeaxis, np.array([[seq_len / 2, 0]]))
-    #     if apd_sig: #high
-    #         apd_sig_pulse = self._pulser.box_envelope(timeaxis, np.array([[seq_len / 2, seq_len * 2]]))
-    #     else: #low
-    #         apd_sig_pulse = self._pulser.box_envelope(timeaxis, np.array([[seq_len / 2, 0]]))
-    #     if apd_ref: #high
-    #         apd_ref_pulse = self._pulser.box_envelope(timeaxis, np.array([[seq_len / 2, seq_len * 2]]))
-    #     else: #low
-    #         apd_ref_pulse = self._pulser.box_envelope(timeaxis, np.array([[seq_len / 2, 0]]))
-    #
-    #     return laser_pulse, apd_sig_pulse, apd_ref_pulse
+    # just to get the right parameter for instance plot
+    def get_rabi_arrays(self):
+        """
+       It just creates the arrays. They are used in the masterpulse logic and the GUI to build the instance plot on the right
+        """
+        self._build_pulse_arrays()
+        mw_len = []
+        card_idx = 1
+        self.clk_rate = self._pulser.get_sample_rate(card_idx) / 1e6  # To adapt it to the microsecond timing
+        step_count = int(((self.mw_times_rabi[2] - self.mw_times_rabi[1]) / self.mw_times_rabi[3]) + 1)
+        print("step_count: ", step_count)  # Without unit
+        for i in range(step_count):
+            mw_len.append(round((self.mw_times_rabi[1] + (i * self.mw_times_rabi[3])), 3))  # starting with minimal length
+
+        t_centrewidth_list_mw = []  # get the size of the np.array right?np.array([[0, 0]])
+        t_centrewidth_list_laser = self._pulselogic.convert_laser_val(self.laser_times)
+        t_centrewidth_list_apd = self._pulselogic.convert_apd_val(self.apd_times)
+        t_centrewidth_list_apd_ref = self._pulselogic.convert_apd_val(self.apd_ref_times)
+
+        for i in mw_len:
+            if self.seq_len < (self.mw_times_rabi[0] + self.mw_times_rabi[2]):
+                raise ValueError(
+                    "The total length needs to be larger that the apd_time sum"
+                )
+            else:
+                t0, width = self._pulselogic.convert_mw_val_rabi(self.mw_times_rabi, i)  # in microseconds
+                t_centrewidth_list_mw.append([np.array([[t0, width]])])
+        self._pulser.set_frequency(self.mw_frequency)
+        output_frequency = self._pulser.get_frequency()
+        time_ax = self._pulselogic.time_axis(self.seq_len) # this includes waveform_padding
+        laser_array = []
+        mw_i_array = []
+        mw_q_array = []
+        apd_array = []
+        apd_ref_array = []
+        for step in range(len(t_centrewidth_list_mw)):
+            iwaveform, qwwaveform = self._pulser.iq_pulses(time_ax, t_centrewidth_list_mw[step], output_frequency)
+            laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
+            apd_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd)  #
+            apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)  #
+            mw_i_array.append(iwaveform)
+            mw_q_array.append(qwwaveform)
+            laser_array.append(laser_waveform)
+            apd_array.append(apd_waveform)
+            apd_ref_array.append(apd_ref_waveform)
+
+        # self.sigUsedArrays.emit(analogs, digitals)
+        return laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array
+
+    def get_ramsey_arrays(self):
+        """
+        It just creates the arrays. They are used in the masterpulse logic and the GUI to build the instance plot on the right
+        """
+        self._build_pulse_arrays()
+        t_centrewidth_list_mw = []
+        break_len = []
+        laser_array = []
+        mw_i_array = []
+        mw_q_array = []
+        apd_array = []
+        apd_ref_array = []
+        card_idx = 1
+        step_count = int(((self.mw_times_ramsey[2] - self.mw_times_ramsey[1]) / self.mw_times_ramsey[3]) + 1) # without unit
+        print("step_count: ", step_count)
+
+        for i in range(step_count):
+            break_len.append((self.mw_times_ramsey[1] + (i * self.mw_times_ramsey[3])))  # starting with minimal length
+        t_centrewidth_list_laser = self._pulselogic.convert_laser_val(self.laser_times)
+        t_centrewidth_list_apd = self._pulselogic.convert_apd_val(self.apd_times)
+        t_centrewidth_list_apd_ref = self._pulselogic.convert_apd_val(self.apd_ref_times)
+
+        for i in break_len:
+            if self.seq_len < (self.laser_times[0] + self.laser_times[1] + self.laser_times[2]):
+                self.log.warning(
+                    "The total length needs to be larger that the sequence time"
+                )
+            else:
+                t0, t1, width = self._pulselogic.convert_mw_val_ramsey(self.mw_times_ramsey, i) # these values are in microseconds
+                t_centrewidth_list_mw.append([np.array([[t0, width], [t1, width]])])
+        time_ax = self._pulselogic.time_axis(self.seq_len) # in microsecondes
+        self._pulser.set_frequency(self.mw_frequency) # this one does freq - if_freq
+        output_frequency = self._pulser.get_frequency()
+
+        for step in range(len(t_centrewidth_list_mw)):
+            iwaveform, qwwaveform = self._pulser.iq_pulses(time_ax, t_centrewidth_list_mw[step], output_frequency)
+            laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
+            apd_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd)  #
+            apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)  #
+            mw_i_array.append(iwaveform)
+            mw_q_array.append(qwwaveform)
+            laser_array.append(laser_waveform)
+            apd_array.append(apd_waveform)
+            apd_ref_array.append(apd_ref_waveform)
+
+        # self.sigUsedArrays.emit(analogs, digitals)
+        return laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array
+
+    def get_delay_sweep_arrays(self):
+        """
+        It just creates the arrays. They are used in the masterpulse logic and the GUI to build the instance plot on the right
+        """
+        self._pulser.set_sample_rate(1, int(800000000))
+        laser_array = []
+        mw_i_array = []
+        mw_q_array = []
+        apd_array = []
+        apd_ref_array = []
+        # seq_len_s = self.seq_len * 1e-6
+        # laser_times_s = np.multiply(self.laser_times, 1e-6)
+        # mw_times_s = np.multiply(self.mw_times_sweep, 1e-6)
+        apd_times_s = np.multiply(self.apd_times_sweep, 1e-6)
+        # apd_ref_s = np.multiply(self.apd_ref_times, 1e-6)
+        # So far we just use card1
+        card_idx = 1
+        # clk_rate = self._pulser.get_sample_rate(card_idx)
+        # segment_map = []
+        apd_start = []
+        step_count = int(((self.apd_times_sweep[2] - self.apd_times_sweep[1]) / self.apd_times_sweep[3]) + 1)
+        print("step_count: ", step_count)
+        time_ax = self._pulselogic.time_axis(self.seq_len)  # this includes waveform_padding
+        for i in range(step_count):
+            apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
+
+        # Create laser and apd waveform as they are constant (put it in microseconds)
+        t_centrewidth_list_laser = self._pulselogic.convert_laser_val(self.laser_times)
+        t_centrewidth_list_apd_ref = self._pulselogic.convert_apd_val(self.apd_ref_times)
+        laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
+        apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)
+        if self.mw_pulse_setting:
+            # replace this one
+            t_centrewidth_list_mw = self._pulselogic.convert_mw_sweep(self.mw_times_sweep)
+            mw_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_mw)
+
+        else:  # if no MW is needed
+            zeros_mw = self._pulselogic.convert_mw_sweep([-1, 0])
+            mw_waveform = self._pulser.box_envelope(time_ax, zeros_mw)
+
+        for i in apd_start:
+            current_t_centerwidth = self._pulselogic.convert_apd_val([i * 1e6, self.apd_times_sweep[0]]) #[time to start, length]
+            print(current_t_centerwidth)
+            #!!! apd_times = [length, min_start, max_start, steps] # changing length
+            apd_waveform = self._pulser.box_envelope(time_ax, current_t_centerwidth)
+            mw_i_array.append(mw_waveform)
+            mw_q_array.append(np.zeros(len(mw_waveform)))
+            laser_array.append(laser_waveform)
+            apd_array.append(apd_waveform)
+            apd_ref_array.append(apd_ref_waveform)
+
+        return laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array
+
+    def get_t_axis_pulselogic(self): # in microseconds for the instance plot in the GUI
+        t_axis = self._pulselogic.time_axis(self.seq_len)
+        return t_axis
+
+
+
 

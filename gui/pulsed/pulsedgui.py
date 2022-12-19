@@ -88,6 +88,7 @@ class PulsedGui(GUIBase):
         # set up all the important connections:
         self._setup_connections()
         self._setup_plots()
+        self._setup_instance_plot()
         # Grab the saved status variable parameters from the logic
         self._get_parameters_from_logic()
 
@@ -116,7 +117,9 @@ class PulsedGui(GUIBase):
         self._mw.laser_power_2.valueChanged.connect(self.changed_laser_power)
         self._mw.laser_button_cw.clicked.connect(self.changed_laser_power)
         self._mw.laser_button_high.clicked.connect(self.changed_laser_power)
-
+        # instance plot:
+        self._mw.plot_instance_Button.clicked.connect(self.instance_plot)
+        self._mw.get_values_Button.clicked.connect(self.get_values)
         # # Control/values-changed signals to logic
         self.sigStartMeasurement.connect(self.start_measurement, QtCore.Qt.QueuedConnection)
 
@@ -126,6 +129,7 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.sigMeasurementDone.connect(self.measurement_done,
                                                    QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigAverageDone.connect(self.refresh_plot, QtCore.Qt.QueuedConnection)
+        self._master_pulselogic.sigAverageDone.connect(self.update_curr_av, QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigFitUpdated.connect(self.update_fit, QtCore.Qt.QueuedConnection)
 
     def _setup_plots(self):
@@ -149,6 +153,24 @@ class PulsedGui(GUIBase):
         self._mw.pulsed_PlotWidget.addItem(self.fit_image)
         self._mw.pulsed_PlotWidget.setLabel('bottom', 'Time in us')
         self._mw.pulsed_PlotWidget.setLabel('left', 'Counts')
+
+    def _setup_instance_plot(self):
+        # Set up the plots
+        self.mw_trace_i = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='b'))
+        self.mw_trace_q = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='m'))
+        self.apd_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='r'))
+        self.apd_ref_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='y'))
+        self.laser_trace = pg.PlotDataItem(skipFiniteCheck=True, pen=pg.mkPen(color='g'))
+        # colors: r, g, b, c, m, y, k, w
+        # This one makes every
+        self._mw.instance_PlotWidget.addItem(self.mw_trace_i)
+        self._mw.instance_PlotWidget.addItem(self.mw_trace_q)
+        # This one makes the average signal visible
+        self._mw.instance_PlotWidget.addItem(self.apd_trace)
+        self._mw.instance_PlotWidget.addItem(self.apd_ref_trace)
+        self._mw.instance_PlotWidget.addItem(self.laser_trace)
+        self._mw.instance_PlotWidget.setLabel('bottom', 'Time in us')
+        self._mw.instance_PlotWidget.setLabel('left', 'Amplitude')
 
     def on_deactivate(self):
         """ Reverse steps of activation
@@ -212,7 +234,8 @@ class PulsedGui(GUIBase):
         if is_checked:
             # change the axes appearance according to input values:
             self._set_enabled_ui(False)
-
+            # Reset the sweeps counter
+            self._mw.curr_av_DisplayWidget.display(0)
             # emit signal to get scan running
             self.sigStartMeasurement.emit()
         else:
@@ -556,10 +579,47 @@ class PulsedGui(GUIBase):
     def save_data(self):
         method = self._mw.comboBox_method.currentText()
         self._master_pulselogic.save_data(method)
+    def get_values(self):
+        self._mw.get_values_Button.setEnabled(False)
+        self.laser_array = []
+        self.mw_i_array  = []
+        self.mw_q_array = []
+        self.apd_array = []
+        self.apd_ref_array = []
+        method, laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array = self._master_pulselogic.get_revant_parameters()
+        self.method = method
+        self.laser_array = laser_array
+        self.mw_i_array = mw_i_array
+        self.mw_q_array = mw_q_array
+        self.apd_array = apd_array
+        self.apd_ref_array = apd_ref_array
+        self.t_axis = self._master_pulselogic.get_t_axis_pulselogic()  # in microseconds
+        self._mw.plot_instance_Button.setEnabled(True)
 
-    def get_val_instance_plot(self, instnace_number):
-        t_axis = self._master_pulselogic.get_t_axis()
-        method, laser_times, apd_times, apd_times_sweep, apd_ref_times, mw_times_rabi, mw_times_ramsey = \
-            self._master_pulselogic.get_revant_parameters()
-        return method, laser_times, apd_times, apd_times_sweep, apd_ref_times, mw_times_rabi, mw_times_ramsey
-# continue here
+    def instance_plot(self):
+        self._mw.get_values_Button.setEnabled(True)
+        instance_number = int(self._mw.instance_number.value())
+        self._mw.pulsed_PlotWidget.setXRange(min(self.t_axis), max(self.t_axis))
+        if self._mw.laser_plot.isChecked():
+            self.laser_trace.setData(self.t_axis, self.laser_array[instance_number])
+        else:
+            self.laser_trace.clear()
+        if self._mw.mw_plot_i.isChecked():
+            self.mw_trace_i.setData(self.t_axis, self.mw_i_array[instance_number])
+        else:
+            self.mw_trace_i.clear()
+        if self._mw.mw_plot_q.isChecked():
+            self.mw_trace_q.setData(self.t_axis, self.mw_q_array[instance_number])
+        else:
+            self.mw_trace_q.clear()
+        if self._mw.apd_plot.isChecked():
+            self.apd_trace.setData(self.t_axis, self.apd_array[instance_number])
+        else:
+            self.apd_trace.clear()
+        if self._mw.apd_ref_plot.isChecked():
+            self.apd_ref_trace.setData(self.t_axis, self.apd_ref_array[instance_number])
+        else:
+            self.apd_ref_trace.clear()
+    def update_curr_av(self):
+        """ Updates current completed frequency sweeps """
+        self._mw.curr_av_DisplayWidget.display(self._master_pulselogic.av_index)

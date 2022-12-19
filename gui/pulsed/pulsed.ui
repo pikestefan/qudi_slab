@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1153</width>
+    <width>1190</width>
     <height>824</height>
    </rect>
   </property>
@@ -71,7 +71,7 @@
           <enum>QTabWidget::Rounded</enum>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>2</number>
          </property>
          <property name="elideMode">
           <enum>Qt::ElideLeft</enum>
@@ -1708,10 +1708,10 @@
           </widget>
          </widget>
         </widget>
-        <widget class="PlotWidget" name="sequence_plot">
+        <widget class="PlotWidget" name="instance_PlotWidget">
          <property name="geometry">
           <rect>
-           <x>650</x>
+           <x>630</x>
            <y>20</y>
            <width>351</width>
            <height>141</height>
@@ -1727,7 +1727,7 @@
         <widget class="QCheckBox" name="laser_plot">
          <property name="geometry">
           <rect>
-           <x>1010</x>
+           <x>990</x>
            <y>20</y>
            <width>140</width>
            <height>20</height>
@@ -1751,10 +1751,10 @@
           <bool>true</bool>
          </property>
         </widget>
-        <widget class="QCheckBox" name="mw_plot">
+        <widget class="QCheckBox" name="mw_plot_q">
          <property name="geometry">
           <rect>
-           <x>1010</x>
+           <x>990</x>
            <y>40</y>
            <width>140</width>
            <height>20</height>
@@ -1772,7 +1772,7 @@
           <set>Qt::ImhNone</set>
          </property>
          <property name="text">
-          <string>MW</string>
+          <string>MW Q</string>
          </property>
          <property name="checked">
           <bool>true</bool>
@@ -1781,7 +1781,7 @@
         <widget class="QCheckBox" name="apd_plot">
          <property name="geometry">
           <rect>
-           <x>1010</x>
+           <x>990</x>
            <y>60</y>
            <width>140</width>
            <height>20</height>
@@ -1808,7 +1808,7 @@
         <widget class="QCheckBox" name="apd_ref_plot">
          <property name="geometry">
           <rect>
-           <x>1010</x>
+           <x>990</x>
            <y>80</y>
            <width>140</width>
            <height>20</height>
@@ -1835,17 +1835,17 @@
           <bool>true</bool>
          </property>
         </widget>
-        <widget class="QPushButton" name="laser_button_cw_2">
+        <widget class="QPushButton" name="get_values_Button">
          <property name="geometry">
           <rect>
-           <x>1010</x>
+           <x>990</x>
            <y>110</y>
-           <width>101</width>
+           <width>71</width>
            <height>23</height>
           </rect>
          </property>
          <property name="text">
-          <string>Plot instance</string>
+          <string>get values</string>
          </property>
          <property name="checkable">
           <bool>true</bool>
@@ -1854,11 +1854,17 @@
         <widget class="ScienDSpinBox" name="instance_number">
          <property name="geometry">
           <rect>
-           <x>1010</x>
+           <x>990</x>
            <y>140</y>
            <width>61</width>
            <height>20</height>
           </rect>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignBottom|Qt::AlignLeading|Qt::AlignLeft</set>
+         </property>
+         <property name="buttonSymbols">
+          <enum>QAbstractSpinBox::UpDownArrows</enum>
          </property>
          <property name="decimals">
           <number>0</number>
@@ -1868,6 +1874,49 @@
          </property>
          <property name="value">
           <double>2.000000000000000</double>
+         </property>
+        </widget>
+        <widget class="QCheckBox" name="mw_plot_i">
+         <property name="geometry">
+          <rect>
+           <x>1050</x>
+           <y>40</y>
+           <width>140</width>
+           <height>20</height>
+          </rect>
+         </property>
+         <property name="font">
+          <font>
+           <pointsize>10</pointsize>
+          </font>
+         </property>
+         <property name="accessibleName">
+          <string/>
+         </property>
+         <property name="inputMethodHints">
+          <set>Qt::ImhNone</set>
+         </property>
+         <property name="text">
+          <string>MW I</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="plot_instance_Button">
+         <property name="geometry">
+          <rect>
+           <x>1060</x>
+           <y>110</y>
+           <width>71</width>
+           <height>23</height>
+          </rect>
+         </property>
+         <property name="text">
+          <string>Plot instance</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
          </property>
         </widget>
        </widget>
@@ -1881,7 +1930,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1153</width>
+     <width>1190</width>
      <height>21</height>
     </rect>
    </property>
@@ -1936,18 +1985,35 @@
      </sizepolicy>
     </property>
     <layout class="QGridLayout" name="gridLayout_2">
-     <item row="0" column="0">
-      <widget class="QLabel" name="label_80">
-       <property name="font">
-        <font>
-         <pointsize>10</pointsize>
-        </font>
+     <item row="4" column="2">
+      <widget class="FitSettingsComboBox" name="fit_methods_ComboBox">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
        </property>
-       <property name="text">
-        <string>Laserpower(V)</string>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="ScienDSpinBox" name="laser_power_2">
+       <property name="readOnly">
+        <bool>false</bool>
        </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       <property name="suffix">
+        <string>V</string>
+       </property>
+       <property name="decimals">
+        <number>2</number>
+       </property>
+       <property name="maximum">
+        <double>0.950000000000000</double>
+       </property>
+       <property name="singleStep">
+        <double>0.010000000000000</double>
+       </property>
+       <property name="value">
+        <double>0.600000000000000</double>
        </property>
       </widget>
      </item>
@@ -1996,16 +2062,6 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="2">
-      <widget class="FitSettingsComboBox" name="fit_methods_ComboBox">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-      </widget>
-     </item>
      <item row="4" column="1">
       <widget class="QLabel" name="label_9">
        <property name="sizePolicy">
@@ -2019,25 +2075,18 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="2">
-      <widget class="ScienDSpinBox" name="laser_power_2">
-       <property name="readOnly">
-        <bool>false</bool>
+     <item row="0" column="0">
+      <widget class="QLabel" name="label_80">
+       <property name="font">
+        <font>
+         <pointsize>10</pointsize>
+        </font>
        </property>
-       <property name="suffix">
-        <string>V</string>
+       <property name="text">
+        <string>Laserpower(V)</string>
        </property>
-       <property name="decimals">
-        <number>2</number>
-       </property>
-       <property name="maximum">
-        <double>0.950000000000000</double>
-       </property>
-       <property name="singleStep">
-        <double>0.010000000000000</double>
-       </property>
-       <property name="value">
-        <double>0.600000000000000</double>
+       <property name="alignment">
+        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
        </property>
       </widget>
      </item>
@@ -2082,6 +2131,9 @@
         <bool>true</bool>
        </property>
       </widget>
+     </item>
+     <item row="5" column="3">
+      <widget class="QLCDNumber" name="curr_av_DisplayWidget"/>
      </item>
     </layout>
    </widget>
@@ -2136,7 +2188,6 @@
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="action_show_seq"/>
   </widget>
   <action name="action_Settings">
    <property name="icon">
@@ -2277,18 +2328,6 @@
    </property>
    <property name="text">
     <string>use ref counts</string>
-   </property>
-  </action>
-  <action name="action_show_seq">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="icon">
-    <iconset>
-     <normaloff>../../artwork/icons/qudiTheme/22x22/auto_pois.png</normaloff>../../artwork/icons/qudiTheme/22x22/auto_pois.png</iconset>
-   </property>
-   <property name="text">
-    <string>Show sequence</string>
    </property>
   </action>
  </widget>
