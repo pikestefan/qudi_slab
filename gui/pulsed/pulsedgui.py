@@ -119,7 +119,7 @@ class PulsedGui(GUIBase):
         self._mw.laser_button_high.clicked.connect(self.changed_laser_power)
         # instance plot:
         self._mw.plot_instance_Button.clicked.connect(self.instance_plot)
-        self._mw.get_values_Button.clicked.connect(self.get_values)
+        self._mw.get_values_Button.clicked.connect(self.get_values_plot)
         # # Control/values-changed signals to logic
         self.sigStartMeasurement.connect(self.start_measurement, QtCore.Qt.QueuedConnection)
 
@@ -236,6 +236,7 @@ class PulsedGui(GUIBase):
             self._set_enabled_ui(False)
             # Reset the sweeps counter
             self._mw.curr_av_DisplayWidget.display(0)
+
             # emit signal to get scan running
             self.sigStartMeasurement.emit()
         else:
@@ -579,7 +580,7 @@ class PulsedGui(GUIBase):
     def save_data(self):
         method = self._mw.comboBox_method.currentText()
         self._master_pulselogic.save_data(method)
-    def get_values(self):
+    def get_values_plot(self):
         self._mw.get_values_Button.setEnabled(False)
         self.laser_array = []
         self.mw_i_array  = []
@@ -594,6 +595,15 @@ class PulsedGui(GUIBase):
         self.apd_array = apd_array
         self.apd_ref_array = apd_ref_array
         self.t_axis = self._master_pulselogic.get_t_axis_pulselogic()  # in microseconds
+
+        # This tries to replace the values in the mask with real values if the get values button is clicked
+        min_time, real_len = self._master_pulselogic.len_error()
+
+        if method == 'rabi':
+            real_len = self._mw.mw_steps_rabi.value()
+        elif method == 'ramsey':
+            real_len = self._mw.mw_len_ramsey.value()
+
         self._mw.plot_instance_Button.setEnabled(True)
 
     def instance_plot(self):
@@ -620,6 +630,13 @@ class PulsedGui(GUIBase):
             self.apd_ref_trace.setData(self.t_axis, self.apd_ref_array[instance_number])
         else:
             self.apd_ref_trace.clear()
+
     def update_curr_av(self):
         """ Updates current completed frequency sweeps """
         self._mw.curr_av_DisplayWidget.display(self._master_pulselogic.av_index)
+
+    ### new attemt for rouding due to clock_rate
+    def update_values(self):
+        pass
+
+

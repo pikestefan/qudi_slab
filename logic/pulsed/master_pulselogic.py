@@ -802,6 +802,94 @@ class MasterPulse(GenericLogic):
         t_axis = self._pulselogic.time_axis(self.seq_len)
         return t_axis
 
+    def len_errors(self):
+        # calc the minimum time
+        min_time = 1 / self.clk_rate_awg # clock_rate in MHz ...min time is in ns therefore
+        # check the input for either rabi or ramsey
+        if self.method == 'rabi':
+            if self.mw_times_rabi[3] % min_time == 0:
+                # not quite sure what to put here as a value because the length changes
+                # for now its the steps of the rabi measurement as we start with 0 and take steps of x ns from there
+                print('everything is cool! The value is a multiple of the min time')
+                real_len = self.mw_times_rabi[3]
+            else:
+                print('The value is not a multiple of the min time')
+                # The real value will be different.
+                # Find the next smaller value that ends up with mod = 0
+                sample_number = math.floor(self.mw_times_rabi[3] / min_time)
+                # calculate the real time
+                real_len = sample_number * min_time
+        elif self.method == 'ramsey':
+            if self.mw_times_ramsey[4] % min_time == 0:
+                # not quite sure what to put here as a value because the length changes
+                print('everything is cool! The value is a multiple of the min time')
+                real_len = self.mw_times_ramsey[4]
+            else:
+                print('The value is not a multiple of the min time')
+                # The real value will be different.
+                # Find the next smaller value that ends up with mod = 0
+                sample_number = math.floor(self.mw_times_ramsey[4] / min_time)
+                # calculate the real time
+                real_len = sample_number * min_time
+        elif self.method == 'delaysweep':
+            if self.mw_times_sweep[1] % min_time == 0:
+                # not quite sure what to put here as a value because the length changes
+                print('everything is cool! The value is a multiple of the min time')
+                real_len = self.mw_times_sweep[1]
+            else:
+                print('The value is not a multiple of the min time')
+                # The real value will be different.
+                # Find the next smaller value that ends up with mod = 0
+                sample_number = math.floor(self.mw_times_sweep[1] / min_time)
+                # calculate the real time
+                real_len = sample_number * min_time
+        return min_time, real_len
+
+    def position_errors(self): # soon to come
+        # this can work for the position of the mw pulse for rabi and ramsey
+        # calc the minimum time
+        min_time = 1 / self.clk_rate_awg # clock_rate in MHz ...min time is in ns therefore
+        # check the input for either rabi or ramsey
+        if self.method == 'rabi':
+            if self.mw_times_rabi[3] % min_time == 0:
+                # not quite sure what to put here as a value because the length changes
+                print('everything is cool! The value is a multiple of the min time')
+                real_len = self.mw_times_rabi[3]
+            else:
+                print('The value is not a multiple of the min time')
+                # The real value will be different.
+                # Find the next smaller value that ends up with mod = 0
+                sample_number = math.floor(self.mw_times_rabi[3] / min_time)
+                # calculate the real time
+                real_len = sample_number * min_time
+        elif self.method == 'ramsey':
+            if self.mw_times_ramsey[4] % min_time == 0:
+                # not quite sure what to put here as a value because the length changes
+                print('everything is cool! The value is a multiple of the min time')
+                real_len = self.mw_times_ramsey[4]
+            else:
+                print('The value is not a multiple of the min time')
+                # The real value will be different.
+                # Find the next smaller value that ends up with mod = 0
+                sample_number = math.floor(self.mw_times_ramsey[4] / min_time)
+                # calculate the real time
+                real_len = sample_number * min_time
+        elif self.method == 'delaysweep':
+            if self.mw_times_sweep[1] % min_time == 0:
+                # not quite sure what to put here as a value because the length changes
+                print('everything is cool! The value is a multiple of the min time')
+                real_len = self.mw_times_sweep[1]
+            else:
+                print('The value is not a multiple of the min time')
+                # The real value will be different.
+                # Find the next smaller value that ends up with mod = 0
+                sample_number = math.floor(self.mw_times_sweep[1] / min_time)
+                # calculate the real time
+                real_len = sample_number * min_time
+        return min_time, real_len
+
+
+
 
 
 
