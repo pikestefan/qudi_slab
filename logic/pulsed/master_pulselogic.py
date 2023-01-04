@@ -693,8 +693,9 @@ class MasterPulse(GenericLogic):
             laser_array.append(laser_waveform)
             apd_array.append(apd_waveform)
             apd_ref_array.append(apd_ref_waveform)
-
+        print(laser_array[1])
         # self.sigUsedArrays.emit(analogs, digitals)
+        # This does the right thing and the values are updated
         return laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array
 
     def get_ramsey_arrays(self):

@@ -584,11 +584,13 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.save_data(method)
     def get_values_plot(self):
         self._mw.get_values_Button.setEnabled(False)
+        self._send_parameters_to_logic()    #### This helps!
         self.laser_array = []
-        self.mw_i_array  = []
+        self.mw_i_array = []
         self.mw_q_array = []
         self.apd_array = []
         self.apd_ref_array = []
+        # This provides the right values
         method, laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array = self._master_pulselogic.get_revant_parameters()
         self.method = method
         self.laser_array = laser_array
