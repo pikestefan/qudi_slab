@@ -120,6 +120,9 @@ class PulsedGui(GUIBase):
         # instance plot:
         self._mw.plot_instance_Button.clicked.connect(self.instance_plot)
         self._mw.get_values_Button.clicked.connect(self.get_values_plot)
+        self._mw.update_rabi_steps.clicked.connect(self.update_mw_values)
+        self._mw.update_mw_ramsey.clicked.connect(self.update_mw_values)
+        self._mw.update_mw_delay.clicked.connect(self.update_mw_values)
         # # Control/values-changed signals to logic
         self.sigStartMeasurement.connect(self.start_measurement, QtCore.Qt.QueuedConnection)
 
@@ -232,6 +235,7 @@ class PulsedGui(GUIBase):
         """ Manages what happens if measurement is started/stopped. """
 
         if is_checked:
+            self.update_mw_values()
             # change the axes appearance according to input values:
             self._set_enabled_ui(False)
             # Reset the sweeps counter
@@ -299,7 +303,7 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.method = method
         self._master_pulselogic.int_time = int_time
         self._master_pulselogic.seq_len = seq_len
-        self._master_pulselogic.sampling_rate_awg = sampling_rate_awg
+        self._master_pulselogic.clk_rate_awg = sampling_rate_awg
         self._master_pulselogic.averages = averages
 
         self._master_pulselogic.apd_start = apd_start
@@ -432,7 +436,6 @@ class PulsedGui(GUIBase):
         # This one sets the x axis right
         x_axis = self._master_pulselogic.get_x_axis() # in microseconds
         self._mw.pulsed_PlotWidget.setXRange(min(x_axis), max(x_axis))
-
         # This is where the measurement really starts
         self._master_pulselogic.start_measurement()
 
@@ -497,18 +500,17 @@ class PulsedGui(GUIBase):
         # This way they can be saved as status variables
         self._send_parameters_to_logic()
 
-    def get_value(self, counts, ref_counts):
-        self.index += 1
-        x_axis_len = len(self._master_pulselogic.get_x_axis())
-        steps = self._master_pulselogic.step_counter()[0]
-        if self.index == steps:
-            self.index == 0
-            # Average is done
-            # begin a new average
-        else:
-
-            self.index +=1
-            #continue plotting
+    # def get_value(self, counts, ref_counts):
+    #     self.index += 1
+    #     x_axis_len = len(self._master_pulselogic.get_x_axis())
+    #     steps = self._master_pulselogic.step_counter()[0]
+    #     if self.index == steps:
+    #         self.index == 0
+    #         # Average is done
+    #         # begin a new average
+    #     else:
+    #         self.index +=1
+    #         #continue plotting
 
     def refresh_plot(self, av_index, current_row, current_average, av_counts_ref):
         # Draw current odmr trace
@@ -596,13 +598,13 @@ class PulsedGui(GUIBase):
         self.apd_ref_array = apd_ref_array
         self.t_axis = self._master_pulselogic.get_t_axis_pulselogic()  # in microseconds
 
-        # This tries to replace the values in the mask with real values if the get values button is clicked
-        min_time, real_len = self._master_pulselogic.len_error()
-
-        if method == 'rabi':
-            real_len = self._mw.mw_steps_rabi.value()
-        elif method == 'ramsey':
-            real_len = self._mw.mw_len_ramsey.value()
+        # # This tries to replace the values in the mask with real values if the get values button is clicked!
+        # method, min_time, req_len, real_len = self._master_pulselogic.len_errors()
+        #
+        # if method == 'rabi':
+        #     self._mw.mw_steps_rabi.setValue(real_len * 1e-6)
+        # elif method == 'ramsey':
+        #     self._mw.mw_len_ramsey.setValue(real_len * 1e-6)
 
         self._mw.plot_instance_Button.setEnabled(True)
 
@@ -636,7 +638,35 @@ class PulsedGui(GUIBase):
         self._mw.curr_av_DisplayWidget.display(self._master_pulselogic.av_index)
 
     ### new attemt for rouding due to clock_rate
-    def update_values(self):
-        pass
+    def update_mw_values(self):
+        ''' This tries to replace the values in the mask with real values
+        #  for now it only works for rabi
+        # call this function before the values get fished from the GUI
+        # to make sure that the updated values get used in the actual plot and measurement!
+        # this one gets the needed values from the masterpulselogic
+        # These values have 5 digits
+        # Here we need to differentiate between different methods
+        '''
+        clk_rate = self._mw.clk_awg.value() * 1e-6
+        method = self._mw.comboBox_method.currentText()
+        if method == 'rabi':
+            mw_steps = self._mw.mw_steps_rabi.value() * 1e6
+        elif method == 'ramsey':
+            mw_steps = self._mw.mw_len_ramsey.value() * 1e6
+        elif method == 'delaysweep' or method == 'delaysweep_ref':
+            mw_steps = self._mw.mw_len_delay.value() * 1e6
+
+        method, min_time, req_len, real_len = self._master_pulselogic.len_errors(mw_steps, clk_rate)
+
+        if method == 'rabi':
+            self._mw.mw_steps_rabi.setValue(real_len * 1e-6)
+        elif method == 'ramsey':
+            self._mw.mw_len_ramsey.setValue(real_len * 1e-6)
+        elif method == 'delaysweep' or method == 'delaysweep_ref':
+            self._mw.mw_len_delay.setValue(real_len * 1e-6)
+
+
+
+
 
 

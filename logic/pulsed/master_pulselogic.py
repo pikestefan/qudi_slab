@@ -56,7 +56,7 @@ class MasterPulse(GenericLogic):
     mw_power = StatusVar('mw_power', -30)  # in dBm
     integration_time = StatusVar('integration_time', 30e-3)  # in s
     laser_power = StatusVar('laser_power', 0.628)  # in V... Max is 1V!
-    clk_rate_awg = StatusVar('clk_rate_awg', int(800e6))  # in MHz
+    clk_rate_awg = StatusVar('clk_rate_awg', int(1000e6))  # in MHz
 
     ## Delay Sweep
     mw_pulse_setting = StatusVar('mw_pulse_setting', False)  # this is only for delay sweep
@@ -95,7 +95,7 @@ class MasterPulse(GenericLogic):
     mw_min_len_ramsey = StatusVar('mw_min_len_ramsey', 0e-6)
     mw_stop_distance_ramsey = StatusVar('mw_stop_distance_ramsey', 900e-9)
     mw_steps_ramsey = StatusVar('mw_steps_ramsey', 50e-9)
-    mw_len_ramsey = StatusVar('mw_len_ramsey', 200e-9) #whatever the rabi says
+    mw_len_ramsey = StatusVar('mw_len_ramsey', 16e-9) #whatever the rabi says
 
     # Internal signals
     sigContinueLoop = QtCore.Signal()
@@ -328,7 +328,6 @@ class MasterPulse(GenericLogic):
         else:
             self.log.warning(
                 "The methode must be one of the following: delay_sweep, delay_sweep_ref, rabi, ramsey.")
-
         method, laser_times, apd_times, apd_ref, mw_times = self._pulselogic.play_any(
             self.clk_rate_awg, self.seq_len, self.laser_times, apd_times, self.apd_ref_times, mw_times,
             self.mw_frequency, method=method, rep=self.rep, mw_pulse=self.mw_pulse_setting, trigger=self.trigger_setting)
@@ -473,6 +472,7 @@ class MasterPulse(GenericLogic):
                 self.step_index = self.step_index + 1
 
                 self.sigContinueLoop.emit()
+        # print(self.clk_rate_awg)
         return self.count_matrix
 
     def stop_measurement(self):
@@ -787,7 +787,7 @@ class MasterPulse(GenericLogic):
 
         for i in apd_start:
             current_t_centerwidth = self._pulselogic.convert_apd_val([i * 1e6, self.apd_times_sweep[0]]) #[time to start, length]
-            print(current_t_centerwidth)
+            # print(current_t_centerwidth)
             #!!! apd_times = [length, min_start, max_start, steps] # changing length
             apd_waveform = self._pulser.box_envelope(time_ax, current_t_centerwidth)
             mw_i_array.append(mw_waveform)
@@ -802,91 +802,19 @@ class MasterPulse(GenericLogic):
         t_axis = self._pulselogic.time_axis(self.seq_len)
         return t_axis
 
-    def len_errors(self):
-        # calc the minimum time
-        min_time = 1 / self.clk_rate_awg # clock_rate in MHz ...min time is in ns therefore
-        # check the input for either rabi or ramsey
-        if self.method == 'rabi':
-            if self.mw_times_rabi[3] % min_time == 0:
-                # not quite sure what to put here as a value because the length changes
-                # for now its the steps of the rabi measurement as we start with 0 and take steps of x ns from there
-                print('everything is cool! The value is a multiple of the min time')
-                real_len = self.mw_times_rabi[3]
-            else:
-                print('The value is not a multiple of the min time')
-                # The real value will be different.
-                # Find the next smaller value that ends up with mod = 0
-                sample_number = math.floor(self.mw_times_rabi[3] / min_time)
-                # calculate the real time
-                real_len = sample_number * min_time
-        elif self.method == 'ramsey':
-            if self.mw_times_ramsey[4] % min_time == 0:
-                # not quite sure what to put here as a value because the length changes
-                print('everything is cool! The value is a multiple of the min time')
-                real_len = self.mw_times_ramsey[4]
-            else:
-                print('The value is not a multiple of the min time')
-                # The real value will be different.
-                # Find the next smaller value that ends up with mod = 0
-                sample_number = math.floor(self.mw_times_ramsey[4] / min_time)
-                # calculate the real time
-                real_len = sample_number * min_time
-        elif self.method == 'delaysweep':
-            if self.mw_times_sweep[1] % min_time == 0:
-                # not quite sure what to put here as a value because the length changes
-                print('everything is cool! The value is a multiple of the min time')
-                real_len = self.mw_times_sweep[1]
-            else:
-                print('The value is not a multiple of the min time')
-                # The real value will be different.
-                # Find the next smaller value that ends up with mod = 0
-                sample_number = math.floor(self.mw_times_sweep[1] / min_time)
-                # calculate the real time
-                real_len = sample_number * min_time
-        return min_time, real_len
-
-    def position_errors(self): # soon to come
-        # this can work for the position of the mw pulse for rabi and ramsey
-        # calc the minimum time
-        min_time = 1 / self.clk_rate_awg # clock_rate in MHz ...min time is in ns therefore
-        # check the input for either rabi or ramsey
-        if self.method == 'rabi':
-            if self.mw_times_rabi[3] % min_time == 0:
-                # not quite sure what to put here as a value because the length changes
-                print('everything is cool! The value is a multiple of the min time')
-                real_len = self.mw_times_rabi[3]
-            else:
-                print('The value is not a multiple of the min time')
-                # The real value will be different.
-                # Find the next smaller value that ends up with mod = 0
-                sample_number = math.floor(self.mw_times_rabi[3] / min_time)
-                # calculate the real time
-                real_len = sample_number * min_time
-        elif self.method == 'ramsey':
-            if self.mw_times_ramsey[4] % min_time == 0:
-                # not quite sure what to put here as a value because the length changes
-                print('everything is cool! The value is a multiple of the min time')
-                real_len = self.mw_times_ramsey[4]
-            else:
-                print('The value is not a multiple of the min time')
-                # The real value will be different.
-                # Find the next smaller value that ends up with mod = 0
-                sample_number = math.floor(self.mw_times_ramsey[4] / min_time)
-                # calculate the real time
-                real_len = sample_number * min_time
-        elif self.method == 'delaysweep':
-            if self.mw_times_sweep[1] % min_time == 0:
-                # not quite sure what to put here as a value because the length changes
-                print('everything is cool! The value is a multiple of the min time')
-                real_len = self.mw_times_sweep[1]
-            else:
-                print('The value is not a multiple of the min time')
-                # The real value will be different.
-                # Find the next smaller value that ends up with mod = 0
-                sample_number = math.floor(self.mw_times_sweep[1] / min_time)
-                # calculate the real time
-                real_len = sample_number * min_time
-        return min_time, real_len
+    def len_errors(self, mw_val, clk_rate):
+        # this is general...mw_val is just any relevant value. The separation between the different methods happens in the GUI
+        min_time = round(1 / clk_rate, 5) # clock_rate in MHz ...min time is in ns therefore
+        req_len = round(mw_val, 5)
+        if round(req_len % min_time, 5) == 0 or round(req_len % min_time, 5) == min_time:
+            # if it works for the length of one step and we start at 0 length then it works for all the steps.
+            real_len = round(req_len, 5)
+        else:
+            # The real value will be different.
+            sample_number = round(req_len / min_time, 0)
+            real_len = round(sample_number * min_time, 5)
+        print('real_len:', real_len)
+        return self.method, min_time, req_len, real_len
 
 
 
