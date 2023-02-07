@@ -368,7 +368,7 @@ class Pulse(GenericLogic):
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
-                digital_output_map={0: [0]}
+                digital_output_map={0: [0, 1, 2]}
             )
         if trigger:
             # This sequence waits for a software trigger to start playing and moving to the next step.
@@ -461,7 +461,7 @@ class Pulse(GenericLogic):
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
-                digital_output_map={0: [0]}
+                digital_output_map={0: [0, 1, 2]}
             )
 
         if trigger:
@@ -555,7 +555,7 @@ class Pulse(GenericLogic):
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
-                digital_output_map={0: [0]})
+                digital_output_map={0: [0, 1, 2]})
 
         if trigger:
             # This sequence waits for a software trigger to start playing and moving to the next step.
@@ -647,7 +647,7 @@ class Pulse(GenericLogic):
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
-                digital_output_map={0: [0]})
+                digital_output_map={0: [0, 1, 2]})
 
         if trigger == True:
             # This sequence waits for a software trigger to start playing and moving to the next step.
@@ -675,13 +675,12 @@ class Pulse(GenericLogic):
         self._pulser.arm_trigger(card_idx)
 
 
-
     def play_ttl(
             self,
             seq_len=2,
-            laser_out=False,
-            apd_sig_out=True,
-            apd_ref_out=True,
+            laser_out=True,
+            apd_sig_out=False,
+            apd_ref_out=False,
             rep=100,
             trigger=True):
         """
@@ -720,12 +719,11 @@ class Pulse(GenericLogic):
             laser_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_laser)
             apd_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_apd)  #
             apd_ref_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_apd_ref)  #
-
             digitals = {"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": apd_ref_waveform}  # read/sig?
 
             self._pulser.load_waveform(
                 digital_pulses=digitals,
-                digital_output_map={0: [0]}
+                digital_output_map={0: [0, 1, 2]}
             )
         if trigger:
             self._pulser.configure_ORmask(card_idx, None)
@@ -743,10 +741,12 @@ class Pulse(GenericLogic):
 
         self._pulser.load_sequence(
             loops_list=loops,
-            stop_condition_list=stop_condition_list, )
+            stop_condition_list=stop_condition_list,)
 
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
+        self._pulser.send_software_trig(card_idx)
+        return 0
 
     def convert_mw_val_rabi(self, mw_times, current_len):
         # everything is in microseconds

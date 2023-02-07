@@ -263,40 +263,39 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         - arm the trigger
         """
         useconds = 50
-
         clk_rate = 800
 
         self._if_freq /= 1e6 # in MHz
-
+        freq = self.get_frequency()
         card_idx = 1
         self.set_sample_rate(card_idx, int(clk_rate * 1e6))
 
         samples = self.waveform_padding((useconds * clk_rate))
         time_ax = np.linspace(0, samples / clk_rate, samples)
         #print(time_ax)
-        mw_times = [np.array([[25, 10]]), np.array([[25, 10]]),
-                    np.array([[25, 10]]), np.array([[25, 10]]),
-                    np.array([[25, 10]]), np.array([[25, 10]]),
-                    np.array([[25, 10]]), np.array([[25, 10]]),
-                    np.array([[25, 10]]), np.array([[25, 10]])]     #This needs to be build by the loop in play_rabi
+        # mw_times = [np.array([[25, 10]]), np.array([[25, 10]]),
+        #             np.array([[25, 10]]), np.array([[25, 10]]),
+        #             np.array([[25, 10]]), np.array([[25, 10]]),
+        #             np.array([[25, 10]]), np.array([[25, 10]]),
+        #             np.array([[25, 10]]), np.array([[25, 10]])]     #This needs to be build by the loop in play_rabi
         # --> for each step there needs to be a new np.array with a different t0 but the same width
-
-        laser_times = np.copy(mw_times)
+        mw_times = [np.array([[25, 10]]), np.array([[25, 10]])]
+        # laser_times = np.copy(mw_times)
 
         for step in range(len(mw_times)):
-            #print([mw_times[step]])
-            #print(laser_times[step])
-            iwaveform, qwwaveform = self.iq_pulses(time_ax, [mw_times[step]], 2.87e9)
+            iwaveform, qwaveform = self.iq_pulses(time_ax, [mw_times[step]], freq)
+            # arr = np.hstack((time_ax[:, None], iwaveform[:, None], qwaveform[:, None]))
+            # dirry = r"C:\Users\spinmechanics\Desktop\file.txt"
+            # np.savetxt(dirry, arr)
+            # laser_waveform = self.box_envelope(time_ax, laser_times[step])
 
-            laser_waveform = self.box_envelope(time_ax, laser_times[step])
-
-            analogs = {"i_chan": iwaveform, "q_chan": qwwaveform}
-            digitals = {"laser": laser_waveform}
+            analogs = {"i_chan": iwaveform, "q_chan": qwaveform}
+            # digitals = {"laser": laser_waveform, "apd_sig": laser_waveform, "apd_read": laser_waveform}
 
             self.load_waveform(
                 iq_dictionary=analogs,
-                digital_pulses=digitals,
-                digital_output_map={0: [0]}
+                # digital_pulses=digitals,
+                # digital_output_map={0: [0, 1, 2]}
             )
 
         # # This sequence immediately starts after the sequences are loaded
@@ -322,6 +321,144 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         self.arm_trigger(card_idx)
 
         self._if_freq *= 1e6
+# ---------------- For calibration file --------------------------------------------
+    def iq_test(self,Iamp_val,Qamp_val, phase_inbalance_x):
+        """
+        Function for early debugging of the awg. Remove from the final class.
+
+        The steps to a successful initialization of a sequence are:
+        - Define the clock rate
+        - create the arrays that will represent the sequences
+        - configure the trigger masks
+        - load the sequence
+        - start the card
+        - arm the trigger
+        """
+        self.stop_all()
+        useconds = 50
+        clk_rate = 800
+        self._if_freq /= 1e6 # in MHz
+
+        card_idx = 1
+        self.set_sample_rate(card_idx, int(clk_rate * 1e6))
+
+        samples = self.waveform_padding((useconds * clk_rate))
+        time_ax = np.linspace(0, samples / clk_rate, samples)
+        mw_times = [np.array([[25, 10]]), np.array([[25, 10]])]
+
+        for step in range(len(mw_times)):
+            iwaveform, qwaveform = self.iq_pulses_test(time_ax, [mw_times[step]], 2.85e9, Iamp_val, Qamp_val,
+                                                       phase_inbalance_x)
+
+            analogs = {"i_chan": iwaveform, "q_chan": qwaveform}
+
+            self.load_waveform(
+                iq_dictionary=analogs,
+            )
+
+
+
+        # This sequence waits for a software trigger to start playing and moving to the next step.
+        self.configure_ORmask(card_idx, None)
+        self.configure_ANDmask(card_idx, None)
+        loops = np.ones(len(mw_times), dtype=np.int64)
+        stop_condition_list = np.array(
+            [SPCSEQ_ENDLOOPONTRIG, ] * len(mw_times),
+            dtype=np.int64,
+        )
+
+        self.load_sequence(
+            loops_list=loops,
+            stop_condition_list=stop_condition_list,
+        )
+
+        self.start_card(card_idx)
+        self.arm_trigger(card_idx)
+        self._if_freq *= 1e6
+        self.send_software_trig(1)
+
+    def stop_all(self):
+        self.stop_replay(1)
+        self.clear_all()
+
+    def iq_pulses_test(
+        self,
+        timeaxis,
+        t_centrewidth_list,
+        output_frequency,
+        Iamp_val=0.9,
+        Qamp_val=0.9,
+        phase_inbalance_x =3.01,
+        pulsenvelope="square",
+        phases = None):
+        """
+        Method used to generate the iq modulation pulses.
+
+        @param np.ndarray timeaxis: the time axis.
+        @param list t_centrewidth_list: a list of matrices containing the central times and widths of the pulses, as
+                                        given by the envelope functions. Each element of the list corresponds to a
+                                        waveform with a given phase.
+        @param output_frequency: the desired frequency of the pulses (i.e. local oscillator + if modulation).
+        @param np.ndarray phases: The array containing the phases
+        @param str pulsenvelope:
+        @return tuple: the I and Q waveforms.
+        """
+        envelope_function = self._envelope_dictionary[pulsenvelope]
+        # print(t_centrewidth_list)
+        if phases is None:
+            phases = np.zeros((len(t_centrewidth_list),))
+
+        phases_number = len(phases)
+
+        lo_frequency = output_frequency - self._if_freq
+        if not self._freqminmax[0] < lo_frequency < self._freqminmax[-1]:
+            self.log.warning(
+                "Requested local oscillator frequency: {:.3f} GHz, falls outside the calibration file range "
+                "[{:.3f}, {:.3f}]. Using the closest frequency instead.".format(lo_frequency / 1e9,
+                                                                                self._freqminmax[0],
+                                                                                self._freqminmax[-1])
+            )
+
+        # Get the calibrated amplitudes and offset from the interpolation function.
+        Iamp, Ioff, Qamp, Qoff, phase_inbalance = self._iq_interpfunc(lo_frequency)
+        # print(Iamp, Ioff, Qamp, Qoff, phase_inbalance)
+        # Create a matrix with as many rows (in the second index) as the number of requested phases. Essentially,
+        # create sinusoidal oscillations (for I and Q) at each phase for the whole time axis duration, then chop
+        # them up with the pulse sequence. At the final step the pulses at different phases are summed up,
+        # to combine into two waveforms, one for I and one for Q.
+        pulse_matrix = np.zeros((2, phases_number, timeaxis.size))
+
+        for phase_idx, phase, t_centrewidth in zip(
+            range(phases_number), phases, t_centrewidth_list
+        ):
+            Imodulation = (
+                Iamp_val * np.cos(2 * np.pi * self.if_modulation_freq * timeaxis + phase)
+                + Ioff
+            )
+            Qmodulation = (
+                Qamp_val
+                * np.cos(
+                    2 * np.pi * self.if_modulation_freq * timeaxis
+                    + phase
+                    + phase_inbalance_x
+                    + np.pi / 2
+                )
+                + Qoff
+            )
+
+            pulse_sequence = envelope_function(timeaxis, t_centrewidth)
+
+            Icomp = pulse_sequence * Imodulation
+            Qcomp = pulse_sequence * Qmodulation
+
+            pulse_matrix[0, phase_idx] = Icomp
+            pulse_matrix[1, phase_idx] = Qcomp
+
+        Ipulses, Qpulses = pulse_matrix.sum(axis=1)
+
+        return Ipulses, Qpulses
+
+ #-------------- End calibration file stuff ----------------------------------------------
 
     ################################################################################################
     # More custom methods that are not related to the original MicrowaveInterface and PulserInterface
@@ -521,3 +658,6 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
     def reset(self):
         self._awg.reset()
+
+    def get_waveform(self, waveform_idx=-1):
+        return self._awg.get_waveform(waveform_idx)

@@ -158,7 +158,7 @@ class ODMRPxLogic(GenericLogic):
         self._photon_samples = self._pxtime_to_samples()
 
         self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
-
+        self._mw_source.set_mod(False)
         self._mw_source.module_state.lock()
         try:
             pass

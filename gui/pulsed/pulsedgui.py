@@ -432,6 +432,7 @@ class PulsedGui(GUIBase):
     def start_measurement(self):
         self._master_pulselogic.start_stop_timetrace(False)
         self._send_parameters_to_logic()
+        print(self._mw.laser_power_2.value())
         self.fit_image.clear()
         # This one sets the x axis right
         x_axis = self._master_pulselogic.get_x_axis() # in microseconds
@@ -525,9 +526,15 @@ class PulsedGui(GUIBase):
             self.average_trace.clear()
 
         if self._mw.show_reference_counts.isChecked():
-            self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), av_counts_ref)
+            if self._mw.action_ue_ref_counts.isChecked():
+                self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), current_average - av_counts_ref)
+            else:
+                self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), av_counts_ref)
+
         else:
             self.average_trace_ref.clear()
+
+
 
     def show_ref_counts(self, av_index, ref_average):
         # Get ref_count data from the masterpulse_logic
@@ -666,9 +673,4 @@ class PulsedGui(GUIBase):
             self._mw.mw_len_ramsey.setValue(real_len * 1e-6)
         elif method == 'delaysweep' or method == 'delaysweep_ref':
             self._mw.mw_len_delay.setValue(real_len * 1e-6)
-
-
-
-
-
 

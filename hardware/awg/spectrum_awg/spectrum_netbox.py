@@ -628,6 +628,13 @@ class SpectrumNetbox(Base, PulserInterface):
         waveform.assign_do_waveforms(do_waveform_dictionary, digital_output_map)
         self._waveform_container.append(waveform)
 
+    def get_waveform(self, waveform_idx=-1):
+        """
+        Return a waveform loaded in the waveform buffer, for a given index. Default is -1 (last waveform).
+        """
+
+        return self._waveform_container[waveform_idx]
+
     def get_loaded_assets(self):
         """
         Not used

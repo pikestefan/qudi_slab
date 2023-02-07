@@ -242,7 +242,7 @@ class MasterPulse(GenericLogic):
 
     def cw(self, on=True):
         '''
-        If on is true: cw mode where the laser is on and the TTls direct the counts to the PFI 7 output on the daq card
+        If on is true: cw mode where the laser is on and the TTls direct the counts to the PFI 7 output on the daq card (both low/False)
         If on is False: all the digital outputs of the AWG are zero
         '''
         self._pulser.reset()
