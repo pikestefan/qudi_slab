@@ -253,15 +253,12 @@ class OptimizerLogic(GenericLogic):
         This method repeats itself using the _sigScanNextXyLine
         until the xy optimization image is complete.
         """
-
         # stop scanning if instructed
         if self.stopRequested:
             with self.threadlock:
                 self.stopRequested = False
                 self.finish_refocus()
                 self.sigImageUpdated.emit()
-                self.sigRefocusFinished.emit(
-                    [self.optim_pos_x, self.optim_pos_y])
                 return
 
         lsx = self.xy_refocus_image[self._xy_scan_line_count, :, 0]
@@ -359,7 +356,6 @@ class OptimizerLogic(GenericLogic):
     def finish_refocus(self):
         """ Finishes up and releases hardware after the optimizer scans."""
         self.kill_scanner()
-
         self.log.info(
             'Optimised from ({0:.3e},{1:.3e}) to local '
             'maximum at ({2:.3e},{3:.3e}).'.format(
@@ -398,6 +394,7 @@ class OptimizerLogic(GenericLogic):
 
         @return int: error code (0:OK, -1:error)
         """
+
         self._scanning_device.close_counters()
         self._scanning_device.clear_ao_task(self.optimizer_stack)
         self._scanning_device.clear_motion_clock()

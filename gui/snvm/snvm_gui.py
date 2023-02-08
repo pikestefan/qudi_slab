@@ -562,6 +562,7 @@ class SnvmGui(GUIBase):
             setting.setEnabled(False)
         for setting in self._odmr_widgets.values():
             setting.setEnabled(False)
+        self._mainwindow.actionStop_scan.setEnabled(True)
 
     def disable_conf_interactions(self):
         self._mainwindow.actionStart_conf_scan.setEnabled(False)
@@ -569,6 +570,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.action_cfc_goToPoint.setEnabled(False)
         for setting in self._conf_widgets.values():
             setting.setEnabled(False)
+        self._mainwindow.actionStop_scan.setEnabled(True)
 
     def disable_interactions(self):
         self._mainwindow.actionOptimize.setEnabled(False)
@@ -582,6 +584,7 @@ class SnvmGui(GUIBase):
             setting.setEnabled(True)
         for setting in self._odmr_widgets.values():
             setting.setEnabled(True)
+        self._mainwindow.actionStop_scan.setEnabled(False)
 
     def enable_conf_interactions(self):
         self._mainwindow.actionStart_conf_scan.setEnabled(True)
@@ -589,6 +592,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.action_cfc_goToPoint.setEnabled(True)
         for setting in self._conf_widgets.values():
             setting.setEnabled(True)
+        self._mainwindow.actionStop_scan.setEnabled(False)
 
     def enable_opti_interactions(self):
         self._mainwindow.actionOptimize.setEnabled(True)

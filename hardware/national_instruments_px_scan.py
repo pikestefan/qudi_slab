@@ -573,7 +573,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         try:
             daq.DAQmxStopTask(self._motion_clock_task)
         except:
-            self.log.exception("stoppping clock didnt' work.")
+            self.log.exception("stopping clock didnt' work.")
         try:
             daq.DAQmxStopTask(motion_task)
         except:

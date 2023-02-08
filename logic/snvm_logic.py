@@ -285,6 +285,7 @@ class SnvmLogic(GenericLogic):
         #These are the indices which will be used to scan through the arrays of the frequencies and position pairs
         self._x_scanning_index = 0
         self._y_scanning_index = 0
+        self._tot_xy_scanning_index = 0
         self._x_index_step = 1 #This coefficient is decided to decide the direction of the x scanning
         self._freq_scanning_index = 0
         self._odmr_rep_index = 0 #To keep track of the averages
@@ -376,6 +377,7 @@ class SnvmLogic(GenericLogic):
             xy_scan_matrix_retrace = np.zeros(xy_scan_matrix.shape)
             snvm_matrix_retrace = np.zeros(snvm_matrix.shape)
 
+        self._tot_xy_scanning_index = 0
         self._x_scanning_axis = x_axis
         self._y_scanning_axis = y_axis
         self.xy_scan_matrix = xy_scan_matrix
@@ -574,7 +576,7 @@ class SnvmLogic(GenericLogic):
             self._is_retracing = True
             self._x_index_step = -1
             self._x_scanning_index += self._x_index_step
-            if (self._y_scanning_index == len(self._y_scanning_axis)-1 ) and not self.store_retrace:
+            if (self._y_scanning_index == len(self._y_scanning_axis)-1 ) and not self.store_retrace[self._active_stack]:
                 self.stopRequested = True
         elif self._is_retracing and self._x_scanning_index < 0:
             self._is_retracing = False
@@ -583,6 +585,8 @@ class SnvmLogic(GenericLogic):
             self._y_scanning_index += 1
             if self._y_scanning_index == len(self._y_scanning_axis):
                 self.stopRequested = True
+
+        self._tot_xy_scanning_index += 1
 
         if not self.stopRequested:
             if self._is_retracing and not self.store_retrace[self._active_stack]:
@@ -602,9 +606,7 @@ class SnvmLogic(GenericLogic):
 
             if self._snvm_active:
                 # Check if an optimization needs to be done
-                total_scanning_index = self._x_scanning_index + len(self._x_scanning_axis) * self._y_scanning_index
-
-                if self.optimize_while_scanning and total_scanning_index % self.every_N_pixels == 0:
+                if self.optimize_while_scanning and self._tot_xy_scanning_index % self.every_N_pixels == 0:
                     self.signal_start_optimizer.emit()
                 else:
                     self.signal_continue_snvm.emit()
@@ -618,10 +620,7 @@ class SnvmLogic(GenericLogic):
         self._optimizer_logic.start_refocus()
 
     def _optimization_complete(self, coords):
-        if self.stopRequested:
-            self.signal_stop_scan.emit()
-
-        elif self._snvm_active:
+        if self._snvm_active:
             self.go_to_point(coords, stack=self._optimizer_logic.optimizer_stack)
 
             if self._odmrscanner.module_state() == 'locked':
@@ -631,7 +630,10 @@ class SnvmLogic(GenericLogic):
                 self._scanning_device.module_state.unlock()
 
             self.prepare_devices()
-            self.signal_continue_snvm.emit()
+            if not self.stopRequested:
+                self.signal_continue_snvm.emit()
+            else:
+                self.signal_stop_scan.emit()
 
     def move_to_freq_pixel(self):
         if not self.stopRequested:
