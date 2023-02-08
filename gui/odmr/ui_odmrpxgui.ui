@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>852</width>
-    <height>674</height>
+    <width>941</width>
+    <height>740</height>
    </rect>
   </property>
   <property name="contextMenuPolicy">
@@ -59,7 +59,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>852</width>
+     <width>941</width>
      <height>21</height>
     </rect>
    </property>
@@ -105,7 +105,7 @@
     <bool>true</bool>
    </property>
    <property name="sizePolicy">
-    <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+    <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
      <horstretch>1</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>

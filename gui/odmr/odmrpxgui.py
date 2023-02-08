@@ -328,7 +328,7 @@ class ODMRGui(GUIBase):
         # self.sigClearData.connect(self._odmr_logic.clear_odmr_data, QtCore.Qt.QueuedConnection)
         self.sigStartOdmrScan.connect(self.start_odmr,
                                       QtCore.Qt.QueuedConnection)
-        self.sigStopOdmrScan.connect(self._odmr_logic.stop_odmr, QtCore.Qt.QueuedConnection)
+        self.sigStopOdmrScan.connect(self.stop_odmr, QtCore.Qt.QueuedConnection)
         self.sigContinueOdmrScan.connect(self._odmr_logic.continue_odmr,
                                          QtCore.Qt.QueuedConnection)
         self.sigDoFit.connect(self._odmr_logic.do_fit, QtCore.Qt.QueuedConnection)
@@ -350,8 +350,8 @@ class ODMRGui(GUIBase):
         # Update signals coming from logic:
         self._odmr_logic.sigFreqPxAcquired.connect(self.refresh_odmr_plot,
                                                    QtCore.Qt.QueuedConnection)
-        self._odmr_logic.sigStopOdmr.connect(self.stop_odmr,
-                                             QtCore.Qt.QueuedConnection)
+        #self._odmr_logic.sigStopOdmr.connect(self.stop_odmr,
+        #                                     QtCore.Qt.QueuedConnection)
         self._odmr_logic.sigOdmrTraceAcquired.connect(self.update_elapsed_sweeps)
         # self._odmr_logic.sigParameterUpdated.connect(self.update_parameter,
         #                                              QtCore.Qt.QueuedConnection)
@@ -501,13 +501,13 @@ class ODMRGui(GUIBase):
         self.average_odmr_trace.opts['connect'] = connect
         self.average_odmr_trace.setProperty('styleWasChanged', True)
 
-
         self._mw.odmr_PlotWidget.setXRange(min(starts), max(stops))
         self._odmr_logic.start_odmr()
 
     def stop_odmr(self):
         self._set_enabled_odmr_ui(True)
         self._mw.action_run_stop.setChecked(False)
+        self._odmr_logic.stopRequested = True
 
     def _calculate_connect(self, starts, stops, steps):
         if len(starts) == 1:
@@ -524,20 +524,17 @@ class ODMRGui(GUIBase):
         connect[hide_indices[:-1]] = 0
         return connect
 
-
-
     def refresh_odmr_plot(self):
         # Draw current odmr trace
+
         self.curr_odmr_trace.setData(self._odmr_logic.freq_axis,
                                      self._odmr_logic.curr_odmr_trace)
-
         # Draw average odmr trace
         if self._odmr_logic._average_index > 0:
             self.average_odmr_trace.setData(self._odmr_logic.freq_axis,
                                             self._odmr_logic.average_odmr_trace)
         else:
             self.average_odmr_trace.clear()
-
     def show(self):
         """Make window visible and put it above all other windows. """
         self._mw.show()
@@ -872,7 +869,6 @@ class ODMRGui(GUIBase):
             image=odmr_matrix_range,
             axisOrder='row-major',
             levels=(cb_range[0], cb_range[1]))
-
     def update_channel(self, index):
         self.display_channel = int(
             self._mw.odmr_channel_ComboBox.itemData(index, QtCore.Qt.UserRole))
