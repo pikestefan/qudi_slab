@@ -76,7 +76,7 @@ class PulsedGui(GUIBase):
         # This makes sense for the microwave at least?
         self._mw.mw_power.setMaximum(-5)
         self._mw.mw_power.setMinimum(-50)
-        self._mw.mw_freq.setMaximum(4000e6)
+        self._mw.mw_freq.setMaximum(6000e6)
         self._mw.laser_power_2.setMaximum(1)
         self._mw.laser_power_2.setMinimum(0)
         self.index = 0
@@ -299,9 +299,9 @@ class PulsedGui(GUIBase):
 
         # Now send all the parameters from above to the masterlogic
         self._master_pulselogic.mw_power = mw_power
-        self._master_pulselogic.mw_freq = mw_freq
+        self._master_pulselogic.mw_frequency = mw_freq
         self._master_pulselogic.method = method
-        self._master_pulselogic.int_time = int_time
+        self._master_pulselogic.integration_time = int_time
         self._master_pulselogic.seq_len = seq_len
         self._master_pulselogic.clk_rate_awg = sampling_rate_awg
         self._master_pulselogic.averages = averages
@@ -526,7 +526,7 @@ class PulsedGui(GUIBase):
             self.average_trace.clear()
 
         if self._mw.show_reference_counts.isChecked():
-            if self._mw.action_ue_ref_counts.isChecked():
+            if self._mw.action_use_ref_counts.isChecked():
                 self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), current_average - av_counts_ref)
             else:
                 self.average_trace_ref.setData(self._master_pulselogic.get_x_axis(), av_counts_ref)
