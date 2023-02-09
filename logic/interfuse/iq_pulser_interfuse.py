@@ -41,7 +41,7 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
     mw_source = Connector(interface="MicrowaveInterface")
     awg = Connector(interface="PulserInterface")
 
-    if_modulation_freq = StatusVar(default=100e6)
+    if_modulation_freq = StatusVar(default=100)
 
     calibfile_dir = ConfigOption("calibration_file_directory", missing="error")
     calibration_interpolation_method = ConfigOption(
@@ -117,7 +117,7 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         @param float freq: The desired output frequency.
         @return:
         """
-        lo_frequency = freq - self._if_freq
+        lo_frequency = freq - self._if_freq * 1e6
         self._mwsource.set_frequency(lo_frequency)
 
     def load_waveform(
@@ -183,7 +183,7 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
         phases_number = len(phases)
 
-        lo_frequency = output_frequency - self._if_freq
+        lo_frequency = output_frequency - self._if_freq * 1e6
         if not self._freqminmax[0] < lo_frequency < self._freqminmax[-1]:
             self.log.warning(
                 "Requested local oscillator frequency: {:.3f} GHz, falls outside the calibration file range "
@@ -205,13 +205,13 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
             range(phases_number), phases, t_centrewidth_list
         ):
             Imodulation = (
-                Iamp * np.cos(2 * np.pi * self.if_modulation_freq * timeaxis + phase)
+                Iamp * np.cos(2 * np.pi * self._if_freq * timeaxis + phase)
                 + Ioff
             )
             Qmodulation = (
                 Qamp
                 * np.cos(
-                    2 * np.pi * self.if_modulation_freq * timeaxis
+                    2 * np.pi * self._if_freq * timeaxis
                     + phase
                     + phase_inbalance
                     + np.pi / 2
@@ -432,13 +432,13 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
             range(phases_number), phases, t_centrewidth_list
         ):
             Imodulation = (
-                Iamp_val * np.cos(2 * np.pi * self.if_modulation_freq * timeaxis + phase)
+                Iamp_val * np.cos(2 * np.pi * self._if_freq * timeaxis + phase)
                 + Ioff
             )
             Qmodulation = (
                 Qamp_val
                 * np.cos(
-                    2 * np.pi * self.if_modulation_freq * timeaxis
+                    2 * np.pi * self._if_freq * timeaxis
                     + phase
                     + phase_inbalance_x
                     + np.pi / 2
