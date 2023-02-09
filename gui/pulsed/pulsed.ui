@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1142</width>
-    <height>854</height>
+    <height>922</height>
    </rect>
   </property>
   <property name="contextMenuPolicy">
@@ -1716,8 +1716,8 @@
         <widget class="QDockWidget" name="plot_widget">
          <property name="geometry">
           <rect>
-           <x>0</x>
-           <y>190</y>
+           <x>20</x>
+           <y>310</y>
            <width>1061</width>
            <height>401</height>
           </rect>
@@ -2024,6 +2024,12 @@
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>80</width>
+     <height>180</height>
+    </size>
    </property>
    <property name="baseSize">
     <size>

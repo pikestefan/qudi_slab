@@ -45,7 +45,7 @@ class ODMRPxLogic(GenericLogic):
     mw_scanmode = ConfigOption(
         'scanmode',
         'LIST',
-        missing='warn',
+        missing='info',
         converter=lambda x: MicrowaveMode[x.upper()])
 
     # ranges = StatusVar('ranges', 1)
