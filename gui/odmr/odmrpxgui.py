@@ -509,7 +509,6 @@ class ODMRGui(GUIBase):
         self._odmr_logic.stopRequested = True
 
     def activate_interactions(self):
-        print("got called")
         self._mw.action_run_stop.setChecked(False)
         self._set_enabled_odmr_ui(True)
 

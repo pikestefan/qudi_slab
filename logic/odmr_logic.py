@@ -211,7 +211,6 @@ class ODMRPxLogic(GenericLogic):
             self.sigContinueOdmr.emit()
 
     def stop_odmr(self):
-        print(f"Stop requested {self.stopRequested}")
         if self.stopRequested:
             with self.threadlock:
                 self._mw_source.off()
