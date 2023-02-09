@@ -350,6 +350,7 @@ class ODMRGui(GUIBase):
         # Update signals coming from logic:
         self._odmr_logic.sigFreqPxAcquired.connect(self.refresh_odmr_plot,
                                                    QtCore.Qt.QueuedConnection)
+        self._odmr_logic.sigOdmrFinished.connect(self.activate_interactions, QtCore.Qt.QueuedConnection)
         #self._odmr_logic.sigStopOdmr.connect(self.stop_odmr,
         #                                     QtCore.Qt.QueuedConnection)
         self._odmr_logic.sigOdmrTraceAcquired.connect(self.update_elapsed_sweeps)
@@ -505,9 +506,12 @@ class ODMRGui(GUIBase):
         self._odmr_logic.start_odmr()
 
     def stop_odmr(self):
-        self._set_enabled_odmr_ui(True)
-        self._mw.action_run_stop.setChecked(False)
         self._odmr_logic.stopRequested = True
+
+    def activate_interactions(self):
+        print("got called")
+        self._mw.action_run_stop.setChecked(False)
+        self._set_enabled_odmr_ui(True)
 
     def _calculate_connect(self, starts, stops, steps):
         if len(starts) == 1:
