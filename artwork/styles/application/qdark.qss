@@ -1217,3 +1217,11 @@ QSplitter::handle:horizontal {
 QSplitter::handle:vertical {
     height: 1px;
 }
+
+QPushButton#seqPlayingBtn {
+    border-radius: 15px;
+}
+
+QPushButton#seqPlayingBtn:checked {
+    background-color:green;
+}

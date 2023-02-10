@@ -29,7 +29,7 @@ from .spcm_tools import *
 from .pyspcm import *
 from math import log2
 from interface.pulser_interface import PulserInterface, PulserConstraints
-
+from qtpy import QtCore
 
 class SpectrumNetbox(Base, PulserInterface):
     _card_ip = ConfigOption("card_ip", missing="error")
@@ -80,6 +80,7 @@ class SpectrumNetbox(Base, PulserInterface):
     ]
     __digout_channels = [SPCM_X0_MODE, SPCM_X1_MODE, SPCM_X2_MODE]
 
+    sigStepLoaded = QtCore.Signal(int, int)
     def on_activate(self):
         # TODO: maybe implement a network discovery. If so, it should be fast.
         if self._netbox_type == "DN2.663-04":
@@ -352,6 +353,8 @@ class SpectrumNetbox(Base, PulserInterface):
             )
             spcm_dwSetParam_i64(current_card, SPC_SEQMODE_STARTSTEP, 0)
 
+
+        self.sigStepLoaded.emit(0, steps_num)
         for step in range(steps_num):
             current_waveform = waveform_list[step]
             (
@@ -370,7 +373,7 @@ class SpectrumNetbox(Base, PulserInterface):
                 digital_waveforms=current_do_waveform,
                 sequence_step=step,
             )
-
+            self.sigStepLoaded.emit(step, steps_num)
         # Now combine all the segment settings into a value, which is then written to the card
         step_array = np.arange(
             0, steps_num, dtype=np.int64
@@ -403,7 +406,6 @@ class SpectrumNetbox(Base, PulserInterface):
 
             # This step is fundamental. Without it, the card won't be able to apply the settings properly.
             spcm_dwSetParam_i64(current_card, SPC_M2CMD, M2CMD_CARD_WRITESETUP)
-    
     def play_waveform(self, waveform=None, loops=0):
         """
         Writes a waveform to the awg memory, without breaking the latter into chunks as it's done for sequences.

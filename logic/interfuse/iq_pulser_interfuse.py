@@ -30,6 +30,7 @@ from interface.microwave_interface import MicrowaveInterface
 
 from hardware.awg.spectrum_awg.spcm_tools import *
 from hardware.awg.spectrum_awg.pyspcm import *
+from qtpy import QtCore
 
 
 class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):

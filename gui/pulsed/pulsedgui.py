@@ -37,7 +37,7 @@ class PulsedMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
-        ui_file = os.path.join(this_dir, 'pulsed.ui') #takes the qt designer file for layout
+        ui_file = os.path.join(this_dir, 'pulsed_testtest2.ui') #takes the qt designer file for layout
 
         # Load it
         super(PulsedMainWindow, self).__init__()
@@ -134,6 +134,8 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.sigAverageDone.connect(self.refresh_plot, QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigAverageDone.connect(self.update_curr_av, QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigFitUpdated.connect(self.update_fit, QtCore.Qt.QueuedConnection)
+        self._master_pulselogic._pulser._awg.sigStepLoaded.connect(self.update_progressbar, QtCore.Qt.QueuedConnection)
+        self._master_pulselogic.sigSeqPlaying.connect(self.update_seqplay_led, QtCore.Qt.QueuedConnection)
 
     def _setup_plots(self):
         # Set up the plots
@@ -438,7 +440,8 @@ class PulsedGui(GUIBase):
         x_axis = self._master_pulselogic.get_x_axis() # in microseconds
         self._mw.pulsed_PlotWidget.setXRange(min(x_axis), max(x_axis))
         # This is where the measurement really starts
-        self._master_pulselogic.start_measurement()
+        self._master_pulselogic.sigStartMeasurent.emit()
+        #self._master_pulselogic.start_measurement()
 
     def clear_all(self): # This gets enabled by the clear awg button?
         # It stops the replay and clears the memory
@@ -585,6 +588,12 @@ class PulsedGui(GUIBase):
         self._odmr_logic.fit_range = self._mw.fit_range_SpinBox.value()
         return
 
+    def update_progressbar(self, step, stepmax):
+        if step == 0:
+            self._mw.progressBar.setMaximum(stepmax)
+            self._mw.progressBar.setValue(step)
+        else:
+            self._mw.progressBar.setValue(step+1)
 
     def save_data(self):
         method = self._mw.comboBox_method.currentText()
@@ -674,3 +683,5 @@ class PulsedGui(GUIBase):
         elif method == 'delaysweep' or method == 'delaysweep_ref':
             self._mw.mw_len_delay.setValue(real_len * 1e-6)
 
+    def update_seqplay_led(self, value):
+        self._mw.seqPlayingBtn.setChecked(value)

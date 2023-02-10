@@ -107,6 +107,8 @@ class MasterPulse(GenericLogic):
     # Gives the current count to the GUi
     sigAverageDone = QtCore.Signal(int, np.ndarray, np.ndarray, np.ndarray) # number of averages, counts and average counts
     sigFitUpdated = QtCore.Signal(np.ndarray, np.ndarray, dict, str)
+    sigStartMeasurent = QtCore.Signal()
+    sigSeqPlaying = QtCore.Signal(bool)
 
     def __init__(self, config, **kwargs):
         super().__init__(config=config, **kwargs)
@@ -152,6 +154,7 @@ class MasterPulse(GenericLogic):
         self.sigContinueLoop.connect(self.continue_loop, QtCore.Qt.QueuedConnection)
         self.sigStopMeasurement.connect(self.stop_measurement, QtCore.Qt.QueuedConnection)
         self.sigStopAll.connect(self.stop_all, QtCore.Qt.QueuedConnection)
+        self.sigStartMeasurent.connect(self.start_measurement, QtCore.Qt.QueuedConnection)
         # self._pulselogic.sigUsedArrays.connect(self.get_used_arrays, QtCore.Qt.QueuedConnection)
         self.stopRequested = False
         self._build_pulse_arrays()
@@ -420,6 +423,7 @@ class MasterPulse(GenericLogic):
         self.prepare_count_matrix()
         self.prepare_devices()
         self.awg()
+        self.sigSeqPlaying.emit(True)
         self.sigContinueLoop.emit()
 
 
@@ -440,6 +444,7 @@ class MasterPulse(GenericLogic):
             self.av_index = 0
             self.step_index = 0
             self.stopRequested = False
+            self.sigSeqPlaying.emit(False)
             print('measurement stopped')
         else:
             if self.step_index == self.step_count - 1 and self.av_index == self.averages -1:
@@ -486,7 +491,7 @@ class MasterPulse(GenericLogic):
         self.av_index = 0
         self.step_index = 0
         self.stopRequested = False
-        print('measurement done')
+        self.sigSeqPlaying.emit(False)
         self.sigMeasurementDone.emit()
 
 
@@ -658,7 +663,6 @@ class MasterPulse(GenericLogic):
         card_idx = 1
         self.clk_rate = self._pulser.get_sample_rate(card_idx) / 1e6  # To adapt it to the microsecond timing
         step_count = int(((self.mw_times_rabi[2] - self.mw_times_rabi[1]) / self.mw_times_rabi[3]) + 1)
-        print("step_count: ", step_count)  # Without unit
         for i in range(step_count):
             mw_len.append(round((self.mw_times_rabi[1] + (i * self.mw_times_rabi[3])), 3))  # starting with minimal length
 
