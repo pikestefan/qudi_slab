@@ -327,7 +327,7 @@
   </widget>
   <widget class="QDockWidget" name="input_tab_2">
    <property name="sizePolicy">
-    <sizepolicy hsizetype="MinimumExpanding" vsizetype="Maximum">
+    <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
@@ -2279,7 +2279,7 @@
   </widget>
   <widget class="QDockWidget" name="plot_widget">
    <property name="sizePolicy">
-    <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+    <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
      <horstretch>0</horstretch>
      <verstretch>0</verstretch>
     </sizepolicy>
