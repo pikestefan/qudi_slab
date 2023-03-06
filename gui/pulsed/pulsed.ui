@@ -628,6 +628,30 @@
             <double>0.000000000000000</double>
            </property>
           </widget>
+          <widget class="QCheckBox" name="seq_map_req">
+           <property name="geometry">
+            <rect>
+             <x>190</x>
+             <y>130</y>
+             <width>140</width>
+             <height>20</height>
+            </rect>
+           </property>
+           <property name="font">
+            <font>
+             <pointsize>10</pointsize>
+            </font>
+           </property>
+           <property name="accessibleName">
+            <string/>
+           </property>
+           <property name="inputMethodHints">
+            <set>Qt::ImhNone</set>
+           </property>
+           <property name="text">
+            <string>Use seq_map?</string>
+           </property>
+          </widget>
          </widget>
          <widget class="QWidget" name="tab">
           <attribute name="title">

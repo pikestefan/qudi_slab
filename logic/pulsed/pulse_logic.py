@@ -97,6 +97,7 @@ class Pulse(GenericLogic):
         mw_pulse=False,
         trigger=True,
         neg_mw=False,
+        seq_map_req=True
     ):
         """
         clk_rate =  clock rate of the AWG in microseconds
@@ -148,14 +149,15 @@ class Pulse(GenericLogic):
             # Do ramsey
             # print("It does Ramsey.")
             self.play_ramsey(
-                seq_len, laser_times, apd_times, apd_ref, mw_times, freq, rep, trigger
+                seq_len, laser_times, apd_times, apd_ref, mw_times, freq, seq_map_req, rep,
+                trigger
             )
 
         elif method == "rabi":
             # Do Rabi
             # print("It does Rabi.")
             self.play_rabi(
-                seq_len, laser_times, apd_times, apd_ref, mw_times,freq, rep, trigger)
+                seq_len, laser_times, apd_times, apd_ref, mw_times, freq, rep, seq_map_req, trigger)
 
         else:
             self.log.warning(
@@ -309,6 +311,7 @@ class Pulse(GenericLogic):
         mw_times = [1.05, 0, 0.9, 0.1],
         freq = 2.87e9,
         rep=100,
+        seq_map_req=True,
         trigger=True):
         """
         all are in microseconds
@@ -385,15 +388,21 @@ class Pulse(GenericLogic):
             loop_array = np.array([rep], dtype=np.int64)
             loops = np.repeat(loop_array, step_count)
             stop_condition_list = np.array([])
-
+        if seq_map_req:
+            seq_map = self.build_seq_map(step_count) ## Todo TEST
+        else:
+            seq_map = []
+        # print(seq_map)
         self._pulser.load_sequence(
             loops_list=loops,
+            segment_map=seq_map, ## Todo Test
             stop_condition_list=stop_condition_list,)
 
 
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
         # self.sigUsedArrays.emit(analogs, digitals)
+        return seq_map
 
     def play_ramsey(self,
                     seq_len = 5,
@@ -402,6 +411,7 @@ class Pulse(GenericLogic):
                     apd_ref = [4.25, 0.25],
                     mw_times = [1.1, 0, 0.8, 0.1, 0.1],
                     freq=2.87e9,
+                    seq_map_req=True,
                     trigger=True, rep=100):
         """
         The arrays are given in microseconds
@@ -455,6 +465,7 @@ class Pulse(GenericLogic):
             laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
             apd_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd)  #
             apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)  #
+            ## Add a minus sign here?
             analogs = {"i_chan": iwaveform, "q_chan": qwwaveform}
             digitals = {"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": apd_ref_waveform} # read/sig?
 
@@ -479,13 +490,18 @@ class Pulse(GenericLogic):
             loop_array = np.array([rep], dtype=np.int64)
             loops = np.repeat(loop_array, step_count)
             stop_condition_list = np.array([])
-
+        if seq_map_req:
+            seq_map = self.build_seq_map(step_count)
+        else:
+            seq_map = []
         self._pulser.load_sequence(
             loops_list=loops,
-            stop_condition_list=stop_condition_list,)
+            segment_map=seq_map,
+            stop_condition_list=stop_condition_list)
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
         # self.sigUsedArrays.emit(analogs, digitals)
+        # return seq_map
 
     def delay_sweep(
         self,
@@ -881,20 +897,21 @@ class Pulse(GenericLogic):
 
         return real_lenghts
 
-    # def calc_len_error(self, t_centerwidths, seq_len):
-    #     # print(len(t_centerwidths))
-    #     # print(t_centerwidths[0][1])
-    #     real_lenghts = []
-    #     for i in range(len(t_centerwidths)):
-    #         if (t_centerwidths[i][1] % 2) == 0: # even
-    #             if t_centerwidths[i][1] == 0:
-    #                 pulse_len = t_centerwidths[i][1]
-    #             else:
-    #                 pulse_len = t_centerwidths[i][1] + 1
-    #         else: # odd
-    #             pulse_len = t_centerwidths[i][1]
-    #         real_lenghts.append(pulse_len)
-    #     return real_lenghts
+    def build_seq_map(self, step_count):
+        seq_map = []
+        array = np.linspace(0, step_count - 1, step_count)
+        e = 0
+        o = 1
+        for n in range(step_count):
+            if (n % 2) == 0:
+                seq_map.append(int(array[e]))
+                e = e + 1
+            else:
+                seq_map.append(int(array[-(o)]))
+                o = o + 1
+        # print(seq_map)
+        return seq_map
+
 
 
 
@@ -2195,3 +2212,19 @@ class Pulse(GenericLogic):
 #
 #         self.start_card(card_idx)
 #         self.arm_trigger(card_idx)
+
+    # def calc_len_error(self, t_centerwidths, seq_len):
+    #     # print(len(t_centerwidths))
+    #     # print(t_centerwidths[0][1])
+    #     real_lenghts = []
+    #     for i in range(len(t_centerwidths)):
+    #         if (t_centerwidths[i][1] % 2) == 0: # even
+    #             if t_centerwidths[i][1] == 0:
+    #                 pulse_len = t_centerwidths[i][1]
+    #             else:
+    #                 pulse_len = t_centerwidths[i][1] + 1
+    #         else: # odd
+    #             pulse_len = t_centerwidths[i][1]
+    #         real_lenghts.append(pulse_len)
+    #     return real_lenghts
+

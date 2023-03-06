@@ -29,6 +29,9 @@ from gui.colordefs import QudiPalettePale as palette
 from gui.fitsettings import FitSettingsDialog, FitSettingsComboBox
 from qtpy import QtCore, QtWidgets, uic
 from qtpy import uic
+# import keyboard
+# import  time
+
 
 
 
@@ -201,7 +204,6 @@ class PulsedGui(GUIBase):
         self._mw.comboBox_method.setEnabled(val)
         self._mw.averages.setEnabled(val)
         self._mw.integration_time.setEnabled(val)
-        self._mw.seq_len.setEnabled(val)
         self._mw.clk_awg.setEnabled(val)
         self._mw.apd_start_time.setEnabled(val)
         self._mw.apd_ref_len.setEnabled(val)
@@ -217,6 +219,8 @@ class PulsedGui(GUIBase):
         self._mw.use_mw_delay.setEnabled(val)
         self._mw.mw_start_time_delay.setEnabled(val)
         self._mw.mw_len_delay.setEnabled(val)
+        self._mw.seq_map_req.setEnabled(val)
+        # self._mw.plaintext_field.setEndabled(val)
 
         self._mw.mw_stop_distance_rabi.setEnabled(val)
         self._mw.mw_min_len_rabi.setEnabled(val)
@@ -264,12 +268,13 @@ class PulsedGui(GUIBase):
         method = self._mw.comboBox_method.currentText()
         averages = self._mw.averages.value()
         int_time = self._mw.integration_time.value()  # in sec
-        seq_len = self._mw.seq_len.value() * 1e6  # this should be in us
         sampling_rate_awg = int(self._mw.clk_awg.value() * 1e-6)  # in MHz
         apd_start = self._mw.apd_start_time.value() * 1e6
         apd_len = self._mw.apd_len.value() * 1e6
         apd_ref_start = self._mw.apd_ref_start_time.value() * 1e6
         apd_ref_len = self._mw.apd_ref_len.value() * 1e6
+        seq_map_req = self._mw.seq_map_req.isChecked()
+        plaintext_field = self._mw.plaintext_field.toPlainText()
 
         # laser times tab
         laser_in = self._mw.laser_in.value() * 1e6
@@ -299,12 +304,12 @@ class PulsedGui(GUIBase):
         mw_steps_ramsey = self._mw.mw_steps_ramsey.value() * 1e6
         mw_len_ramsey = self._mw.mw_len_ramsey.value() * 1e6
 
+        ### -----------------------------------------------------------------------------
         # Now send all the parameters from above to the masterlogic
         self._master_pulselogic.mw_power = mw_power
         self._master_pulselogic.mw_frequency = mw_freq
         self._master_pulselogic.method = method
         self._master_pulselogic.integration_time = int_time
-        self._master_pulselogic.seq_len = seq_len
         self._master_pulselogic.clk_rate_awg = sampling_rate_awg
         self._master_pulselogic.averages = averages
 
@@ -312,6 +317,8 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.apd_len = apd_len
         self._master_pulselogic.apd_ref_start = apd_ref_start
         self._master_pulselogic.apd_ref_len = apd_ref_len
+        self._master_pulselogic.seq_map_req = seq_map_req
+        self._master_pulselogic.plaintext_field = plaintext_field
 
         # laser times tab
         self._master_pulselogic.laser_in = laser_in
@@ -350,9 +357,10 @@ class PulsedGui(GUIBase):
         mw_freq = self._master_pulselogic.mw_frequency
         method = self._master_pulselogic.method
         int_time = self._master_pulselogic.integration_time
-        seq_len = self._master_pulselogic.seq_len
         sampling_rate_awg = self._master_pulselogic.clk_rate_awg
         averages = self._master_pulselogic.averages
+        seq_map_req = self._master_pulselogic.seq_map_req
+        plaintext_field = self._master_pulselogic.plaintext_field
 
         apd_start = self._master_pulselogic.apd_start
         apd_len = self._master_pulselogic.apd_len
@@ -396,12 +404,13 @@ class PulsedGui(GUIBase):
         self._mw.comboBox_method.setCurrentText(method)
         self._mw.averages.setValue(averages)
         self._mw.integration_time.setValue(int_time)  # in sec
-        self._mw.seq_len.setValue(seq_len * 1e-6)  # this should be in us
         self._mw.clk_awg.setValue(int(sampling_rate_awg * 1e6))  # in MHz
         self._mw.apd_start_time.setValue(apd_start * 1e-6)
         self._mw.apd_len.setValue(apd_len * 1e-6)
         self._mw.apd_ref_start_time.setValue(apd_ref_start * 1e-6)
         self._mw.apd_ref_len.setValue(apd_ref_len * 1e-6)
+        self._mw.seq_map_req.setChecked(seq_map_req)
+
 
         # laser times tab
         self._mw.laser_in.setValue(laser_in * 1e-6)
@@ -434,7 +443,7 @@ class PulsedGui(GUIBase):
     def start_measurement(self):
         self._master_pulselogic.start_stop_timetrace(False)
         self._send_parameters_to_logic()
-        print(self._mw.laser_power_2.value())
+        # print(self._mw.laser_power_2.value())
         self.fit_image.clear()
         # This one sets the x axis right
         x_axis = self._master_pulselogic.get_x_axis() # in microseconds
@@ -461,6 +470,7 @@ class PulsedGui(GUIBase):
             self._master_pulselogic.start_stop_timetrace(True)
             # print(self._mw.laser_power_2.valueChanged(), self._mw.laser_power_2.valueChanged)
             laser_power = self._mw.laser_power_2.value() # Takes the value from the box
+
             self._master_pulselogic.laser_power = laser_power
             self._master_pulselogic.cw(True)
             self._master_pulselogic.set_laser_power()
@@ -479,14 +489,15 @@ class PulsedGui(GUIBase):
             # print('is checked')
             if self._mw.laser_button_high.isChecked():
                 self._master_pulselogic.laser_power = 0.8
-                self._master_pulselogic.set_laser_power()
+                # self._master_pulselogic.set_laser_power()
             elif self._mw.laser_button_cw.isChecked():
                 self._master_pulselogic.laser_power = 0.628
-                self._master_pulselogic.set_laser_power()
+                # self._master_pulselogic.set_laser_power()
             else:
                 laser_power = self._mw.laser_power_2.value()
                 self._master_pulselogic.laser_power = laser_power
-                self._master_pulselogic.set_laser_power()
+            # time.sleep(1)
+            self._master_pulselogic.set_laser_power()
         else:
             pass
             # print('is not checked')
@@ -517,9 +528,14 @@ class PulsedGui(GUIBase):
     #         #continue plotting
 
     def refresh_plot(self, av_index, current_row, current_average, av_counts_ref):
-        # Draw current odmr trace
+        # Draw current trace
         # This is where the data from the logic should be
         # maybe have a method on the masterpulselogic which gives all values in one row? They give one plot in the GUI
+
+        current_row = self._master_pulselogic.recalc_from_seq_map(current_row)
+        current_average = self._master_pulselogic.recalc_from_seq_map(current_average)
+        av_counts_ref = self._master_pulselogic.recalc_from_seq_map(av_counts_ref)
+
         self.curr_trace.setData(self._master_pulselogic.get_x_axis(), current_row)
 
         # Draw average trace
@@ -653,6 +669,8 @@ class PulsedGui(GUIBase):
 
     def update_curr_av(self):
         """ Updates current completed frequency sweeps """
+        # Todo: Here we need a function that calcualtes the right oder of the measurements considering the seq_map
+
         self._mw.curr_av_DisplayWidget.display(self._master_pulselogic.av_index)
 
     ### new attemt for rouding due to clock_rate
@@ -685,3 +703,4 @@ class PulsedGui(GUIBase):
 
     def update_seqplay_led(self, value):
         self._mw.seqPlayingBtn.setChecked(value)
+

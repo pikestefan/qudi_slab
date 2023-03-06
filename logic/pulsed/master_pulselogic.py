@@ -57,10 +57,11 @@ class MasterPulse(GenericLogic):
     integration_time = StatusVar('integration_time', 30e-3)  # in s
     laser_power = StatusVar('laser_power', 0.628)  # in V... Max is 1V!
     clk_rate_awg = StatusVar('clk_rate_awg', int(1000e6))  # in MHz
+    seq_map_req = StatusVar('seq_map_req', False)
+    plaintext_field = StatusVar ('notes', 'Notes: Magnet position:')
 
     ## Delay Sweep
     mw_pulse_setting = StatusVar('mw_pulse_setting', False)  # this is only for delay sweep
-    seq_len = StatusVar('seq_len', 7e-6)
     neg_mw = StatusVar('neg_mw', False)  # if False it plays +1, if True it applies negative mw pulses -1 (all the pulses are squared)
     method = StatusVar('method', 'ramsey')  # change this to 'ramsey', 'delaysweep', 'rabi' or 'delaysweep_ref' if needed
 
@@ -300,7 +301,7 @@ class MasterPulse(GenericLogic):
         '''
         method = self.method
         if method == 'rabi':
-            print('do rabi')
+            # print('do rabi')
             if len(self.apd_times) == 2 and len(self.mw_times_rabi) == 4 and len(self.laser_times) == 3:
                 apd_times = self.apd_times
                 mw_times = self.mw_times_rabi
@@ -315,14 +316,14 @@ class MasterPulse(GenericLogic):
                 self.log.warning("The input arrays don't have the right size.")
         elif method == 'delaysweep':
             if len(self.apd_times_sweep) == 4 and len(self.mw_times_sweep) == 2 and len(self.laser_times) == 3:
-                print('do delay sweep')
+                # print('do delay sweep')
                 apd_times = self.apd_times_sweep
                 mw_times = self.mw_times_sweep
             else:
                 self.log.warning("The input arrays don't have the right size.")
         elif method == 'delaysweep_ref':
             if len(self.apd_times_sweep) == 4 and len(self.mw_times_sweep) == 2 and len(self.laser_times) == 3:
-                print('do delay sweep_ref')
+                # print('do delay sweep_ref')
                 apd_times = self.apd_times_sweep
                 mw_times = self.mw_times_sweep
             else:
@@ -331,9 +332,11 @@ class MasterPulse(GenericLogic):
         else:
             self.log.warning(
                 "The methode must be one of the following: delay_sweep, delay_sweep_ref, rabi, ramsey.")
+        self.seq_len = self.calc_seq_len()
         method, laser_times, apd_times, apd_ref, mw_times = self._pulselogic.play_any(
             self.clk_rate_awg, self.seq_len, self.laser_times, apd_times, self.apd_ref_times, mw_times,
-            self.mw_frequency, method=method, rep=self.rep, mw_pulse=self.mw_pulse_setting, trigger=self.trigger_setting)
+            self.mw_frequency, method=method, rep=self.rep, mw_pulse=self.mw_pulse_setting, trigger=self.trigger_setting
+            , seq_map_req=self.seq_map_req)
         return method, laser_times, apd_times, apd_ref, mw_times
 
     def get_x_axis(self): # in microseconds for the plot in the GUI
@@ -342,6 +345,7 @@ class MasterPulse(GenericLogic):
         return x_axis
 
     def get_t_axis(self): # in microseconds for the instance plot in the GUI
+        self.seq_len = self.calc_seq_len()
         number_samples = self.clk_rate_awg * self.seq_len # this is MHz * microseconds
         t_axis = np.linspace(0, number_samples, number_samples)
         return t_axis
@@ -398,6 +402,7 @@ class MasterPulse(GenericLogic):
         # These are the index for the matrix (step_index: columns and av_index: rows)
         self.count_matrix = count_matrix
         self.count_matrix_ref = count_matrix_ref
+
 
         return count_matrix, count_matrix_ref
 
@@ -529,7 +534,8 @@ class MasterPulse(GenericLogic):
         parameters['Rep'] = self.rep
         parameters['MW pulse used?'] = self.mw_pulse_setting
         parameters['software trigger'] = self.trigger_setting
-        parameters['laser power'] =  self.laser_power
+        parameters['laser power'] = self.laser_power
+        parameters['extra notes'] = self.plaintext_field
         parameters['timestamp'] = timestamp.strftime('%Y-%m-%d, %H:%M:%S')
 
         attributes = {'count data': parameters, 'REF count data': parameters}
@@ -633,7 +639,7 @@ class MasterPulse(GenericLogic):
         else:
             result_str_dict = result.result_str_dict
 
-        print('emitting update fit')
+        # print('emitting update fit')
         self.sigFitUpdated.emit(
             self.fit_x, self.fit_y, result_str_dict, self.fc.current_fit
         )
@@ -670,7 +676,7 @@ class MasterPulse(GenericLogic):
         t_centrewidth_list_laser = self._pulselogic.convert_laser_val(self.laser_times)
         t_centrewidth_list_apd = self._pulselogic.convert_apd_val(self.apd_times)
         t_centrewidth_list_apd_ref = self._pulselogic.convert_apd_val(self.apd_ref_times)
-
+        self.seq_len = self.calc_seq_len()
         for i in mw_len:
             if self.seq_len < (self.mw_times_rabi[0] + self.mw_times_rabi[2]):
                 raise ValueError(
@@ -697,7 +703,7 @@ class MasterPulse(GenericLogic):
             laser_array.append(laser_waveform)
             apd_array.append(apd_waveform)
             apd_ref_array.append(apd_ref_waveform)
-        print(laser_array[1])
+        # print(laser_array[1])
         # self.sigUsedArrays.emit(analogs, digitals)
         # This does the right thing and the values are updated
         return laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array
@@ -723,7 +729,7 @@ class MasterPulse(GenericLogic):
         t_centrewidth_list_laser = self._pulselogic.convert_laser_val(self.laser_times)
         t_centrewidth_list_apd = self._pulselogic.convert_apd_val(self.apd_times)
         t_centrewidth_list_apd_ref = self._pulselogic.convert_apd_val(self.apd_ref_times)
-
+        self.seq_len = self.calc_seq_len()
         for i in break_len:
             if self.seq_len < (self.laser_times[0] + self.laser_times[1] + self.laser_times[2]):
                 self.log.warning(
@@ -772,6 +778,7 @@ class MasterPulse(GenericLogic):
         apd_start = []
         step_count = int(((self.apd_times_sweep[2] - self.apd_times_sweep[1]) / self.apd_times_sweep[3]) + 1)
         print("step_count: ", step_count)
+        self.seq_len = self.calc_seq_len()
         time_ax = self._pulselogic.time_axis(self.seq_len)  # this includes waveform_padding
         for i in range(step_count):
             apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
@@ -804,6 +811,7 @@ class MasterPulse(GenericLogic):
         return laser_array, mw_i_array, mw_q_array, apd_array, apd_ref_array
 
     def get_t_axis_pulselogic(self): # in microseconds for the instance plot in the GUI
+        self.seq_len = self.calc_seq_len()
         t_axis = self._pulselogic.time_axis(self.seq_len)
         return t_axis
 
@@ -818,8 +826,40 @@ class MasterPulse(GenericLogic):
             # The real value will be different.
             sample_number = round(req_len / min_time, 0)
             real_len = round(sample_number * min_time, 5)
-        print('real_len:', real_len)
+        # print('real_len:', real_len)
         return self.method, min_time, req_len, real_len
+
+    def get_seq_map(self):
+        '''
+        fishes the seq_map and the step_count from the pulse_logic
+        '''
+        if self.method == 'rabi':
+            self.step_count = self._pulselogic.get_step_count(self.mw_times_rabi)
+        elif self.method == 'ramsey':
+            self.step_count = self._pulselogic.get_step_count(self.mw_times_ramsey)
+        else:
+            self.step_count = self._pulselogic.get_step_count(self.apd_times_sweep)
+        self.seq_map = self._pulselogic.build_seq_map(self.step_count)
+
+        return self.step_count, self.seq_map
+
+    def recalc_from_seq_map(self, array):
+        """
+        array = the data array in the order of the seq_map
+        seq_map = gives the oder of the data points
+
+        """
+        step_count, seq_map = self.get_seq_map()
+        array_new = np.zeros(len(seq_map))
+        for n in range(step_count):
+            array_new[seq_map[n]] = array[n]
+        return array_new
+
+    def calc_seq_len(self):
+        self.seq_len = self.laser_in + self.laser_off + self.laser_re
+        if self.method == 'delaysweep' or self.method == 'delaysweep_ref':
+            self.seq_len = self.laser_in + self.laser_off + self.laser_re + 1
+        return self.seq_len
 
 
 
