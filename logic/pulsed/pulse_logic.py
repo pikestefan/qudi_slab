@@ -97,7 +97,8 @@ class Pulse(GenericLogic):
         mw_pulse=False,
         trigger=True,
         neg_mw=False,
-        seq_map_req=True
+        seq_map_req=True,
+        phase_shift=False
     ):
         """
         clk_rate =  clock rate of the AWG in microseconds
@@ -118,7 +119,6 @@ class Pulse(GenericLogic):
         trigger =   either True: software trigger or False: no trigger at all
         """
         self.set_up_pulser(clk_rate)
-
         if method == "delaysweep":
             # print("It does delay sweep.")
             self.delay_sweep(
@@ -150,7 +150,7 @@ class Pulse(GenericLogic):
             # print("It does Ramsey.")
             self.play_ramsey(
                 seq_len, laser_times, apd_times, apd_ref, mw_times, freq, seq_map_req, rep,
-                trigger
+                trigger, phase_shift
             )
 
         elif method == "rabi":
@@ -337,7 +337,6 @@ class Pulse(GenericLogic):
 
         self.clk_rate = self._pulser.get_sample_rate(card_idx) / 1e6 # To adapt it to the microsecond timing
         step_count = int(((mw_times[2] - mw_times[1]) / mw_times[3]) + 1)
-        print("step_count: ", step_count) # Without unit
 
         for i in range(step_count):
             mw_len.append(round((mw_times[1] + (i * mw_times[3])), 3))  # starting with minimal length
@@ -373,6 +372,7 @@ class Pulse(GenericLogic):
                 digital_pulses=digitals,
                 digital_output_map={0: [0, 1, 2]}
             )
+
         if trigger:
             # This sequence waits for a software trigger to start playing and moving to the next step.
             self._pulser.configure_ORmask(card_idx, None)
@@ -388,21 +388,22 @@ class Pulse(GenericLogic):
             loop_array = np.array([rep], dtype=np.int64)
             loops = np.repeat(loop_array, step_count)
             stop_condition_list = np.array([])
+            #only build a seq_map when its requested, if not dont do anything
         if seq_map_req:
-            seq_map = self.build_seq_map(step_count) ## Todo TEST
+            self.seq_map = self.build_seq_map(step_count)
         else:
-            seq_map = []
-        # print(seq_map)
+            self.seq_map = []
+
         self._pulser.load_sequence(
             loops_list=loops,
-            segment_map=seq_map, ## Todo Test
+            segment_map=self.seq_map,
             stop_condition_list=stop_condition_list,)
 
 
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
         # self.sigUsedArrays.emit(analogs, digitals)
-        return seq_map
+        return self.seq_map
 
     def play_ramsey(self,
                     seq_len = 5,
@@ -412,7 +413,9 @@ class Pulse(GenericLogic):
                     mw_times = [1.1, 0, 0.8, 0.1, 0.1],
                     freq=2.87e9,
                     seq_map_req=True,
-                    trigger=True, rep=100):
+                    trigger=True,
+                    rep=100,
+                    phase_shift=True):
         """
         The arrays are given in microseconds
         It changes the distance between two pi/2 pusles, the position of the first pulse stays the same
@@ -440,7 +443,6 @@ class Pulse(GenericLogic):
         card_idx = 1
 
         step_count = int(((mw_times[2] - mw_times[1]) / mw_times[3]) + 1) # without unit
-        print("step_count: ", step_count)
 
         for i in range(step_count):
             break_len.append((mw_times[1] + (i * mw_times[3])))  # starting with minimal length
@@ -456,19 +458,25 @@ class Pulse(GenericLogic):
             else:
                 t0, t1, width = self.convert_mw_val_ramsey(mw_times, i) # these values are in microseconds
                 t_centrewidth_list_mw.append([np.array([[t0, width], [t1, width]])])
+        # print (t_centrewidth_list_mw)
         time_ax = self.time_axis(seq_len) # in microsecondes
         self._pulser.set_frequency(freq) # this one does freq - if_freq
         output_frequency = self._pulser.get_frequency()
+        if phase_shift:
+            phases = np.empty((len(t_centrewidth_list_mw)))
+            phases[::2] = 0
+            phases[1::2] = np.pi
+        else:
+            phases = np.repeat(0, len(t_centrewidth_list_mw))
 
         for step in range(len(t_centrewidth_list_mw)):
-            iwaveform, qwwaveform = self._pulser.iq_pulses(time_ax, t_centrewidth_list_mw[step], output_frequency)
+            iwaveform, qwwaveform = self._pulser.iq_pulses(time_ax, t_centrewidth_list_mw[step], output_frequency, phases)
             laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
             apd_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd)  #
             apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)  #
             ## Add a minus sign here?
             analogs = {"i_chan": iwaveform, "q_chan": qwwaveform}
             digitals = {"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": apd_ref_waveform} # read/sig?
-
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
@@ -490,18 +498,16 @@ class Pulse(GenericLogic):
             loop_array = np.array([rep], dtype=np.int64)
             loops = np.repeat(loop_array, step_count)
             stop_condition_list = np.array([])
-        if seq_map_req:
-            seq_map = self.build_seq_map(step_count)
-        else:
-            seq_map = []
+
+            self.seq_map = self.build_seq_map(step_count, seq_map_req)
         self._pulser.load_sequence(
             loops_list=loops,
-            segment_map=seq_map,
+            segment_map=self.seq_map,
             stop_condition_list=stop_condition_list)
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
         # self.sigUsedArrays.emit(analogs, digitals)
-        # return seq_map
+        # return self.seq_map
 
     def delay_sweep(
         self,
@@ -543,7 +549,7 @@ class Pulse(GenericLogic):
         segment_map = []
         apd_start = []
         step_count = int(((apd_times[2] - apd_times[1]) / apd_times[3]) + 1)
-        print("step_count: ", step_count)
+
         time_ax = self.time_axis(seq_len)  # this includes waveform_padding
         for i in range(step_count):
             apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
@@ -637,7 +643,6 @@ class Pulse(GenericLogic):
         time_ax = self.time_axis(seq_len)  # this includes waveform_padding
         apd_start = []
         step_count = int(((apd_times[2] - apd_times[1]) / apd_times[3]) + 1)
-        print("step_count: ", step_count)
 
         for i in range(step_count):
             apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
@@ -878,8 +883,7 @@ class Pulse(GenericLogic):
         return start_array, stop_array, timeaxis
 
     def calc_len_error(self, t_centerwidths, seq_len):
-        # print(len(t_centerwidths))
-        # print(t_centerwidths[0][1])
+
         real_lenghts = []
         for i in range(len(t_centerwidths)):
             if (t_centerwidths[i][1] % 2) == 0: # even
@@ -898,19 +902,22 @@ class Pulse(GenericLogic):
         return real_lenghts
 
     def build_seq_map(self, step_count):
-        seq_map = []
+        self.seq_map = []
         array = np.linspace(0, step_count - 1, step_count)
         e = 0
         o = 1
         for n in range(step_count):
             if (n % 2) == 0:
-                seq_map.append(int(array[e]))
+                self.seq_map.append(int(array[e]))
                 e = e + 1
             else:
-                seq_map.append(int(array[-(o)]))
+                self.seq_map.append(int(array[-(o)]))
                 o = o + 1
-        # print(seq_map)
-        return seq_map
+
+        return self.seq_map
+
+    def get_seq_map(self):
+        return self.seq_map
 
 
 
