@@ -184,9 +184,6 @@ class ODMRPxLogic(GenericLogic):
     def continue_odmr(self):
         if not self.stopRequested:
             counts = self._acquire_pixel()
-            # FIXME: Why is counts sometimes empty?
-            if len(counts) == 0:
-                return
 
             self.count_matrix[self._average_index, self._freq_scanning_index] = counts / self.integration_time
             self.curr_odmr_trace = self.count_matrix[self._average_index]

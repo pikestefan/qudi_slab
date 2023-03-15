@@ -50,7 +50,6 @@ class NationalInstrumentsUSB6000x(Base, SimpleLaserInterface):
             else:
                 self.log.error("Did not find device name in {0}".format(channel))
 
-        print('deviceList ', deviceList)
         for device in set(deviceList):
             self.log.info("Reset device {0}".format(device))
             try:
