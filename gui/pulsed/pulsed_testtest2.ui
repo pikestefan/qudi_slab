@@ -583,7 +583,7 @@ NV ceter - sample distance:
           <enum>QTabWidget::Rounded</enum>
          </property>
          <property name="currentIndex">
-          <number>0</number>
+          <number>4</number>
          </property>
          <property name="elideMode">
           <enum>Qt::ElideLeft</enum>
@@ -2181,6 +2181,13 @@ NV ceter - sample distance:
                 </size>
                </property>
               </spacer>
+             </item>
+             <item row="3" column="5">
+              <widget class="QCheckBox" name="checkBox_phase_shift_ramsey">
+               <property name="text">
+                <string>Flip second pulse by 90deg</string>
+               </property>
+              </widget>
              </item>
             </layout>
            </item>

@@ -117,7 +117,7 @@ class PulsedGui(GUIBase):
         self._mw.fill_puls_times_pushButton.clicked.connect(self.fill_pulse_times)
         # This button enables the reference counts in the plot
         self._mw.pulse_type_tabWidget.currentChanged.connect(self.tab_changed)
-        self._mw.laser_power_2.valueChanged.connect(self.changed_laser_power)
+        self._mw.laser_power_2.editingFinished.connect(self.changed_laser_power)
         self._mw.laser_button_cw.clicked.connect(self.changed_laser_power)
         self._mw.laser_button_high.clicked.connect(self.changed_laser_power)
         # instance plot:
@@ -220,7 +220,7 @@ class PulsedGui(GUIBase):
         self._mw.mw_start_time_delay.setEnabled(val)
         self._mw.mw_len_delay.setEnabled(val)
         self._mw.seq_map_req.setEnabled(val)
-        # self._mw.plaintext_field.setEndabled(val)
+        self._mw.checkBox_phase_shift_ramsey.setEnabled(val)
 
         self._mw.mw_stop_distance_rabi.setEnabled(val)
         self._mw.mw_min_len_rabi.setEnabled(val)
@@ -303,6 +303,7 @@ class PulsedGui(GUIBase):
         mw_stop_distance_ramsey = self._mw.mw_stop_distance_ramsey.value() * 1e6
         mw_steps_ramsey = self._mw.mw_steps_ramsey.value() * 1e6
         mw_len_ramsey = self._mw.mw_len_ramsey.value() * 1e6
+        phase_shift_ramsey = self._mw.checkBox_phase_shift_ramsey.isChecked()
 
         ### -----------------------------------------------------------------------------
         # Now send all the parameters from above to the masterlogic
@@ -347,6 +348,7 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.mw_stop_distance_ramsey = mw_stop_distance_ramsey
         self._master_pulselogic.mw_steps_ramsey = mw_steps_ramsey
         self._master_pulselogic.mw_len_ramsey = mw_len_ramsey
+        self._master_pulselogic.phase_shift = phase_shift_ramsey
 
     def _get_parameters_from_logic(self):
         # Grabs all the parameters from the logic and fills them into the GUI
@@ -394,7 +396,7 @@ class PulsedGui(GUIBase):
         mw_stop_distance_ramsey = self._master_pulselogic.mw_stop_distance_ramsey
         mw_steps_ramsey = self._master_pulselogic.mw_steps_ramsey
         mw_len_ramsey = self._master_pulselogic.mw_len_ramsey
-
+        phase_shift_ramsey = self._master_pulselogic.phase_shift
         # Fill in the values into the GUI
         # Some values need to be converted from us -> s
 
@@ -439,6 +441,7 @@ class PulsedGui(GUIBase):
         self._mw.mw_stop_distance_ramsey.setValue(mw_stop_distance_ramsey * 1e-6)
         self._mw.mw_steps_ramsey.setValue(mw_steps_ramsey * 1e-6)
         self._mw.mw_len_ramsey.setValue(mw_len_ramsey * 1e-6)
+        self._mw.checkBox_phase_shift_ramsey.setChecked(phase_shift_ramsey)
 
     def start_measurement(self):
         self._master_pulselogic.start_stop_timetrace(False)
@@ -531,10 +534,6 @@ class PulsedGui(GUIBase):
         # Draw current trace
         # This is where the data from the logic should be
         # maybe have a method on the masterpulselogic which gives all values in one row? They give one plot in the GUI
-
-        current_row = self._master_pulselogic.recalc_from_seq_map(current_row)
-        current_average = self._master_pulselogic.recalc_from_seq_map(current_average)
-        av_counts_ref = self._master_pulselogic.recalc_from_seq_map(av_counts_ref)
 
         self.curr_trace.setData(self._master_pulselogic.get_x_axis(), current_row)
 
