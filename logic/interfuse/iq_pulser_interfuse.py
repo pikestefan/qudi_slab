@@ -186,12 +186,13 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
         lo_frequency = output_frequency - self._if_freq * 1e6
         if not self._freqminmax[0] < lo_frequency < self._freqminmax[-1]:
-            self.log.warning(
-                "Requested local oscillator frequency: {:.3f} GHz, falls outside the calibration file range "
-                "[{:.3f}, {:.3f}]. Using the closest frequency instead.".format(lo_frequency / 1e9,
-                                                                                self._freqminmax[0],
-                                                                                self._freqminmax[-1])
-            )
+            # self.log.warning(
+            #     "Requested local oscillator frequency: {:.3f} GHz, falls outside the calibration file range "
+            #     "[{:.3f}, {:.3f}]. Using the closest frequency instead.".format(lo_frequency / 1e9,
+            #                                                                     self._freqminmax[0],
+            #                                                                     self._freqminmax[-1])
+            # )
+            pass
 
         # Get the calibrated amplitudes and offset from the interpolation function.
         Iamp, Ioff, Qamp, Qoff, phase_inbalance = self._iq_interpfunc(lo_frequency)
