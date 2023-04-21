@@ -112,13 +112,15 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
     def on_deactivate(self):
         pass
 
-    def set_frequency(self, freq=0.0):
+    def set_frequency(self, freq=0.0, bypass_if=False):
         """
         Sets the frequency of the mw source. The actual value is set to be freq - if modulation frequency.
         @param float freq: The desired output frequency.
+        @param bool bypass_if: If True, the set frequency is not shifted by the IF modulation frequency.
         @return:
         """
-        lo_frequency = freq - self._if_freq * 1e6
+
+        lo_frequency = freq - self._if_freq * 1e6 if not bypass_if else freq
         self._mwsource.set_frequency(lo_frequency)
 
     def load_waveform(
@@ -132,6 +134,7 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
         @return int: Error code. 0: ok, -1: error occurred
         """
+
         try:
             ao_waveform_dictionary = {
                 self._channel_dictionary[chan_name]: waveform
@@ -252,6 +255,91 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
         return pulses.sum(axis=0)
 
+    def sequence_test2(self):
+        # TODO: Convert all the numbers from seconds to microseconds, and Hz to MHz
+        clkrate = int(1250 * 1e6)
+
+        start_delay = 0
+        laser_init = 1500e-9
+        laser_read = 500e-9
+        init_delay = 350e-9
+        read_delay = 350e-9
+        apd_delay = 0
+        apd_read = 500e-9
+        final_delay = 0
+        pipulse = 500e-9
+
+        init_center = start_delay + laser_init / 2
+        mw_center = init_center + laser_init / 2 + init_delay + pipulse / 2
+        read_center = mw_center + pipulse / 2 + read_delay + laser_read / 2
+        apd_center = mw_center + pipulse / 2 + read_delay + apd_delay + apd_read / 2
+
+        tot_time = (
+                start_delay
+                + laser_init
+                + init_delay
+                + pipulse
+                + read_delay
+                + max(laser_read + final_delay, apd_delay + apd_read)
+        )
+
+        tot_samples = self.waveform_padding(tot_time * clkrate)
+
+        timeax = np.linspace(0, tot_samples / clkrate, tot_samples)
+
+        laser_waveform = self.box_envelope(
+            timeax, np.array([[init_center, laser_init], [read_center, laser_read]])
+        )
+        apd_waveform = self.box_envelope(
+            timeax, np.array([[apd_center, apd_read]])
+        )
+
+        mw_waveform = self.box_envelope(timeax, np.array([[mw_center, pipulse]]))
+        mw_blank = np.zeros_like(timeax)
+
+        card_idx = 1
+        self.stop_all()
+        self.set_sample_rate(card_idx, clkrate)
+
+        steps = 2
+        do_map = {1: [0, 1]}
+        for step in range(steps):
+            common = np.zeros_like(timeax)
+            commmon_high = np.ones_like(timeax)
+            if step == 0:
+                self.load_waveform(
+                    iq_dictionary={"i_chan": commmon_high, "q_chan": commmon_high},
+                    digital_pulses={"laser": laser_waveform, "apd_sig": apd_waveform},
+                    digital_output_map=do_map,
+                )
+            else:
+
+                self.load_waveform(
+                    iq_dictionary={"i_chan": common, "q_chan": common},
+                    digital_pulses={"laser": common, "apd_sig": common, "apd_read": common},
+                    digital_output_map=do_map,
+                )
+
+        self.configure_ORmask(card_idx, None)
+        self.configure_ANDmask(card_idx, None)
+
+        loops = np.ones(steps, dtype=np.int64)
+
+        stop_condition_list = np.array(
+            [0x40000000, ] * steps,
+            dtype=np.int64,
+        )
+
+        self.load_sequence(
+            loops_list=loops,
+            stop_condition_list=stop_condition_list,
+        )
+
+        self.start_card(card_idx)
+        self.arm_trigger(card_idx)
+
+        self.send_software_trig(1)
+
     def sequence_test(self):
         """
         Function for early debugging of the awg. Remove from the final class.
@@ -264,8 +352,8 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         - start the card
         - arm the trigger
         """
-        useconds = 50
-        clk_rate = 800
+        useconds = 10
+        clk_rate = 1250
 
         self._if_freq /= 1e6 # in MHz
         freq = self.get_frequency()
@@ -281,23 +369,32 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         #             np.array([[25, 10]]), np.array([[25, 10]]),
         #             np.array([[25, 10]]), np.array([[25, 10]])]     #This needs to be build by the loop in play_rabi
         # --> for each step there needs to be a new np.array with a different t0 but the same width
-        mw_times = [np.array([[25, 10]]), np.array([[25, 10]])]
-        # laser_times = np.copy(mw_times)
+        mw_times = [np.array([[1, 2]]), np.array([[1, 1]])]
+        laser_times = [np.array([[3, 2]]), np.array([[3, 1]])]
+        apd1_times = [np.array([[5, 2]]), np.array([[5, 1]])]
+        apd2_times = [np.array([[7, 2]]), np.array([[7, 1]])]
+
 
         for step in range(len(mw_times)):
-            iwaveform, qwaveform = self.iq_pulses(time_ax, [mw_times[step]], freq)
+            #iwaveform, qwaveform = self.iq_pulses(time_ax, [mw_times[step]], freq)
+            iwaveform = self.box_envelope(time_ax, mw_times[step])
+            qwaveform = self.box_envelope(time_ax, mw_times[step])
             # arr = np.hstack((time_ax[:, None], iwaveform[:, None], qwaveform[:, None]))
             # dirry = r"C:\Users\spinmechanics\Desktop\file.txt"
             # np.savetxt(dirry, arr)
-            # laser_waveform = self.box_envelope(time_ax, laser_times[step])
+            laser_waveform = self.box_envelope(time_ax, laser_times[step])
+            apd1_waveform = self.box_envelope(time_ax, apd1_times[step])
+            apd2_waveform = self.box_envelope(time_ax, apd2_times[step])
 
             analogs = {"i_chan": iwaveform, "q_chan": qwaveform}
-            # digitals = {"laser": laser_waveform, "apd_sig": laser_waveform, "apd_read": laser_waveform}
+            digitals = {"laser": laser_waveform, "apd_sig": apd1_waveform}#, "apd_read": apd2_waveform}
+
+            do_map = {0: [0, 1]}
 
             self.load_waveform(
                 iq_dictionary=analogs,
-                # digital_pulses=digitals,
-                # digital_output_map={0: [0, 1, 2]}
+                digital_pulses=digitals,
+                digital_output_map=do_map
             )
 
         # # This sequence immediately starts after the sequences are loaded

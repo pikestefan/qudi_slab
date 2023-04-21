@@ -661,6 +661,8 @@ class MasterPulse(GenericLogic):
         self.log.info("Pulsed measurement stopped.")
         self.sigMeasurementDone.emit()
 
+        #TODO: clear also the _sequence_map
+
     def save_data(self, method):
         timestamp = datetime.datetime.now()
 

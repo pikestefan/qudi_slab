@@ -31,6 +31,7 @@ from math import log2
 from interface.pulser_interface import PulserInterface, PulserConstraints
 from qtpy import QtCore
 
+
 class SpectrumNetbox(Base, PulserInterface):
     _card_ip = ConfigOption("card_ip", missing="error")
     _netbox_type = ConfigOption("netbox_type", "DN2.663-04", missing="info")
@@ -81,6 +82,7 @@ class SpectrumNetbox(Base, PulserInterface):
     __digout_channels = [SPCM_X0_MODE, SPCM_X1_MODE, SPCM_X2_MODE]
 
     sigStepLoaded = QtCore.Signal(int, int)
+
     def on_activate(self):
         # TODO: maybe implement a network discovery. If so, it should be fast.
         if self._netbox_type == "DN2.663-04":
@@ -353,7 +355,6 @@ class SpectrumNetbox(Base, PulserInterface):
             )
             spcm_dwSetParam_i64(current_card, SPC_SEQMODE_STARTSTEP, 0)
 
-
         self.sigStepLoaded.emit(0, steps_num)
         for step in range(steps_num):
             current_waveform = waveform_list[step]
@@ -406,6 +407,7 @@ class SpectrumNetbox(Base, PulserInterface):
 
             # This step is fundamental. Without it, the card won't be able to apply the settings properly.
             spcm_dwSetParam_i64(current_card, SPC_M2CMD, M2CMD_CARD_WRITESETUP)
+
     def play_waveform(self, waveform=None, loops=0):
         """
         Writes a waveform to the awg memory, without breaking the latter into chunks as it's done for sequences.
@@ -767,11 +769,7 @@ class SpectrumNetbox(Base, PulserInterface):
                     )
 
     def _create_waveform_buffers(
-        self,
-        analog_waveforms=dict(),
-        digital_waveforms=dict(),
-        sequence_step=None,
-        rescale_maxbit_all=True,
+        self, analog_waveforms=dict(), digital_waveforms=dict(), sequence_step=None
     ):
         """
         Given a bunch of waveforms, it prepares the buffers for data transfer and loads them into the memory.
@@ -781,7 +779,7 @@ class SpectrumNetbox(Base, PulserInterface):
                                       integer numbers, and they describe which is the required card. Each
                                       subdictionary is indexed with the channels indices (i.e. 0,1,2...)
         @param dict digital_waveforms:  A dictionary containing the digital waveforms. The keys are 0,1,2,...
-                                        corresponding to which digital channels the digital waveforms will be assigned
+                                        corresponding to which output channel the digital waveforms will be assigned
                                         to. Each element of the dictionary is a numpy array with shape MxN, where M
                                         corresponds to number of digital waveforms assigned to the channel. If you have
                                         a device with 16 bits, they will first be assigned to the 15th bit, then the
@@ -825,10 +823,6 @@ class SpectrumNetbox(Base, PulserInterface):
             if card_idx == masteridx and digital_waveforms:
                 req_do_channels = list(digital_waveforms.keys())
 
-                if rescale_maxbit_all:
-                    # Get the maximum number of waveforms assigned to a single channel
-                    maximum_dw_number = max(map(len, digital_waveforms.values()))
-
                 # Check the lengths of the digital waveforms to be loaded, they need to be the same.
                 do_sizes = [wform.shape[1] for wform in digital_waveforms.values()]
                 if len(set(do_sizes)) > 1:
@@ -857,30 +851,26 @@ class SpectrumNetbox(Base, PulserInterface):
 
             # Now combine all the waveforms and channels for the same card into one array.
             channel_matrix = np.zeros((waveform_size, len(tot_channels)), dtype=c_int16)
+
             for chan_idx, channel in enumerate(tot_channels):
                 # By default, use the full resolution of the instrument
                 maxADC_chan = maxADC - 1
+
                 if (
                     card_idx == masteridx
                     and digital_waveforms
                     and channel in digital_waveforms
                 ):
-                    # If there are digital channels, you need to sacrifice one bit for each digital channel
 
-                    if rescale_maxbit_all:
-                        # If this is requested, the ao channels are all going to be rescaled to the channel with the
-                        # smallest number of available ao bits.
-                        maxADC_chan = (maxADC // 2**maximum_dw_number) - 1
-                    else:
-                        maxADC_chan = (
-                            maxADC // 2 ** len(digital_waveforms[channel])
-                        ) - 1
+                    # If there are digital channels, you need to sacrifice one bit for each digital channel
+                    # (unless rescale_maxbit_all was requested)
+                    maxADC_chan = (maxADC // 2 ** len(digital_waveforms[channel])) - 1
+
                     channel_do_matrix = (
                         digital_waveforms[channel].T
                         * 2 ** (15 - np.arange(len(digital_waveforms[channel])))
                     ).astype(c_int16)
-                    #                    The line above shifts puts each do signal in its right bit
-                    # channel_matrix[:, channel] = np.sum(channel_do_matrix, axis=1)
+                    # The line above shifts puts each do signal in its right bit
                     channel_matrix[:, chan_idx] = np.sum(channel_do_matrix, axis=1)
                 if card_ao_waveforms and channel in card_ao_waveforms:
                     # Apply rescaling and adjust depending on whether the waveforms have 16, 15, or 14 usable bits
@@ -890,6 +880,7 @@ class SpectrumNetbox(Base, PulserInterface):
                     channel_matrix[:, chan_idx] = (
                         channel_matrix[:, chan_idx] + rescaled_ao
                     )
+
             # Reshape the matrix to interleave the sample arrays
             channel_matrix = channel_matrix.reshape(np.prod(channel_matrix.shape))
 

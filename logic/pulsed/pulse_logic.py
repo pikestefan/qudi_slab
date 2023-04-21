@@ -450,27 +450,30 @@ class Pulse(GenericLogic):
         t_centrewidth_list_apd = self.convert_apd_val(apd_times)
         t_centrewidth_list_apd_ref = self.convert_apd_val(apd_ref)
 
-        for i in break_len:
-            if seq_len < (laser_times[0] + laser_times[1] + laser_times[2]):
-                self.log.warning(
-                    "The total length needs to be larger that the sequence time"
-                )
-            else:
-                t0, t1, width = self.convert_mw_val_ramsey(mw_times, i) # these values are in microseconds
-                t_centrewidth_list_mw.append([np.array([[t0, width], [t1, width]])])
-        # print (t_centrewidth_list_mw)
-        time_ax = self.time_axis(seq_len) # in microsecondes
+        if seq_len < (laser_times[0] + laser_times[1] + laser_times[2]):
+            self.log.warning(
+                "The total length needs to be larger that the sequence time"
+            )
+            return
+        else:
+            for i in break_len:
+                t0, t1, width = self.convert_mw_val_ramsey(mw_times, i)  # these values are in microseconds
+                if phase_shift:
+                    mwpulse2append = [np.array([[t0, width]]), np.array([[t1, width]])]
+                else:
+                    mwpulse2append = [np.array([[t0, width], [t1, width]])]
+                t_centrewidth_list_mw.append(mwpulse2append)
+
+        time_ax = self.time_axis(seq_len) # in microseconds
         self._pulser.set_frequency(freq) # this one does freq - if_freq
         output_frequency = self._pulser.get_frequency()
         if phase_shift:
-            phases = np.empty((len(t_centrewidth_list_mw)))
-            phases[::2] = 0
-            phases[1::2] = np.pi
+            phases = np.array([0, np.pi])
         else:
-            phases = np.repeat(0, len(t_centrewidth_list_mw))
+            phases = None
 
-        for step in range(len(t_centrewidth_list_mw)):
-            iwaveform, qwwaveform = self._pulser.iq_pulses(time_ax, t_centrewidth_list_mw[step], output_frequency, phases)
+        for mw_sequence_step in t_centrewidth_list_mw:
+            iwaveform, qwwaveform = self._pulser.iq_pulses(time_ax, mw_sequence_step, output_frequency, phases)
             laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
             apd_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd)  #
             apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)  #
@@ -499,7 +502,11 @@ class Pulse(GenericLogic):
             loops = np.repeat(loop_array, step_count)
             stop_condition_list = np.array([])
 
-            self.seq_map = self.build_seq_map(step_count, seq_map_req)
+        if seq_map_req:
+            self.seq_map = self.build_seq_map(step_count)
+        else:
+            self.seq_map = []
+
         self._pulser.load_sequence(
             loops_list=loops,
             segment_map=self.seq_map,
@@ -902,19 +909,19 @@ class Pulse(GenericLogic):
         return real_lenghts
 
     def build_seq_map(self, step_count):
-        self.seq_map = []
+        seq_map = []
         array = np.linspace(0, step_count - 1, step_count)
         e = 0
         o = 1
         for n in range(step_count):
             if (n % 2) == 0:
-                self.seq_map.append(int(array[e]))
+                seq_map.append(int(array[e]))
                 e = e + 1
             else:
-                self.seq_map.append(int(array[-(o)]))
+                seq_map.append(int(array[-(o)]))
                 o = o + 1
 
-        return self.seq_map
+        return seq_map
 
     def get_seq_map(self):
         return self.seq_map

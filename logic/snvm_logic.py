@@ -1,11 +1,5 @@
 from qtpy import QtCore
-from collections import OrderedDict
-from copy import copy
-import time
-import datetime
 import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 
 from logic.generic_logic import GenericLogic
 from core.util.mutex import Mutex
@@ -16,27 +10,30 @@ from core.statusvariable import StatusVar
 This first part is a copy-paste of the original code in qudi.
 """
 
+
 class OldConfigFileError(Exception):
-    """ Exception that is thrown when an old config file is loaded.
-    """
+    """Exception that is thrown when an old config file is loaded."""
 
     def __init__(self):
-        super().__init__('Old configuration file detected. Ignoring confocal history.')
+        super().__init__("Old configuration file detected. Ignoring confocal history.")
 
 
 class ConfocalHistoryEntry(QtCore.QObject):
-    """ This class contains all relevant parameters of a Confocal scan.
-        It provides methods to extract, restore and serialize this data.
+    """This class contains all relevant parameters of a Confocal scan.
+    It provides methods to extract, restore and serialize this data.
     """
 
     def __init__(self, snvm):
-        """ Make a confocal data setting with default values. """
+        """Make a confocal data setting with default values."""
         super().__init__()
 
         #####
         # Setting up the scanning initial parameters, and get the two stack names.
         #####
-        self.sampleStackName, self.tipStackName = snvm._scanning_device.get_stack_names()
+        (
+            self.sampleStackName,
+            self.tipStackName,
+        ) = snvm._scanning_device.get_stack_names()
 
         self._active_stack = self.sampleStackName  # Default stack is sample
 
@@ -53,12 +50,16 @@ class ConfocalHistoryEntry(QtCore.QObject):
 
         for stack in [self.sampleStackName, self.tipStackName]:
             x_range, y_range = snvm._scanning_device.get_position_range(stack=stack)
-            x_volt_range, y_volt_range = snvm._scanning_device.get_voltage_range(stack=stack)
+            x_volt_range, y_volt_range = snvm._scanning_device.get_voltage_range(
+                stack=stack
+            )
             self.x_maxrange[stack] = x_range
             self.y_maxrange[stack] = y_range
 
-            self.position_to_voltage_arrays[stack] = [(x_volt_range[1] - x_volt_range[0]) / (x_range[1] - x_range[0]),
-                                                      (y_volt_range[1] - y_volt_range[0]) / (y_range[1] - y_range[0])]
+            self.position_to_voltage_arrays[stack] = [
+                (x_volt_range[1] - x_volt_range[0]) / (x_range[1] - x_range[0]),
+                (y_volt_range[1] - y_volt_range[0]) / (y_range[1] - y_range[0]),
+            ]
 
             # These are the scanning ranges that will be used for the scanning
             self.scanning_x_range[stack] = [0, 1e-6]
@@ -73,7 +74,9 @@ class ConfocalHistoryEntry(QtCore.QObject):
             self.store_retrace[stack] = False
 
         self._photon_samples = 0
-        self.backward_pixels = 0 # The number is determined by the clock frequency and the bw_speed
+        self.backward_pixels = (
+            0  # The number is determined by the clock frequency and the bw_speed
+        )
         self.invalid = np.nan  # Number corresponding to invalid data points.
 
         ####
@@ -86,7 +89,7 @@ class ConfocalHistoryEntry(QtCore.QObject):
         self.odmr_averages = 1
 
     def restore(self, snvm):
-        """ Write data back into confocal logic and pull all the necessary strings """
+        """Write data back into confocal logic and pull all the necessary strings"""
         snvm.sampleStackName = self.sampleStackName
         snvm.tipStackName = self.tipStackName
         snvm._active_stack = self._active_stack
@@ -109,7 +112,7 @@ class ConfocalHistoryEntry(QtCore.QObject):
         snvm.odmr_averages = self.odmr_averages
 
     def snapshot(self, snvm):
-        """ Extract all necessary data from a confocal logic and keep it for later use """
+        """Extract all necessary data from a confocal logic and keep it for later use"""
         self.sampleStackName = snvm.sampleStackName
         self.tipStackName = snvm.tipStackName
         self._active_stack = snvm._active_stack
@@ -132,90 +135,103 @@ class ConfocalHistoryEntry(QtCore.QObject):
         self.odmr_averages = snvm.odmr_averages
 
     def serialize(self):
-        """ Give out a dictionary that can be saved via the usual means """
+        """Give out a dictionary that can be saved via the usual means"""
         serialized = dict()
-        serialized['sampleStackName'] = self.sampleStackName
-        serialized['tipStackName'] = self.tipStackName
-        serialized['active_stack'] = self._active_stack
-        serialized['x_maxrange'] = self.x_maxrange
-        serialized['y_maxrange'] = self.y_maxrange
-        serialized['position_to_voltage_arrays'] = self.position_to_voltage_arrays
-        serialized['scanning_x_range'] = self.scanning_x_range
-        serialized['scanning_y_range'] = self.scanning_y_range
-        serialized['scanning_x_resolution'] = self.scanning_x_resolution
-        serialized['scanning_y_resolution'] = self.scanning_y_resolution
-        serialized['px_time'] = self.px_time
-        serialized['_photon_samples'] = self._photon_samples
-        serialized['backward_pixels'] = self.backward_pixels
-        serialized['store_retrace'] = self.store_retrace
-        serialized['invalid'] = self.invalid
-        serialized['start_freq'] = self.start_freq
-        serialized['stop_freq'] = self.stop_freq
-        serialized['freq_resolution'] = self.freq_resolution
-        serialized['mw_power'] = self.mw_power
-        serialized['odmr_averages'] = self.odmr_averages
+        serialized["sampleStackName"] = self.sampleStackName
+        serialized["tipStackName"] = self.tipStackName
+        serialized["active_stack"] = self._active_stack
+        serialized["x_maxrange"] = self.x_maxrange
+        serialized["y_maxrange"] = self.y_maxrange
+        serialized["position_to_voltage_arrays"] = self.position_to_voltage_arrays
+        serialized["scanning_x_range"] = self.scanning_x_range
+        serialized["scanning_y_range"] = self.scanning_y_range
+        serialized["scanning_x_resolution"] = self.scanning_x_resolution
+        serialized["scanning_y_resolution"] = self.scanning_y_resolution
+        serialized["px_time"] = self.px_time
+        serialized["_photon_samples"] = self._photon_samples
+        serialized["backward_pixels"] = self.backward_pixels
+        serialized["store_retrace"] = self.store_retrace
+        serialized["invalid"] = self.invalid
+        serialized["start_freq"] = self.start_freq
+        serialized["stop_freq"] = self.stop_freq
+        serialized["freq_resolution"] = self.freq_resolution
+        serialized["mw_power"] = self.mw_power
+        serialized["odmr_averages"] = self.odmr_averages
         return serialized
 
     def deserialize(self, serialized):
-        """ Restore Confocal history object from a dict """
-        if 'sampleStackName' in serialized:
-            self.sampleStackName = serialized['sampleStackName']
-        if 'tipStackName' in serialized:
-            self.tipStackName = serialized['tipStackName']
-        if 'active_stack' in serialized:
-            self._active_stack = serialized['active_stack']
-        if 'x_maxrange' in serialized:
-            self.x_maxrange = serialized['x_maxrange']
-        if 'y_maxrange' in serialized:
-            self.y_maxrange = serialized['y_maxrange']
-        if 'position_to_voltage_arrays' in serialized:
-            self.position_to_voltage_arrays = serialized['position_to_voltage_arrays']
-        if 'scanning_x_range' in serialized:
-            self.scanning_x_range = serialized['scanning_x_range']
-        if 'scanning_y_range' in serialized:
-            self.scanning_y_range = serialized['scanning_y_range']
-        if 'scanning_x_resolution' in serialized:
-            self.scanning_x_resolution = serialized['scanning_x_resolution']
-        if 'scanning_y_resolution' in serialized:
-            self.scanning_y_resolution = serialized['scanning_y_resolution']
-        if 'px_time' in serialized:
-            self.px_time = serialized['px_time']
-        if '_photon_samples' in serialized:
-            self._photon_samples = serialized['_photon_samples']
-        if 'backward_pixels' in serialized:
-            self.backward_pixels = serialized['backward_pixels']
-        if 'store_retrace' in serialized:
-            self.store_retrace = serialized['store_retrace']
-        if 'invalid' in serialized:
-            self.invalid = serialized['invalid']
-        if 'start_freq' in serialized:
-            self.start_freq = serialized['start_freq']
-        if 'stop_freq' in serialized:
-            self.stop_freq = serialized['stop_freq']
-        if 'freq_resolution' in serialized:
-            self.freq_resolution = serialized['freq_resolution']
-        if 'mw_power' in serialized:
-            self.mw_power = serialized['mw_power']
-        if 'odmr_averages' in serialized:
-            self.odmr_averages = serialized['odmr_averages']
+        """Restore Confocal history object from a dict"""
+        if "sampleStackName" in serialized:
+            self.sampleStackName = serialized["sampleStackName"]
+        if "tipStackName" in serialized:
+            self.tipStackName = serialized["tipStackName"]
+        if "active_stack" in serialized:
+            self._active_stack = serialized["active_stack"]
+        if "x_maxrange" in serialized:
+            self.x_maxrange = serialized["x_maxrange"]
+        if "y_maxrange" in serialized:
+            self.y_maxrange = serialized["y_maxrange"]
+        if "position_to_voltage_arrays" in serialized:
+            self.position_to_voltage_arrays = serialized["position_to_voltage_arrays"]
+        if "scanning_x_range" in serialized:
+            self.scanning_x_range = serialized["scanning_x_range"]
+        if "scanning_y_range" in serialized:
+            self.scanning_y_range = serialized["scanning_y_range"]
+        if "scanning_x_resolution" in serialized:
+            self.scanning_x_resolution = serialized["scanning_x_resolution"]
+        if "scanning_y_resolution" in serialized:
+            self.scanning_y_resolution = serialized["scanning_y_resolution"]
+        if "px_time" in serialized:
+            self.px_time = serialized["px_time"]
+        if "_photon_samples" in serialized:
+            self._photon_samples = serialized["_photon_samples"]
+        if "backward_pixels" in serialized:
+            self.backward_pixels = serialized["backward_pixels"]
+        if "store_retrace" in serialized:
+            self.store_retrace = serialized["store_retrace"]
+        if "invalid" in serialized:
+            self.invalid = serialized["invalid"]
+        if "start_freq" in serialized:
+            self.start_freq = serialized["start_freq"]
+        if "stop_freq" in serialized:
+            self.stop_freq = serialized["stop_freq"]
+        if "freq_resolution" in serialized:
+            self.freq_resolution = serialized["freq_resolution"]
+        if "mw_power" in serialized:
+            self.mw_power = serialized["mw_power"]
+        if "odmr_averages" in serialized:
+            self.odmr_averages = serialized["odmr_averages"]
 
 
 class SnvmLogic(GenericLogic):
 
-    doublescanner = Connector(interface='SnvmScannerInterface')
-    odmrscanner = Connector(interface='MicrowaveInterface')
-    savelogic = Connector(interface='HDF5SaveLogic')
-    optimizer_logic = Connector(interface='OptimizerLogic')
-    master_pulselogic = Connector(interface='MasterPulse')
+    doublescanner = Connector(interface="SnvmScannerInterface")
+    odmrscanner = Connector(interface="MicrowaveInterface")
+    pulser = Connector(interface="PulserInterface")
+    savelogic = Connector(interface="HDF5SaveLogic")
+    optimizer_logic = Connector(interface="OptimizerLogic")
+    master_pulselogic = Connector(interface="MasterPulse")
 
-    slow_motion_clock_rate = StatusVar('slow_motion_clock_rate', 10)
-    backward_speed_conf = StatusVar('slow_motion_speed_conf', 1)
-    backward_speed_snvm = StatusVar('slow_motion_speed_snvm', 1)
+    slow_motion_clock_rate = StatusVar("slow_motion_clock_rate", 10)
+    backward_speed_conf = StatusVar("slow_motion_speed_conf", 1)
+    backward_speed_snvm = StatusVar("slow_motion_speed_snvm", 1)
     max_history_length = StatusVar(default=10)
 
+    podmr_active = StatusVar("podmr_active", False)
+    podmr_start_delay = StatusVar("podmr_start_delay", 0)
+    podmr_laser_init = StatusVar("podmr_laser_init", 1500e-9)
+    podmr_laser_read = StatusVar("podmr_laser_read", 500e-9)
+    podmr_init_delay = StatusVar("podmr_init_delay", 350e-9)
+    podmr_read_delay = StatusVar("podmr_read_delay", 350e-9)
+    podmr_apd_delay = StatusVar("podmr_apd_delay", 0)
+    podmr_apd_read = StatusVar("podmr_apd_read", 500e-9)
+    podmr_final_delay = StatusVar("podmr_final_delay", 0)
+    podmr_clkrate = StatusVar("podmr_clkrate", 1250e6)
+    podmr_pipulse = StatusVar("pdomr_pipulse", 500e-9)
+
     # Initialize the optimization-while-scanning settings
-    optimize_while_scanning = StatusVar('optimize_while_scanning', False)
-    every_N_pixels = StatusVar('every_N_pixels', 10)
+    optimize_while_scanning = StatusVar("optimize_while_scanning", False)
+    every_N_pixels = StatusVar("every_N_pixels", 10)
 
     # signals
     signal_start_snvm = QtCore.Signal()
@@ -227,9 +243,13 @@ class SnvmLogic(GenericLogic):
 
     signal_snvm_image_updated = QtCore.Signal()
     signal_xy_image_updated = QtCore.Signal()
-    signal_freq_px_acquired = QtCore.Signal(int)  # Emits the row of the temporary data matrix to store the odmr data
+    signal_freq_px_acquired = QtCore.Signal(
+        int
+    )  # Emits the row of the temporary data matrix to store the odmr data
     signal_xy_px_acquired = QtCore.Signal()
-    signal_scan_finished = QtCore.Signal(bool)  # Emits True if the scan was snvm, False otherwise
+    signal_scan_finished = QtCore.Signal(
+        bool
+    )  # Emits True if the scan was snvm, False otherwise
 
     signal_goto_start = QtCore.Signal(list, str, bool, str)
     signal_moved_to_point = QtCore.Signal(str)
@@ -249,30 +269,32 @@ class SnvmLogic(GenericLogic):
         self._savelogic = self.savelogic()
         self._optimizer_logic = self.optimizer_logic()
         self._master_pulselogic = self.master_pulselogic()
+        self._pulser = self.pulser()
 
         self._master_pulselogic.cw()
         self.set_slowmotion_clockrate(self.slow_motion_clock_rate)
-        self.set_motion_speed(self.backward_speed_conf, stack='tip')
-        self.set_motion_speed(self.backward_speed_snvm, stack='sample')
+        self.set_motion_speed(self.backward_speed_conf, stack="tip")
+        self.set_motion_speed(self.backward_speed_snvm, stack="sample")
 
         self.history = []
         for i in reversed(range(1, self.max_history_length)):
             try:
                 new_history_item = ConfocalHistoryEntry(self)
                 new_history_item.deserialize(
-                    self._statusVariables['history_{0}'.format(i)])
+                    self._statusVariables["history_{0}".format(i)]
+                )
                 self.history.append(new_history_item)
             except KeyError:
                 pass
             except OldConfigFileError:
                 self.log.warning(
-                    'Old style config file detected. History {0} ignored.'.format(i))
+                    "Old style config file detected. History {0} ignored.".format(i)
+                )
             except:
-                self.log.warning(
-                    'Restoring history {0} failed.'.format(i))
+                self.log.warning("Restoring history {0} failed.".format(i))
         try:
             new_state = ConfocalHistoryEntry(self)
-            new_state.deserialize(self._statusVariables['history_0'])
+            new_state.deserialize(self._statusVariables["history_0"])
             new_state.restore(self)
         except:
             new_state = ConfocalHistoryEntry(self)
@@ -282,28 +304,37 @@ class SnvmLogic(GenericLogic):
 
         self.history_index = len(self.history) - 1
 
-        #These are the indices which will be used to scan through the arrays of the frequencies and position pairs
+        # These are the indices which will be used to scan through the arrays of the frequencies and position pairs
         self._x_scanning_index = 0
         self._y_scanning_index = 0
         self._tot_xy_scanning_index = 0
-        self._x_index_step = 1 #This coefficient is decided to decide the direction of the x scanning
+        self._x_index_step = (
+            1  # This coefficient is decided to decide the direction of the x scanning
+        )
         self._freq_scanning_index = 0
-        self._odmr_rep_index = 0 #To keep track of the averages
+        self._odmr_rep_index = 0  # To keep track of the averages
         self._is_retracing = False
         self.stopRequested = False
 
-        #Initalize the attributes that will be the scan data containers
+        # Settings for the pulsed odmr
+        self.use_podmr = False
+
+        # Initalize the attributes that will be the scan data containers
         self._x_scanning_axis = None
         self._y_scanning_axis = None
         self.xy_scan_matrix = None
         self.snvm_matrix = None
-        self._temp_afm_matrix = None #Matrix used to store the AFM values while scanning the ODMR.
-        self.temp_freq_matrix = None #This matrix is used to store the ODMR traces to be averaged.
+        self._temp_afm_matrix = (
+            None  # Matrix used to store the AFM values while scanning the ODMR.
+        )
+        self.temp_freq_matrix = (
+            None  # This matrix is used to store the ODMR traces to be averaged.
+        )
         self.xy_scan_matrix_retrace = None
         self.snvm_matrix_retrace = None
         self.freq_axis = None
-        self._xy_matrix_width = None # This variable is used only to keep the code clean and reduce the calls to np.shape
-        self._freq_axis_length = None #Same here
+        self._xy_matrix_width = None  # This variable is used only to keep the code clean and reduce the calls to np.shape
+        self._freq_axis_length = None  # Same here
         self.average_odmr_trace = None
 
         self._snvm_active = False
@@ -313,17 +344,27 @@ class SnvmLogic(GenericLogic):
         self._curr_cfc_image = []
 
         # Now connect all the signals
-        self.signal_continue_snvm.connect(self.continue_snvm_scanning, QtCore.Qt.QueuedConnection)
+        self.signal_continue_snvm.connect(
+            self.continue_snvm_scanning, QtCore.Qt.QueuedConnection
+        )
         self.signal_stop_scan.connect(self.stop_scanning, QtCore.Qt.QueuedConnection)
-        self.signal_xy_px_acquired.connect(self.move_to_xy_pixel, QtCore.Qt.QueuedConnection)
-        self.signal_freq_px_acquired.connect(self.move_to_freq_pixel, QtCore.Qt.QueuedConnection)
-        self.signal_continue_confocal.connect(self.continue_confocal_scanning, QtCore.Qt.QueuedConnection)
+        self.signal_xy_px_acquired.connect(
+            self.move_to_xy_pixel, QtCore.Qt.QueuedConnection
+        )
+        self.signal_freq_px_acquired.connect(
+            self.move_to_freq_pixel, QtCore.Qt.QueuedConnection
+        )
+        self.signal_continue_confocal.connect(
+            self.continue_confocal_scanning, QtCore.Qt.QueuedConnection
+        )
         self.signal_goto_start.connect(self._go_to_point, QtCore.Qt.QueuedConnection)
-        self.signal_start_optimizer.connect(self.start_optimizer, QtCore.Qt.QueuedConnection)
+        self.signal_start_optimizer.connect(
+            self.start_optimizer, QtCore.Qt.QueuedConnection
+        )
         self._optimizer_logic.sigRefocusFinished.connect(self._optimization_complete)
 
     def on_deactivate(self):
-        """ Reverse steps of activation
+        """Reverse steps of activation
         @return int: error code (0:OK, -1:error)
         """
         closing_state = ConfocalHistoryEntry(self)
@@ -331,36 +372,48 @@ class SnvmLogic(GenericLogic):
         self.history.append(closing_state)
         histindex = 0
         for state in reversed(self.history):
-            self._statusVariables['history_{0}'.format(histindex)] = state.serialize()
+            self._statusVariables["history_{0}".format(histindex)] = state.serialize()
             histindex += 1
+
         return 0
 
     def _prepare_data_matrices(self):
-        #Clip the ranges if they are out of bound
+        # Clip the ranges if they are out of bound
         self.check_xy_ranges()
 
-        #Generate axes and matrices to store the data
+        # Generate axes and matrices to store the data
         x_axis = np.linspace(
             self.scanning_x_range[self._active_stack][0],
             self.scanning_x_range[self._active_stack][1],
-            self.scanning_x_resolution[self._active_stack]
+            self.scanning_x_resolution[self._active_stack],
         )
         y_axis = np.linspace(
             self.scanning_y_range[self._active_stack][0],
             self.scanning_y_range[self._active_stack][1],
-            self.scanning_y_resolution[self._active_stack]
+            self.scanning_y_resolution[self._active_stack],
         )
 
-        #Now generate the matrices to store the data
+        # Now generate the matrices to store the data
         xy_scan_matrix = np.zeros((len(y_axis), len(x_axis)), dtype=np.float64)
         # FIXME: for now the stack scanner is the one that's assumed to have the ESR sequence. Maybe consider a flexible
         #  way of doing this
         if self._snvm_active:
-            step_number = 1 + round((self.stop_freq - self.start_freq) / self.freq_resolution)
+            step_number = 1 + round(
+                (self.stop_freq - self.start_freq) / self.freq_resolution
+            )
             freq_axis = np.linspace(self.start_freq, self.stop_freq, step_number)
-            snvm_matrix = np.zeros((xy_scan_matrix.shape[0], xy_scan_matrix.shape[1],
-                                    len(freq_axis), self.odmr_averages), dtype=np.float64)
-            temp_freq_matrix = np.full((self.odmr_averages, len(freq_axis)), self.invalid)
+            snvm_matrix = np.zeros(
+                (
+                    xy_scan_matrix.shape[0],
+                    xy_scan_matrix.shape[1],
+                    len(freq_axis),
+                    self.odmr_averages,
+                ),
+                dtype=np.float64,
+            )
+            temp_freq_matrix = np.full(
+                (self.odmr_averages, len(freq_axis)), self.invalid
+            )
             temp_afm_matrix = np.copy(temp_freq_matrix)
             average_odmr_trace = np.zeros((temp_freq_matrix.shape[1],))
         else:
@@ -389,7 +442,9 @@ class SnvmLogic(GenericLogic):
         self.snvm_matrix_retrace = snvm_matrix_retrace
         self.freq_axis = freq_axis
         self._xy_matrix_width = self.xy_scan_matrix.shape[0]
-        self._freq_axis_length = len(self.freq_axis) if isinstance(self.freq_axis, np.ndarray) else None
+        self._freq_axis_length = (
+            len(self.freq_axis) if isinstance(self.freq_axis, np.ndarray) else None
+        )
 
     def check_xy_ranges(self):
         """
@@ -400,15 +455,27 @@ class SnvmLogic(GenericLogic):
         curr_x_minrange, curr_x_maxrange = self.x_maxrange[stk]
         curr_y_minrange, curr_y_maxrange = self.y_maxrange[stk]
         # TODO: emit a signal when the clipping happens, and update the GUI limits accordingly
-        if not ((curr_x_minrange <= self.scanning_x_range[stk][0] <= curr_x_maxrange) or
-           not (curr_x_minrange <= self.scanning_x_range[stk][1] <= curr_x_maxrange)):
-            self.scanning_x_range[stk] = np.clip(self.scanning_x_range[stk], curr_x_minrange, curr_x_maxrange)
-            self.log.warning("x scanning range limits are out of bounds, clipped back to the maximum values.")
+        if not (
+            (curr_x_minrange <= self.scanning_x_range[stk][0] <= curr_x_maxrange)
+            or not (curr_x_minrange <= self.scanning_x_range[stk][1] <= curr_x_maxrange)
+        ):
+            self.scanning_x_range[stk] = np.clip(
+                self.scanning_x_range[stk], curr_x_minrange, curr_x_maxrange
+            )
+            self.log.warning(
+                "x scanning range limits are out of bounds, clipped back to the maximum values."
+            )
 
-        if not ((curr_y_minrange <= self.scanning_y_range[stk][0] <= curr_y_maxrange) or
-           not (curr_y_minrange <= self.scanning_y_range[stk][1] <= curr_y_maxrange)):
-            self.scanning_y_range[stk] = np.clip(self.scanning_y_range[stk], curr_y_minrange, curr_y_maxrange)
-            self.log.warning("y scanning range limits are out of bounds, clipped back to the maximum values.")
+        if not (
+            (curr_y_minrange <= self.scanning_y_range[stk][0] <= curr_y_maxrange)
+            or not (curr_y_minrange <= self.scanning_y_range[stk][1] <= curr_y_maxrange)
+        ):
+            self.scanning_y_range[stk] = np.clip(
+                self.scanning_y_range[stk], curr_y_minrange, curr_y_maxrange
+            )
+            self.log.warning(
+                "y scanning range limits are out of bounds, clipped back to the maximum values."
+            )
         return 0
 
     def prepare_devices(self):
@@ -419,19 +486,24 @@ class SnvmLogic(GenericLogic):
         self._scanning_device.module_state.lock()
         self._photon_samples = self.pxtime_to_samples()
         if self._snvm_active:
-            analog_channels = self._scanning_device.get_ai_counter_channels(stack_name=self._active_stack)
+            analog_channels = self._scanning_device.get_ai_counter_channels(
+                stack_name=self._active_stack
+            )
         else:
             analog_channels = None
-        self._scanning_device.prepare_counters(samples_to_acquire=self._photon_samples,
-                                               counter_ai_channels=analog_channels)
+        self._scanning_device.prepare_counters(
+            samples_to_acquire=self._photon_samples, counter_ai_channels=analog_channels
+        )
 
         self._scanning_device.create_ao_task(self._active_stack)
         if self.store_retrace[self._active_stack] is False:
             self._scanning_device.prepare_motion_clock()
             clk_freq = self._scanning_device.get_motion_clock_frequency()
             speed = self._scanning_device.get_motion_speed(self._active_stack)
-            self.backward_pixels = int(((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / speed) *
-                                       clk_freq)
+            self.backward_pixels = int(
+                ((self._x_scanning_axis.max() - self._x_scanning_axis.min()) / speed)
+                * clk_freq
+            )
             if self.backward_pixels < 2:
                 self.backward_pixels = 2
 
@@ -440,11 +512,101 @@ class SnvmLogic(GenericLogic):
             try:
                 pass
                 # FIXME: look into how to operate the srs in list mode
-                #self._odmrscanner.set_list(frequency=self.freq_axis, power=self.mw_power)
+                # self._odmrscanner.set_list(frequency=self.freq_axis, power=self.mw_power)
             except:
-                self.log.error("Failed loading the frequency axis into the ODMR scanner. Aborted execution.")
-                #self._scanning_device.module_state.unlock()
-                #self._odmrscanner.module_state.unlock()
+                self.log.error(
+                    "Failed loading the frequency axis into the ODMR scanner. Aborted execution."
+                )
+                # self._scanning_device.module_state.unlock()
+                # self._odmrscanner.module_state.unlock()
+            if self.podmr_active:
+                self.load_pulse_sequence()
+
+    def load_pulse_sequence(self):
+        # Convert all the natural units in ns/GHz
+        clkrate = round(self.podmr_clkrate * 1e-9)
+
+        start_delay = self.podmr_start_delay * 1e9
+        laser_init = self.podmr_laser_init * 1e9
+        laser_read = self.podmr_laser_read * 1e9
+        init_delay = self.podmr_init_delay * 1e9
+        read_delay = self.podmr_read_delay * 1e9
+        apd_delay = self.podmr_apd_delay * 1e9
+        apd_read = self.podmr_apd_read * 1e9
+        final_delay = self.podmr_final_delay * 1e9
+
+        pipulse = self.podmr_pipulse * 1e9
+        init_center = start_delay + laser_init / 2
+        mw_center = init_center + laser_init / 2 + init_delay + pipulse / 2
+        read_center = mw_center + pipulse / 2 + read_delay + laser_read / 2
+        apd_center = mw_center + pipulse / 2 + read_delay + apd_delay + apd_read / 2
+
+        tot_time = (
+            start_delay
+            + laser_init
+            + init_delay
+            + pipulse
+            + read_delay
+            + max(laser_read + final_delay, apd_delay + apd_read)
+        )
+
+        tot_samples = self._pulser.waveform_padding(tot_time * clkrate)
+
+        timeax = np.linspace(0, tot_samples / clkrate, tot_samples)
+
+        laser_waveform = self._pulser.box_envelope(
+            timeax, np.array([[init_center, laser_init], [read_center, laser_read]])
+        )
+        apd_waveform = self._pulser.box_envelope(
+            timeax, np.array([[apd_center, apd_read]])
+        )
+
+        blank_signal = np.zeros_like(timeax)
+
+        mw_waveform = self._pulser.box_envelope(timeax, np.array([[mw_center, pipulse]]))
+
+        card_idx = 1
+        self._pulser.stop_all()
+        self._pulser.set_sample_rate(card_idx, int(self.podmr_clkrate))
+
+        steps = 2
+        do_map = {1: [0, 1, 2]}
+        for step in range(steps):
+            common = np.zeros_like(timeax)
+            commmon_high = np.ones_like(timeax)
+            if step == 0:
+                self._pulser.load_waveform(
+                    iq_dictionary={"i_chan": mw_waveform, "q_chan": commmon_high},
+                    digital_pulses={"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": blank_signal},
+                    digital_output_map=do_map,
+                )
+            else:
+
+                self._pulser.load_waveform(
+                    iq_dictionary={"i_chan": common, "q_chan": common},
+                    digital_pulses={"laser": common, "apd_sig": common, "apd_read": blank_signal},
+                    digital_output_map=do_map,
+                )
+
+        self._pulser.configure_ORmask(card_idx, None)
+        self._pulser.configure_ANDmask(card_idx, None)
+
+        loops = np.ones(steps, dtype=np.int64)
+
+        stop_condition_list = np.array(
+            [0x40000000, ] * steps,
+            dtype=np.int64,
+        )
+
+        self._pulser.load_sequence(
+            loops_list=loops,
+            stop_condition_list=stop_condition_list,
+        )
+
+        self._pulser.start_card(card_idx)
+        self._pulser.arm_trigger(card_idx)
+
+        self._pulser.send_software_trig(card_idx)
 
     def start_snvm_scanning(self):
 
@@ -462,7 +624,7 @@ class SnvmLogic(GenericLogic):
         self.signal_snvm_image_updated.emit()
         self.signal_snvm_initialized.emit()
 
-        #self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
+        # self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
         #                                           self._y_scanning_axis[self._y_scanning_index]],
         #                                           stack=self._active_stack)
         """
@@ -470,11 +632,16 @@ class SnvmLogic(GenericLogic):
                                                    self._y_scanning_axis[self._y_scanning_index]],
                                                   stack=self._active_stack, clear_ao_whenfinished=False)
         """
-        self.go_to_point([self._x_scanning_axis[self._x_scanning_index],
-                          self._y_scanning_axis[self._y_scanning_index]],
-                         stack=self._active_stack, clear_ao_whenfinished=False,
-                         caller="logic")
-        #FIXME: look into how to operate the srs in list mode
+        self.go_to_point(
+            [
+                self._x_scanning_axis[self._x_scanning_index],
+                self._y_scanning_axis[self._y_scanning_index],
+            ],
+            stack=self._active_stack,
+            clear_ao_whenfinished=False,
+            caller="logic",
+        )
+        # FIXME: look into how to operate the srs in list mode
         self._odmrscanner.set_frequency(self.freq_axis[self._freq_scanning_index])
         self._odmrscanner.set_power(self.mw_power)
         self._odmrscanner.on()
@@ -494,7 +661,7 @@ class SnvmLogic(GenericLogic):
         self.signal_xy_image_updated.emit()
         self.signal_confocal_initialized.emit()
 
-        #self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
+        # self._scanning_device.scanner_set_position([self._x_scanning_axis[self._x_scanning_index],
         #                                            self._y_scanning_axis[self._y_scanning_index]],
         #                                           stack=self._active_stack)
         """
@@ -502,46 +669,72 @@ class SnvmLogic(GenericLogic):
                                                    self._y_scanning_axis[self._y_scanning_index]],
                                                   stack=self._active_stack, clear_ao_whenfinished=False)
         """
-        self.go_to_point([self._x_scanning_axis[self._x_scanning_index],
-                          self._y_scanning_axis[self._y_scanning_index]],
-                         stack=self._active_stack, clear_ao_whenfinished=False,
-                         caller="logic")
+        self.go_to_point(
+            [
+                self._x_scanning_axis[self._x_scanning_index],
+                self._y_scanning_axis[self._y_scanning_index],
+            ],
+            stack=self._active_stack,
+            clear_ao_whenfinished=False,
+            caller="logic",
+        )
         self.signal_continue_confocal.emit()
 
     def continue_snvm_scanning(self):
-        acquire_data = False if (self.store_retrace[self._active_stack] is False) and (self._is_retracing is True) else True
+        acquire_data = (
+            False
+            if (self.store_retrace[self._active_stack] is False)
+            and (self._is_retracing is True)
+            else True
+        )
         if acquire_data:
-            #If the index of the ODMR is less than the averages, keep acquiring
+            # If the index of the ODMR is less than the averages, keep acquiring
             if self._odmr_rep_index < self.odmr_averages:
                 counts, ainput = self.acquire_pixel()
                 counts = counts[0] / self.px_time[self._active_stack]
-                self.temp_freq_matrix[self._odmr_rep_index, self._freq_scanning_index] = counts
-                self._temp_afm_matrix[self._odmr_rep_index, self._freq_scanning_index] = ainput.mean()
+                self.temp_freq_matrix[
+                    self._odmr_rep_index, self._freq_scanning_index
+                ] = counts
+                self._temp_afm_matrix[
+                    self._odmr_rep_index, self._freq_scanning_index
+                ] = ainput.mean()
 
                 if self._odmr_rep_index > 0:
                     self.average_odmr_trace = np.nanmean(self.temp_freq_matrix, axis=0)
 
-                #TODO: in the GUI, when the user changes between trace and retrace, or changes the frequency slice,
-                # the refresh plotting takes the average, along the last axis of the snvm_matrix. This means that it will
-                # display an extra pixel with lower value, until the move_to_next_pixel is called.
+                # TODO: in the GUI, when the user changes between trace and retrace, or changes the frequency slice,
+                #  the refresh plotting takes the average, along the last axis of the snvm_matrix. This means that it will
+                #  display an extra pixel with lower value, until the move_to_next_pixel is called.
                 if self._is_retracing and self.store_retrace[self._active_stack]:
-                    self.snvm_matrix_retrace[self._y_scanning_index, self._x_scanning_index,
-                                             self._freq_scanning_index, self._odmr_rep_index] = counts
+                    self.snvm_matrix_retrace[
+                        self._y_scanning_index,
+                        self._x_scanning_index,
+                        self._freq_scanning_index,
+                        self._odmr_rep_index,
+                    ] = counts
                 else:
-                    self.snvm_matrix[self._y_scanning_index, self._x_scanning_index,
-                                     self._freq_scanning_index, self._odmr_rep_index] = counts
+                    self.snvm_matrix[
+                        self._y_scanning_index,
+                        self._x_scanning_index,
+                        self._freq_scanning_index,
+                        self._odmr_rep_index,
+                    ] = counts
                 self.signal_freq_px_acquired.emit(self._odmr_rep_index)
 
-            #Else, the OMDR acquisition for the pixel has finished. Store the data and ask for the next pixel. If also the
-            #Scanning is done, tell that the scanning has finished.
+            # Else, the OMDR acquisition for the pixel has finished. Store the data and ask for the next pixel. If also the
+            # Scanning is done, tell that the scanning has finished.
             else:
                 if self._is_retracing and self.store_retrace[self._active_stack]:
                     # FIXME: I am not acquiring and storing properly the analog input, find a way after basic debugging done
-                    self.xy_scan_matrix_retrace[self._y_scanning_index, self._x_scanning_index] = self._temp_afm_matrix.mean()
+                    self.xy_scan_matrix_retrace[
+                        self._y_scanning_index, self._x_scanning_index
+                    ] = self._temp_afm_matrix.mean()
                 else:
-                    self.xy_scan_matrix[self._y_scanning_index, self._x_scanning_index] = self._temp_afm_matrix.mean()
+                    self.xy_scan_matrix[
+                        self._y_scanning_index, self._x_scanning_index
+                    ] = self._temp_afm_matrix.mean()
 
-                #The ODMR sequence has finished. Update the indices accordingly
+                # The ODMR sequence has finished. Update the indices accordingly
                 self._x_scanning_index += self._x_index_step
                 self._odmr_rep_index = 0
                 self.temp_freq_matrix[:] = self.invalid
@@ -552,31 +745,46 @@ class SnvmLogic(GenericLogic):
 
     def continue_confocal_scanning(self):
         stk = self._active_stack
-        acquire_data = False if (self.store_retrace[stk] is False) and (self._is_retracing is True) else True
+        acquire_data = (
+            False
+            if (self.store_retrace[stk] is False) and (self._is_retracing is True)
+            else True
+        )
         if acquire_data:
             counts, _ = self.acquire_pixel()
             counts = counts[0] / self.px_time[stk]
             if self._is_retracing and self.store_retrace[stk]:
-                self.xy_scan_matrix_retrace[self._y_scanning_index, self._x_scanning_index] = counts
+                self.xy_scan_matrix_retrace[
+                    self._y_scanning_index, self._x_scanning_index
+                ] = counts
             else:
-                self.xy_scan_matrix[self._y_scanning_index, self._x_scanning_index] = counts
+                self.xy_scan_matrix[
+                    self._y_scanning_index, self._x_scanning_index
+                ] = counts
         self.signal_xy_image_updated.emit()
         self._x_scanning_index += self._x_index_step
         self.signal_xy_px_acquired.emit()
 
     def pxtime_to_samples(self):
-        return round(self.px_time[self._active_stack] * self._scanning_device.get_counter_clock_frequency())
+        return round(
+            self.px_time[self._active_stack]
+            * self._scanning_device.get_counter_clock_frequency()
+        )
 
     def acquire_pixel(self):
         data = self._scanning_device.read_pixel(self._photon_samples)
         return data
 
     def move_to_xy_pixel(self):
-        if not self._is_retracing and self._x_scanning_index == len(self._x_scanning_axis):
+        if not self._is_retracing and self._x_scanning_index == len(
+            self._x_scanning_axis
+        ):
             self._is_retracing = True
             self._x_index_step = -1
             self._x_scanning_index += self._x_index_step
-            if (self._y_scanning_index == len(self._y_scanning_axis)-1 ) and not self.store_retrace[self._active_stack]:
+            if (
+                self._y_scanning_index == len(self._y_scanning_axis) - 1
+            ) and not self.store_retrace[self._active_stack]:
                 self.stopRequested = True
         elif self._is_retracing and self._x_scanning_index < 0:
             self._is_retracing = False
@@ -590,11 +798,23 @@ class SnvmLogic(GenericLogic):
 
         if not self.stopRequested:
             if self._is_retracing and not self.store_retrace[self._active_stack]:
-                retrace_line = np.linspace(self._x_scanning_axis.max(), self._x_scanning_axis.min(),
-                                           self.backward_pixels)
-                retrace_line = np.vstack((retrace_line, np.full(retrace_line.shape,
-                                                                self._y_scanning_axis[self._y_scanning_index])))
-                self._scanning_device.move_along_line(position_array=retrace_line, stack=self._active_stack)
+                retrace_line = np.linspace(
+                    self._x_scanning_axis.max(),
+                    self._x_scanning_axis.min(),
+                    self.backward_pixels,
+                )
+                retrace_line = np.vstack(
+                    (
+                        retrace_line,
+                        np.full(
+                            retrace_line.shape,
+                            self._y_scanning_axis[self._y_scanning_index],
+                        ),
+                    )
+                )
+                self._scanning_device.move_along_line(
+                    position_array=retrace_line, stack=self._active_stack
+                )
                 self._x_scanning_index = 0
                 self._y_scanning_index += 1
                 self._is_retracing = False
@@ -602,11 +822,16 @@ class SnvmLogic(GenericLogic):
 
             new_x_pos = self._x_scanning_axis[self._x_scanning_index]
             new_y_pos = self._y_scanning_axis[self._y_scanning_index]
-            self._scanning_device.scanner_set_position([new_x_pos, new_y_pos], stack=self._active_stack)
+            self._scanning_device.scanner_set_position(
+                [new_x_pos, new_y_pos], stack=self._active_stack
+            )
 
             if self._snvm_active:
                 # Check if an optimization needs to be done
-                if self.optimize_while_scanning and self._tot_xy_scanning_index % self.every_N_pixels == 0:
+                if (
+                    self.optimize_while_scanning
+                    and self._tot_xy_scanning_index % self.every_N_pixels == 0
+                ):
                     self.signal_start_optimizer.emit()
                 else:
                     self.signal_continue_snvm.emit()
@@ -623,10 +848,10 @@ class SnvmLogic(GenericLogic):
         if self._snvm_active:
             self.go_to_point(coords, stack=self._optimizer_logic.optimizer_stack)
 
-            if self._odmrscanner.module_state() == 'locked':
+            if self._odmrscanner.module_state() == "locked":
                 self._odmrscanner.module_state.unlock()
 
-            if self._scanning_device.module_state() == 'locked':
+            if self._scanning_device.module_state() == "locked":
                 self._scanning_device.module_state.unlock()
 
             self.prepare_devices()
@@ -648,14 +873,27 @@ class SnvmLogic(GenericLogic):
 
     def _store_data_matrices(self, is_snvm_data=True):
         if is_snvm_data:
-            self._curr_snvm_image = [self._x_scanning_axis, self._y_scanning_axis,
-                                     self.freq_axis, np.arange(self.odmr_averages),
-                                     self.snvm_matrix, self.snvm_matrix_retrace]
-            self._curr_afm_image = [self._x_scanning_axis, self._y_scanning_axis,
-                                    self.xy_scan_matrix, self.xy_scan_matrix_retrace]
+            self._curr_snvm_image = [
+                self._x_scanning_axis,
+                self._y_scanning_axis,
+                self.freq_axis,
+                np.arange(self.odmr_averages),
+                self.snvm_matrix,
+                self.snvm_matrix_retrace,
+            ]
+            self._curr_afm_image = [
+                self._x_scanning_axis,
+                self._y_scanning_axis,
+                self.xy_scan_matrix,
+                self.xy_scan_matrix_retrace,
+            ]
         else:
-            self._curr_cfc_image = [self._x_scanning_axis, self._y_scanning_axis,
-                                    self.xy_scan_matrix, self.xy_scan_matrix_retrace]
+            self._curr_cfc_image = [
+                self._x_scanning_axis,
+                self._y_scanning_axis,
+                self.xy_scan_matrix,
+                self.xy_scan_matrix_retrace,
+            ]
 
     def stop_scanning(self):
         if self.stopRequested:
@@ -681,16 +919,16 @@ class SnvmLogic(GenericLogic):
         try:
             self._scanning_device.close_counters()
         except Exception as e:
-            self.log.exception('Could not close the scanning tasks.')
+            self.log.exception("Could not close the scanning tasks.")
         try:
             self._scanning_device.clear_ao_task(self._active_stack)
         except:
             self.log.exception("Could not clear the ao task.")
         try:
-            if self._scanning_device.module_state() == 'locked':
+            if self._scanning_device.module_state() == "locked":
                 self._scanning_device.module_state.unlock()
         except Exception as e:
-            self.log.exception('Could not unlock scanning device.')
+            self.log.exception("Could not unlock scanning device.")
 
         return 0
 
@@ -699,12 +937,13 @@ class SnvmLogic(GenericLogic):
         try:
             self._odmrscanner.module_state.unlock()
         except Exception as e:
-            self.log.exception('Could not unlock scanning device.')
+            self.log.exception("Could not unlock scanning device.")
 
         return 0
 
-    def go_to_point(self, xy_coord, stack=None, clear_ao_whenfinished=True,
-                    caller="logic"):
+    def go_to_point(
+        self, xy_coord, stack=None, clear_ao_whenfinished=True, caller="logic"
+    ):
         """
         This public method emits only the signal that calls the private
         _go_to_point, which calls the scanner_slow_motion of the scanning device.
@@ -718,8 +957,9 @@ class SnvmLogic(GenericLogic):
         Private method that calls the scanner_slow_motion. To be called only by the public
         go_to_point.
         """
-        self._scanning_device.scanner_slow_motion(xy_coord, stack=stack,
-                                                  clear_ao_whenfinished=clear_ao_whenfinished)
+        self._scanning_device.scanner_slow_motion(
+            xy_coord, stack=stack, clear_ao_whenfinished=clear_ao_whenfinished
+        )
 
         self.signal_moved_to_point.emit(caller)
 
@@ -727,12 +967,22 @@ class SnvmLogic(GenericLogic):
         """
         Multiplier is an optional parameter to convert the range to the desired units
         """
-        return [[self._x_scanning_axis[0]*multiplier, self._x_scanning_axis[-1]*multiplier],
-                [self._y_scanning_axis[0]*multiplier, self._y_scanning_axis[-1]*multiplier]]
+        return [
+            [
+                self._x_scanning_axis[0] * multiplier,
+                self._x_scanning_axis[-1] * multiplier,
+            ],
+            [
+                self._y_scanning_axis[0] * multiplier,
+                self._y_scanning_axis[-1] * multiplier,
+            ],
+        ]
 
-    def get_xy_step_size(self, multiplier = 1):
-        return [(self._x_scanning_axis[1]-self._x_scanning_axis[0])*multiplier,
-                (self._y_scanning_axis[1]-self._y_scanning_axis[0])*multiplier]
+    def get_xy_step_size(self, multiplier=1):
+        return [
+            (self._x_scanning_axis[1] - self._x_scanning_axis[0]) * multiplier,
+            (self._y_scanning_axis[1] - self._y_scanning_axis[0]) * multiplier,
+        ]
 
     def get_stack_names(self):
         return self._scanning_device.get_stack_names()
@@ -749,13 +999,13 @@ class SnvmLogic(GenericLogic):
         return self._scanning_device.get_motion_speed(stack)
 
     def set_motion_speed(self, speed, stack):
-        #FIXME: dirty trick to keep the motion_speed as a status variable which sets the speed when reloading Qudi.
-        if stack == 'tip':
+        # FIXME: dirty trick to keep the motion_speed as a status variable which sets the speed when reloading Qudi.
+        if stack == "tip":
             self.backward_speed_conf = speed
-        elif stack == 'sample':
+        elif stack == "sample":
             self.backward_speed_snvm = speed
         else:
-            raise ValueError(f'Trying to set speed for stack: {stack}')
+            raise ValueError(f"Trying to set speed for stack: {stack}")
         self._scanning_device.set_motion_speed(speed * 1e-6, stack)
 
     def _initialize_scanning_statuses(self):
@@ -769,38 +1019,40 @@ class SnvmLogic(GenericLogic):
 
     def save_snvm(self):
         if len(self._curr_snvm_image) > 0:
-            xaxsnvm, yaxsnvm, freqax, averages, snvm_trace, snvm_retrace = self._curr_snvm_image
+            (
+                xaxsnvm,
+                yaxsnvm,
+                freqax,
+                averages,
+                snvm_trace,
+                snvm_retrace,
+            ) = self._curr_snvm_image
             xaxafm, yaxafm, afm_trace, afm_retrace = self._curr_afm_image
-            data = {'snvm/x_axis': xaxsnvm,
-                    'snvm/y_axis': yaxsnvm,
-                    'snvm/frequency_axis': freqax,
-                    'snvm/averages': averages,
-                    'snvm/snvm_trace': snvm_trace,
-                    'snvm/snvm_retrace': snvm_retrace,
-                    'afm/x_axis': xaxafm,
-                    'afm/y_axis': yaxafm,
-                    'afm/afm_trace': afm_trace,
-                    'afm/afm_retrace': afm_retrace}
+            data = {
+                "snvm/x_axis": xaxsnvm,
+                "snvm/y_axis": yaxsnvm,
+                "snvm/frequency_axis": freqax,
+                "snvm/averages": averages,
+                "snvm/snvm_trace": snvm_trace,
+                "snvm/snvm_retrace": snvm_retrace,
+                "afm/x_axis": xaxafm,
+                "afm/y_axis": yaxafm,
+                "afm/afm_trace": afm_trace,
+                "afm/afm_retrace": afm_retrace,
+            }
             self._savelogic.save_hdf5_data(data)
         else:
             self.log.info("The SNVM arrays are empty")
+
     def save_confocal(self):
         if len(self._curr_cfc_image) > 0:
             xax, yax, cfc_trace, cfc_retrace = self._curr_cfc_image
-            data = {'confocal/x_axis': xax,
-                    'confocal/y_axis': yax,
-                    'confocal/confocal_trace': cfc_trace,
-                    'confocal/confocal_retrace': cfc_retrace}
+            data = {
+                "confocal/x_axis": xax,
+                "confocal/y_axis": yax,
+                "confocal/confocal_trace": cfc_trace,
+                "confocal/confocal_retrace": cfc_retrace,
+            }
             self._savelogic.save_hdf5_data(data)
         else:
             self.log.info("The confocal arrays are empty")
-
-
-
-
-
-
-
-
-
-
