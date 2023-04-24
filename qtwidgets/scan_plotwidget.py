@@ -111,6 +111,8 @@ class ScanPlotWidget(PlotWidget):
 
     def __init__(self, *args, **kwargs):
         kwargs['viewBox'] = ScanViewBox()  # Use custom pg.ViewBox subclass
+        self._constant_crosshair = kwargs.get('constant_crosshair', False)
+
         super().__init__(*args, **kwargs)
         self.getViewBox().sigMouseAreaSelected.connect(self.sigMouseAreaSelected)
 
@@ -225,6 +227,17 @@ class ScanPlotWidget(PlotWidget):
         self.hline.setPos(pos[1])
         self.sigCrosshairDraggedPosChanged.emit(QtCore.QPointF(pos[0], pos[1]))
         return
+
+    def _get_scaled_roisize(self):
+        # Get the plot range
+        range_x, range_y = self.getViewBox().state['viewRange']
+        range_x, range_y = abs(range_x[1]-range_x[0]), abs(range_y[1]-range_y[0])
+
+        #The scaling is referred to the maximum dimension
+        maxdim = max(range_x, range_y)
+        size = self.crosshair.size()
+
+
 
     def toggle_crosshair(self, enable, movable=True):
         """

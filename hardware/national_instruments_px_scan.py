@@ -726,8 +726,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
                               and upper limit. The unit of the scan range is
                               meters.
         """
-
-        return self._scanner_position_ranges[stack]
+        return list(self._scanner_position_ranges[stack])
 
     def get_voltage_range(self, stack=None):
         """ Returns the physical range of the scanner.

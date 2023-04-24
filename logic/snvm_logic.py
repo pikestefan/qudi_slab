@@ -246,6 +246,12 @@ class SnvmLogic(GenericLogic):
     signal_freq_px_acquired = QtCore.Signal(
         int
     )  # Emits the row of the temporary data matrix to store the odmr data
+    signal_odmr_trace_updated = QtCore.Signal(
+        int
+    )  # Used to refresh the odmr plot in the scanning GUI
+    signal_odmr_line_acquired = (
+        QtCore.Signal()
+    )  # Emitted only if plotting ODMR at the end of scan is requested
     signal_xy_px_acquired = QtCore.Signal()
     signal_scan_finished = QtCore.Signal(
         bool
@@ -342,6 +348,11 @@ class SnvmLogic(GenericLogic):
         self._curr_snvm_image = []
         self._curr_afm_image = []
         self._curr_cfc_image = []
+
+        self.completed_pixels_matrix = (
+            None  # Matrix to be used as a mask for the plotting
+        )
+        self.pxbypx_odmr = True
 
         # Now connect all the signals
         self.signal_continue_snvm.connect(
@@ -445,6 +456,7 @@ class SnvmLogic(GenericLogic):
         self._freq_axis_length = (
             len(self.freq_axis) if isinstance(self.freq_axis, np.ndarray) else None
         )
+        self.completed_pixels_matrix = np.zeros((2,) + xy_scan_matrix.shape, dtype=int)
 
     def check_xy_ranges(self):
         """
@@ -521,6 +533,9 @@ class SnvmLogic(GenericLogic):
                 # self._odmrscanner.module_state.unlock()
             if self.podmr_active:
                 self.load_pulse_sequence()
+                self._odmrscanner.set_IQmod(True)
+            else:
+                self._odmrscanner.set_IQmod(False)
 
     def load_pulse_sequence(self):
         # Convert all the natural units in ns/GHz
@@ -563,7 +578,9 @@ class SnvmLogic(GenericLogic):
 
         blank_signal = np.zeros_like(timeax)
 
-        mw_waveform = self._pulser.box_envelope(timeax, np.array([[mw_center, pipulse]]))
+        mw_waveform = self._pulser.box_envelope(
+            timeax, np.array([[mw_center, pipulse]])
+        )
 
         card_idx = 1
         self._pulser.stop_all()
@@ -577,14 +594,22 @@ class SnvmLogic(GenericLogic):
             if step == 0:
                 self._pulser.load_waveform(
                     iq_dictionary={"i_chan": mw_waveform, "q_chan": commmon_high},
-                    digital_pulses={"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": blank_signal},
+                    digital_pulses={
+                        "laser": laser_waveform,
+                        "apd_sig": apd_waveform,
+                        "apd_read": blank_signal,
+                    },
                     digital_output_map=do_map,
                 )
             else:
 
                 self._pulser.load_waveform(
                     iq_dictionary={"i_chan": common, "q_chan": common},
-                    digital_pulses={"laser": common, "apd_sig": common, "apd_read": blank_signal},
+                    digital_pulses={
+                        "laser": common,
+                        "apd_sig": common,
+                        "apd_read": blank_signal,
+                    },
                     digital_output_map=do_map,
                 )
 
@@ -594,7 +619,10 @@ class SnvmLogic(GenericLogic):
         loops = np.ones(steps, dtype=np.int64)
 
         stop_condition_list = np.array(
-            [0x40000000, ] * steps,
+            [
+                0x40000000,
+            ]
+            * steps,
             dtype=np.int64,
         )
 
@@ -699,12 +727,9 @@ class SnvmLogic(GenericLogic):
                     self._odmr_rep_index, self._freq_scanning_index
                 ] = ainput.mean()
 
-                if self._odmr_rep_index > 0:
+                if self._odmr_rep_index > 0 and self.pxbypx_odmr:
                     self.average_odmr_trace = np.nanmean(self.temp_freq_matrix, axis=0)
 
-                # TODO: in the GUI, when the user changes between trace and retrace, or changes the frequency slice,
-                #  the refresh plotting takes the average, along the last axis of the snvm_matrix. This means that it will
-                #  display an extra pixel with lower value, until the move_to_next_pixel is called.
                 if self._is_retracing and self.store_retrace[self._active_stack]:
                     self.snvm_matrix_retrace[
                         self._y_scanning_index,
@@ -720,6 +745,8 @@ class SnvmLogic(GenericLogic):
                         self._odmr_rep_index,
                     ] = counts
                 self.signal_freq_px_acquired.emit(self._odmr_rep_index)
+                if self.pxbypx_odmr:
+                    self.signal_odmr_trace_updated.emit(self._odmr_rep_index)
 
             # Else, the OMDR acquisition for the pixel has finished. Store the data and ask for the next pixel. If also the
             # Scanning is done, tell that the scanning has finished.
@@ -734,9 +761,27 @@ class SnvmLogic(GenericLogic):
                         self._y_scanning_index, self._x_scanning_index
                     ] = self._temp_afm_matrix.mean()
 
+                self.completed_pixels_matrix[
+                    int(self._is_retracing),
+                    self._y_scanning_index,
+                    self._x_scanning_index,
+                ] = 1
+                if not self.pxbypx_odmr:
+                    if self._is_retracing and self.store_retrace[self._active_stack]:
+                        thetrace = self.snvm_matrix_retrace[
+                            self._y_scanning_index, self._x_scanning_index
+                        ]
+                    else:
+                        thetrace = self.snvm_matrix[
+                            self._y_scanning_index, self._x_scanning_index
+                        ]
+                    self.last_odmr_trace = thetrace.mean(axis=-1)
+                    self.signal_odmr_line_acquired.emit()
+
                 # The ODMR sequence has finished. Update the indices accordingly
                 self._x_scanning_index += self._x_index_step
                 self._odmr_rep_index = 0
+
                 self.temp_freq_matrix[:] = self.invalid
                 self.average_odmr_trace[:] = self.invalid
 
@@ -761,6 +806,9 @@ class SnvmLogic(GenericLogic):
                 self.xy_scan_matrix[
                     self._y_scanning_index, self._x_scanning_index
                 ] = counts
+            self.completed_pixels_matrix[
+                int(self._is_retracing), self._y_scanning_index, self._x_scanning_index
+            ] = 1
         self.signal_xy_image_updated.emit()
         self._x_scanning_index += self._x_index_step
         self.signal_xy_px_acquired.emit()
@@ -989,6 +1037,11 @@ class SnvmLogic(GenericLogic):
 
     def get_slowmotion_clockrate(self):
         return self._scanning_device.get_motion_clock_frequency()
+
+    def get_maxranges(self):
+        return self._scanning_device.get_position_range(
+            "sample"
+        ), self._scanning_device.get_position_range("tip")
 
     def set_slowmotion_clockrate(self, clockrate):
         # FIXME: dirty trick to keep the clock rate as a status variable which sets the clock rate when reloading Qudi.
