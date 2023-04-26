@@ -24,7 +24,7 @@ from pyqtgraph import PlotWidget, ImageItem, ViewBox, InfiniteLine, ROI
 from qtpy import QtCore, QtWidgets
 from core.util.filters import scan_blink_correction
 
-__all__ = ['ScanImageItem', 'ScanPlotWidget', 'ScanViewBox']
+__all__ = ["ScanImageItem", "ScanPlotWidget", "ScanViewBox"]
 
 
 class ScanImageItem(ImageItem):
@@ -36,6 +36,7 @@ class ScanImageItem(ImageItem):
     a single image dimension. This is done by applying a non-linear 1D min-max-filter along a
     single image dimension.
     """
+
     sigMouseClicked = QtCore.Signal(object, QtCore.QPointF)
 
     def __init__(self, *args, **kwargs):
@@ -47,9 +48,9 @@ class ScanImageItem(ImageItem):
 
     def set_image_extent(self, extent):
         if len(extent) != 2:
-            raise TypeError('Image extent must be iterable of length 2.')
+            raise TypeError("Image extent must be iterable of length 2.")
         if len(extent[0]) != 2 or len(extent[1]) != 2:
-            raise TypeError('Image extent for each axis must be iterable of length 2.')
+            raise TypeError("Image extent for each axis must be iterable of length 2.")
         x_min, x_max = sorted(extent[0])
         y_min, y_max = sorted(extent[1])
         self.setRect(QtCore.QRectF(x_min, y_min, x_max - x_min, y_max - y_min))
@@ -105,13 +106,16 @@ class ScanPlotWidget(PlotWidget):
     This class depends on the ScanViewBox class defined further below.
     This class can be promoted in the Qt designer.
     """
-    sigMouseAreaSelected = QtCore.Signal(QtCore.QRectF)  # mapped rectangle mouse cursor selection
+
+    sigMouseAreaSelected = QtCore.Signal(
+        QtCore.QRectF
+    )  # mapped rectangle mouse cursor selection
     sigCrosshairPosChanged = QtCore.Signal(QtCore.QPointF)
     sigCrosshairDraggedPosChanged = QtCore.Signal(QtCore.QPointF)
 
     def __init__(self, *args, **kwargs):
-        kwargs['viewBox'] = ScanViewBox()  # Use custom pg.ViewBox subclass
-        self._constant_crosshair = kwargs.get('constant_crosshair', False)
+        kwargs["viewBox"] = ScanViewBox()  # Use custom pg.ViewBox subclass
+        self._constant_crosshair = kwargs.get("constant_crosshair", False)
 
         super().__init__(*args, **kwargs)
         self.getViewBox().sigMouseAreaSelected.connect(self.sigMouseAreaSelected)
@@ -121,26 +125,36 @@ class ScanPlotWidget(PlotWidget):
         self._crosshair_range = None
         self.getViewBox().sigRangeChanged.connect(self._constraint_crosshair_size)
 
-        self.crosshair = ROI((0, 0), (0, 0), pen={'color': '#00ff00', 'width': 1})
-        self.hline = InfiniteLine(pos=0,
-                                  angle=0,
-                                  movable=True,
-                                  pen={'color': '#00ff00', 'width': 1},
-                                  hoverPen={'color': '#ffff00', 'width': 1})
-        self.vline = InfiniteLine(pos=0,
-                                  angle=90,
-                                  movable=True,
-                                  pen={'color': '#00ff00', 'width': 1},
-                                  hoverPen={'color': '#ffff00', 'width': 1})
+        self.crosshair = ROI((0, 0), (0, 0), pen={"color": "#00ff00", "width": 1})
+        self.hline = InfiniteLine(
+            pos=0,
+            angle=0,
+            movable=True,
+            pen={"color": "#00ff00", "width": 1},
+            hoverPen={"color": "#ffff00", "width": 1},
+        )
+        self.vline = InfiniteLine(
+            pos=0,
+            angle=90,
+            movable=True,
+            pen={"color": "#00ff00", "width": 1},
+            hoverPen={"color": "#ffff00", "width": 1},
+        )
         self.vline.sigDragged.connect(self._update_pos_from_line)
         self.hline.sigDragged.connect(self._update_pos_from_line)
         self.crosshair.sigRegionChanged.connect(self._update_pos_from_roi)
         self.sigCrosshairDraggedPosChanged.connect(self.sigCrosshairPosChanged)
 
+        self.plotItem.autoBtn.clicked.connect(self.autorange_clicked)
+
     @property
     def crosshair_enabled(self):
         items = self.items()
-        return (self.vline in items) and (self.hline in items) and (self.crosshair in items)
+        return (
+            (self.vline in items)
+            and (self.hline in items)
+            and (self.crosshair in items)
+        )
 
     @property
     def crosshair_movable(self):
@@ -173,6 +187,21 @@ class ScanPlotWidget(PlotWidget):
     @property
     def zoom_by_selection_enabled(self):
         return bool(self.getViewBox().zoom_by_selection)
+
+    def autorange_clicked(self):
+        vbox = self.getViewBox()
+        children = vbox.allChildren()
+
+        image = None
+        for child in children:
+            if isinstance(child, ImageItem):
+                image = child
+        if image is None:
+            bounds = vbox.childrenBoundingRect()
+        else:
+            bounds = vbox.mapFromItemToView(image, image.boundingRect()).boundingRect()
+
+        vbox.sigMouseAreaSelected.emit(bounds)
 
     def toggle_selection(self, enable):
         """
@@ -230,14 +259,12 @@ class ScanPlotWidget(PlotWidget):
 
     def _get_scaled_roisize(self):
         # Get the plot range
-        range_x, range_y = self.getViewBox().state['viewRange']
-        range_x, range_y = abs(range_x[1]-range_x[0]), abs(range_y[1]-range_y[0])
+        range_x, range_y = self.getViewBox().state["viewRange"]
+        range_x, range_y = abs(range_x[1] - range_x[0]), abs(range_y[1] - range_y[0])
 
-        #The scaling is referred to the maximum dimension
+        # The scaling is referred to the maximum dimension
         maxdim = max(range_x, range_y)
         size = self.crosshair.size()
-
-
 
     def toggle_crosshair(self, enable, movable=True):
         """
@@ -279,10 +306,10 @@ class ScanPlotWidget(PlotWidget):
     def get_crosshair_pos(self):
         state_dict = self.crosshair.getState()
 
-        size_x, size_y = state_dict['size']
-        bl_corner_x, bl_corner_y = state_dict['pos']
+        size_x, size_y = state_dict["size"]
+        bl_corner_x, bl_corner_y = state_dict["pos"]
 
-        return bl_corner_x + size_x/2, bl_corner_y + size_y/2
+        return bl_corner_x + size_x / 2, bl_corner_y + size_y / 2
 
     def set_crosshair_pos(self, pos):
         """
@@ -336,10 +363,12 @@ class ScanPlotWidget(PlotWidget):
 
         if self._crosshair_range:
             crange = self._crosshair_range
-            self.crosshair.maxBounds = QtCore.QRectF(crange[0][0] - size[0] / 2,
-                                                     crange[1][0] - size[1] / 2,
-                                                     crange[0][1] - crange[0][0] + size[0],
-                                                     crange[1][1] - crange[1][0] + size[1])
+            self.crosshair.maxBounds = QtCore.QRectF(
+                crange[0][0] - size[0] / 2,
+                crange[1][0] - size[1] / 2,
+                crange[0][1] - crange[0][0] + size[0],
+                crange[1][1] - crange[1][0] + size[1],
+            )
         self.crosshair.blockSignals(True)
         self.crosshair.setSize(size)
         self.crosshair.setPos(pos)
@@ -362,7 +391,7 @@ class ScanPlotWidget(PlotWidget):
         elif factor <= 1:
             self._min_crosshair_factor = float(factor)
         else:
-            raise ValueError('Crosshair min size factor must be a value <= 1.')
+            raise ValueError("Crosshair min size factor must be a value <= 1.")
         return
 
     def set_crosshair_range(self, new_range):
@@ -381,10 +410,12 @@ class ScanPlotWidget(PlotWidget):
             self.hline.setBounds(new_range[1])
             size = self.crosshair.size()
             pos = self.crosshair_position
-            self.crosshair.maxBounds = QtCore.QRectF(new_range[0][0] - size[0] / 2,
-                                                     new_range[1][0] - size[1] / 2,
-                                                     new_range[0][1] - new_range[0][0] + size[0],
-                                                     new_range[1][1] - new_range[1][0] + size[1])
+            self.crosshair.maxBounds = QtCore.QRectF(
+                new_range[0][0] - size[0] / 2,
+                new_range[1][0] - size[1] / 2,
+                new_range[0][1] - new_range[0][0] + size[0],
+                new_range[1][1] - new_range[1][0] + size[1],
+            )
             self.crosshair.setPos(pos[0] - size[0] / 2, pos[1] - size[1] / 2)
         self._crosshair_range = new_range
         return
