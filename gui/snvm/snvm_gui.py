@@ -31,7 +31,7 @@ from core.configoption import ConfigOption
 from core.statusvariable import StatusVar
 from qtwidgets.scan_plotwidget import ScanImageItem
 from gui.guibase import GUIBase
-from gui.guiutils import ColorBar
+from gui.guiutils import ColorBar, InteractiveColBar
 from gui.colordefs import ColorScaleInferno, BlackAndWhite
 from gui.colordefs import QudiPalettePale as palette
 from gui.fitsettings import FitParametersWidget
@@ -190,7 +190,7 @@ class SnvmGui(GUIBase):
         "cbar_count_multiplier", default=1e-3, missing="info"
     )
     cbar_afm_multiplier = ConfigOption(
-        "cbar_afm_multplier", default=20 / 3, missing="info"
+        "cbar_afm_multplier", default=20e3 / 3, missing="info"
     )
     mwspinbox_float_resolution = ConfigOption("mwspinbox_float_resolution", default=6)
 
@@ -227,6 +227,12 @@ class SnvmGui(GUIBase):
         """
         self._mainwindow = SnvmWindow()
 
+        # Init scanning settings
+        self._init_scanning_settings()
+
+        # Init odmr settings
+        self._init_odmr_settings()
+
         # All our gui elements are dockable, and so there should be no "central" widget.
         self._mainwindow.centralwidget.hide()
         self._mainwindow.setDockNestingEnabled(True)
@@ -234,23 +240,6 @@ class SnvmGui(GUIBase):
         self.photon_colormap = ColorScaleInferno()
         self.afm_cmap = BlackAndWhite()
         self._crosshair_maxrange = None
-
-        # Get the maximum ranges from the snvm logic
-        snvm_range, cfc_range = self._scanning_logic.get_maxranges()
-        for range in (snvm_range, cfc_range):
-            # The x range
-            range[0] = [
-                range[0][0] / self.xy_range_multiplier,
-                range[0][1] / self.xy_range_multiplier,
-            ]
-            # The y range
-            range[1] = [
-                range[1][0] / self.xy_range_multiplier,
-                range[1][1] / self.xy_range_multiplier,
-            ]
-
-        self.snvm_maxrange = snvm_range
-        self.cfc_maxrange = cfc_range
 
         # Set up the SNVM image and colorbar
         self.snvm_image = ScanImageItem(axisOrder="row-major")
@@ -260,7 +249,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.multiFreqPlotView.setLabel("left", "Y (nm)")
         self._mainwindow.multiFreqPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.multiFreqPlotView.set_crosshair_size((1, 1))
-        self._mainwindow.multiFreqPlotView.set_crosshair_range(snvm_range)
+        self._mainwindow.multiFreqPlotView.set_crosshair_range(self.sample_ranges)
         self._mainwindow.multiFreqPlotView.sigCrosshairDraggedPosChanged.connect(
             self.move_afm_crosshair
         )
@@ -274,12 +263,14 @@ class SnvmGui(GUIBase):
         snvm_im_vb.toggle_selection(True)
         snvm_im_vb.toggle_zoom_by_selection(True)
 
-        self.multifreq_cb = ColorBar(
-            self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1
+        self.multifreq_cb = InteractiveColBar(
+            self.snvm_image,
+            self._mainwindow.multiFreqCbarView,
+            lut=self.photon_colormap.lut,
+            multiplier=self.cbar_count_multiplier,
+            label="Counts (kHz)",
+            width=80,
         )
-        self._mainwindow.multiFreqCbarView.addItem(self.multifreq_cb)
-        self._mainwindow.multiFreqCbarView.hideAxis("bottom")
-        self._mainwindow.multiFreqCbarView.setMouseEnabled(x=False, y=False)
 
         # Set up the AFM image and colorbar
         self.afm_image = ScanImageItem(axisOrder="row-major")
@@ -288,7 +279,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.afmPlotView.setLabel("left", "Y (nm)")
         self._mainwindow.afmPlotView.toggle_crosshair(True, movable=True)
         self._mainwindow.afmPlotView.set_crosshair_size((1, 1))
-        self._mainwindow.afmPlotView.set_crosshair_range(snvm_range)
+        self._mainwindow.afmPlotView.set_crosshair_range(self.sample_ranges)
         self._mainwindow.afmPlotView.sigCrosshairDraggedPosChanged.connect(
             self.move_multifreq_crosshair
         )
@@ -302,8 +293,14 @@ class SnvmGui(GUIBase):
         afm_im_vb.toggle_selection(True)
         afm_im_vb.toggle_zoom_by_selection(True)
 
-        self.afm_cb = ColorBar(self.afm_cmap.cmap_normed, width=100, cb_min=0, cb_max=1)
-        self._mainwindow.afmCbarView.addItem(self.afm_cb)
+        self.afm_cb = InteractiveColBar(
+            self.afm_image,
+            self._mainwindow.afmCbarView,
+            lut=self.afm_cmap.lut,
+            multiplier=self.cbar_afm_multiplier,
+            label="Height (nm)",
+            width=80,
+        )
 
         # Set up the confocal image and colorbar
         self.cfc_image = ScanImageItem(axisOrder="row-major")
@@ -313,7 +310,7 @@ class SnvmGui(GUIBase):
         self._mainwindow.confocalScannerView.setLabel("left", "Y (nm)")
         self._mainwindow.confocalScannerView.toggle_crosshair(True, movable=True)
         self._mainwindow.confocalScannerView.set_crosshair_size((1, 1))
-        self._mainwindow.confocalScannerView.set_crosshair_range(cfc_range)
+        self._mainwindow.confocalScannerView.set_crosshair_range(self.tip_ranges)
         self._mainwindow.confocalScannerView.toggle_selection(True)
         self._mainwindow.confocalScannerView.sigMouseAreaSelected.connect(
             self.update_scanning_range_conf
@@ -324,10 +321,14 @@ class SnvmGui(GUIBase):
         cfc_im_vb.toggle_selection(True)
         cfc_im_vb.toggle_zoom_by_selection(True)
 
-        self.cfc_cb = ColorBar(
-            self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1
+        self.cfc_cb = InteractiveColBar(
+            self.cfc_image,
+            self._mainwindow.confocalCbarView,
+            lut=self.photon_colormap.lut,
+            multiplier=self.cbar_count_multiplier,
+            label="Counts (kHz)",
+            width=80,
         )
-        self._mainwindow.confocalCbarView.addItem(self.cfc_cb)
 
         # Set up the optimizer image and colorbar
         self.optimizer_image = ScanImageItem(axisOrder="row-major")
@@ -339,10 +340,13 @@ class SnvmGui(GUIBase):
         opt_im_vb = self.get_image_viewbox(self.optimizer_image)
         opt_im_vb.setAspectLocked(True)
 
-        self.opt_cb = ColorBar(
-            self.photon_colormap.cmap_normed, width=100, cb_min=0, cb_max=1
+        self.opt_cb = InteractiveColBar(
+            self.snvm_image,
+            self._mainwindow.optimizerCbarView,
+            lut=self.photon_colormap.lut,
+            multiplier=self.cbar_count_multiplier,
+            width=60
         )
-        self._mainwindow.optimizerCbarView.addItem(self.opt_cb)
 
         # Set up the ODMR plot
         self.curr_odmr_trace = pg.PlotDataItem(
@@ -360,12 +364,6 @@ class SnvmGui(GUIBase):
         self._mainwindow.frequencySliceSelector.lineEdit().setReadOnly(True)
 
         self._viewIndex = 0  # Variable used to scroll through the SNVM images.Gets updated when clicking the frequency selector
-
-        # Init scanning settings
-        self._init_scanning_settings()
-
-        # Init odmr settings
-        self._init_odmr_settings()
 
         # Connect the signals
         self.sigStartOptimizer.connect(self.optimize_counts, QtCore.Qt.QueuedConnection)
@@ -414,11 +412,14 @@ class SnvmGui(GUIBase):
             self.refresh_confocal_image
         )
         self._mainwindow.sampleXSlider.sliderMoved.connect(
-            self.slider_move_sample_crosshair
+            self.slider_move_crosshair
         )
         self._mainwindow.sampleYSlider.sliderMoved.connect(
-            self.slider_move_sample_crosshair
+            self.slider_move_crosshair
         )
+
+        self._mainwindow.tipXSlider.sliderMoved.connect(self.slider_move_crosshair)
+        self._mainwindow.tipYSlider.sliderMoved.connect(self.slider_move_crosshair)
 
         self._mainwindow.pxbypxodmr_plotting.stateChanged.connect(
             self.set_pxbypxodmr_plot
@@ -436,7 +437,7 @@ class SnvmGui(GUIBase):
 
         for spinbox_group, maxrange in zip(
             [self.snvm_range_spinboxes, self.cfc_range_spinboxes],
-            [self.snvm_maxrange, self.cfc_maxrange],
+            [self.sample_ranges, self.tip_ranges],
         ):
 
             for ii, spinboxrow in enumerate(spinbox_group):
@@ -445,8 +446,7 @@ class SnvmGui(GUIBase):
                     spinbox.setMaximum(maxrange[ii][1])
                     spinbox.editingFinished.connect(self.scanning_ranges_edited)
 
-        self._mainwindow.tipXSlider.sliderMoved.connect(self.slider_move_tip_crosshair)
-        self._mainwindow.tipYSlider.sliderMoved.connect(self.slider_move_tip_crosshair)
+
         self._mainwindow.scanningSettingsTab.currentChanged.connect(
             self.scanning_tab_pressed
         )
@@ -678,6 +678,13 @@ class SnvmGui(GUIBase):
         self._mainwindow.tipYSliderSpinBox.setRange(
             self.tip_ranges[1][0], self.sample_ranges[1][1]
         )
+
+        self._sample_spinboxedsliders = dict()
+        self._sample_spinboxedsliders['x'] = [self._mainwindow.sampleXSlider, self._mainwindow.sampleXSliderSpinBox]
+        self._sample_spinboxedsliders['y'] = [self._mainwindow.sampleYSlider, self._mainwindow.sampleYSliderSpinBox]
+        self._tip_spinboxedsliders = dict()
+        self._tip_spinboxedsliders['x'] = [self._mainwindow.tipXSlider, self._mainwindow.tipXSliderSpinBox]
+        self._tip_spinboxedsliders['y'] = [self._mainwindow.tipYSlider, self._mainwindow.tipYSliderSpinBox]
 
         self.pxbypx_odmr = self._mainwindow.pxbypxodmr_plotting.isChecked()
 
@@ -1028,28 +1035,42 @@ class SnvmGui(GUIBase):
             mask = self._scanning_logic.completed_pixels_matrix[0]
         else:
             curr_image = self._scanning_logic.snvm_matrix_retrace.mean(axis=-1)
-            mask = self._scanning_logic.completed_pixels_matrix[0]
+            mask = self._scanning_logic.completed_pixels_matrix[1]
 
         curr_image = curr_image[:, :, self._viewIndex] * mask
 
-        curr_image *= self.cbar_count_multiplier
-
-        snvm_range = self.get_cb_range(curr_image)
-        self.snvm_image.setImage(curr_image, levels=(snvm_range[0], snvm_range[1]))
-        self.refresh_colorbar(cbar=self.multifreq_cb, cbar_range=snvm_range)
+        self.update_image_levels(curr_image, self.snvm_image, self.multifreq_cb)
 
     def refresh_afm_image(self):
         if self._mainwindow.viewtracesample:
             curr_image = self._scanning_logic.xy_scan_matrix[:]
+            mask = self._scanning_logic.completed_pixels_matrix[0]
         else:
             curr_image = self._scanning_logic.xy_scan_matrix_retrace[:]
+            mask = self._scanning_logic.completed_pixels_matrix[1]
 
-        afm_image = curr_image * self.cbar_afm_multiplier
+        curr_image = curr_image * mask
 
-        afm_range = self.get_cb_range(afm_image)
+        self.update_image_levels(curr_image, self.afm_image, self.afm_cb)
 
-        self.afm_image.setImage(afm_image, levels=(afm_range[0], afm_range[1]))
-        self.refresh_colorbar(cbar=self.afm_cb, cbar_range=afm_range)
+    def refresh_confocal_image(self):
+        if self._mainwindow.viewtracetip:
+            curr_image = self._scanning_logic.xy_scan_matrix[:]
+            mask = self._scanning_logic.completed_pixels_matrix[0]
+        else:
+            curr_image = self._scanning_logic.xy_scan_matrix_retrace[:]
+            mask = self._scanning_logic.completed_pixels_matrix[1]
+
+        curr_image = curr_image * mask
+
+        self.update_image_levels(curr_image, self.cfc_image, self.cfc_cb)
+
+    def refresh_optimizer_image(self):
+        curr_image = self._optimizer_logic.xy_refocus_image[:, :, 2]
+
+        opt_image = curr_image * self.cbar_count_multiplier
+
+        self.update_image_levels(opt_image, self.optimizer_image, self.opt_cb)
 
     def refresh_odmr_plot_pxbypx(self, odmr_rep_index=None):
         curr_freq_matrix = self._scanning_logic.temp_freq_matrix[odmr_rep_index]
@@ -1071,26 +1092,25 @@ class SnvmGui(GUIBase):
             self._scanning_logic.last_odmr_trace,
         )
 
-    def refresh_confocal_image(self):
-        if self._mainwindow.viewtracetip:
-            curr_image = self._scanning_logic.xy_scan_matrix[:]
+    def update_image_levels(self, image, imageitem, cbar):
+        minimage, maximage = self.get_cb_range(image)
+        if not cbar.regionAutoUpdate:
+            image_lvs = cbar.get_levels()
         else:
-            curr_image = self._scanning_logic.xy_scan_matrix_retrace[:]
+            image_lvs = [minimage, maximage]
 
-        cfc_image = curr_image * self.cbar_count_multiplier
+        imageitem.setImage(image, levels=image_lvs)
+        cbar.set_levels(minimage, maximage)
 
-        cfc_range = self.get_cb_range(cfc_image)
-        self.cfc_image.setImage(cfc_image, levels=(cfc_range[0], cfc_range[1]))
-        self.refresh_colorbar(cbar=self.cfc_cb, cbar_range=cfc_range)
+    def update_image_levels(self, image, imageitem, cbar):
+        minimage, maximage = self.get_cb_range(image)
+        if not cbar.regionAutoUpdate:
+            image_lvs = cbar.get_levels()
+        else:
+            image_lvs = [minimage, maximage]
 
-    def refresh_optimizer_image(self):
-        curr_image = self._optimizer_logic.xy_refocus_image[:, :, 2]
-
-        opt_image = curr_image * self.cbar_count_multiplier
-        opt_range = self.get_cb_range(opt_image)
-
-        self.optimizer_image.setImage(opt_image, levels=(opt_range[0], opt_range[1]))
-        self.refresh_colorbar(cbar=self.opt_cb, cbar_range=opt_range)
+        imageitem.setImage(image, levels=image_lvs)
+        cbar.set_levels(minimage, maximage)
 
     def set_snvm_im_range(self):
         im_range = self._scanning_logic.get_xy_image_range(
@@ -1363,38 +1383,39 @@ class SnvmGui(GUIBase):
             samples = round(samples)
             self._mainwindow.podmr_pipulse.setValue(samples / clkrate)
 
-    def slider_move_sample_crosshair(self):
-        x_coeff = self.sample_ranges[0][1] - self.sample_ranges[0][0]
-        y_coeff = self.sample_ranges[1][1] - self.sample_ranges[1][0]
+    def slider_move_crosshair(self):
+        sender = self.sender()
+        sendername = sender.objectName()
+
+        if sendername[:3] == "tip":
+            range = self.tip_ranges
+            sliders = self._tip_spinboxedsliders
+        else:
+            range = self.sample_ranges
+            sliders = self._sample_spinboxedsliders
+
+        xslider, xspinbox = sliders['x']
+        yslider, yspinbox = sliders['y']
+
+        x_coeff = range[0][1] - range[0][0]
+        y_coeff = range[1][1] - range[1][0]
 
         pos_slider_x, pos_slider_y = (
-            self._mainwindow.sampleXSlider.value(),
-            self._mainwindow.sampleYSlider.value(),
+            xslider.value(),
+            yslider.value(),
         )
-        new_x = pos_slider_x * x_coeff / self._mainwindow.sampleXSlider.maximum()
-        new_y = pos_slider_y * y_coeff / self._mainwindow.sampleYSlider.maximum()
 
-        # self._mainwindow.sampleXSliderSpinBox.setValue(new_x)
-        # self._mainwindow.sampleYSliderSpinBox.setValue(new_y)
+        new_x = pos_slider_x * x_coeff / xslider.maximum()
+        new_y = pos_slider_y * y_coeff / yslider.maximum()
 
-        self._mainwindow.multiFreqPlotView.set_crosshair_pos((new_x, new_y))
-        self._mainwindow.afmPlotView.set_crosshair_pos((new_x, new_y))
+        xspinbox.setValue(new_x)
+        yspinbox.setValue(new_y)
 
-    def slider_move_tip_crosshair(self):
-        x_coeff = self.tip_ranges[0][1] - self.tip_ranges[0][0]
-        y_coeff = self.tip_ranges[1][1] - self.tip_ranges[1][0]
-
-        pos_slider_x, pos_slider_y = (
-            self._mainwindow.tipXSlider.value(),
-            self._mainwindow.tipYSlider.value(),
-        )
-        new_x = pos_slider_x * x_coeff / self._mainwindow.tipXSlider.maximum()
-        new_y = pos_slider_y * y_coeff / self._mainwindow.tipYSlider.maximum()
-
-        self._mainwindow.tipXSliderSpinBox.setValue(new_x)
-        self._mainwindow.tipYSliderSpinBox.setValue(new_y)
-
-        self._mainwindow.confocalScannerView.set_crosshair_pos((new_x, new_y))
+        if sendername[:3] == "tip":
+            self._mainwindow.confocalScannerView.set_crosshair_pos((new_x, new_y))
+        else:
+            self._mainwindow.multiFreqPlotView.set_crosshair_pos((new_x, new_y))
+            self._mainwindow.afmPlotView.set_crosshair_pos((new_x, new_y))
 
     def scanning_tab_pressed(self, tab_index):
         if not self._mainwindow.actionStop_scan.isEnabled():
