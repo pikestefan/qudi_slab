@@ -306,7 +306,7 @@ class OptimizerLogic(GenericLogic):
             for ii, px in enumerate(line.T): #For loops of arrays loop on the outermost index (i.e. rows)
                 self._scanning_device.scanner_set_position(px, stack=self.optimizer_stack)
                 counts, _ = self._scanning_device.read_pixel(self.samps_per_px)
-                counts = counts.mean()
+                counts = 1e3 * counts[0] / self.integration_time
                 count_line[ii] = counts
         elif motion == 'bw':
             self._scanning_device.move_along_line(line, stack=self.optimizer_stack)
