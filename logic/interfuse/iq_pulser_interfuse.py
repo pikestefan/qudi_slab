@@ -112,7 +112,7 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
     def on_deactivate(self):
         pass
 
-    def set_frequency(self, freq=0.0, bypass_if=False):
+    def set_frequency(self, freq=0.0):
         """
         Sets the frequency of the mw source. The actual value is set to be freq - if modulation frequency.
         @param float freq: The desired output frequency.
@@ -120,7 +120,7 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         @return:
         """
 
-        lo_frequency = freq - self._if_freq * 1e6 if not bypass_if else freq
+        lo_frequency = freq - self._if_freq * 1e6
         self._mwsource.set_frequency(lo_frequency)
 
     def load_waveform(
