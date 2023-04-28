@@ -54,7 +54,7 @@ class Pulse(GenericLogic):
         self._pulser.clear_all()
         self._pulser.reset()
         self._if_freq = self.if_modulation_freq
-        self._if_freq_mhz = self._if_freq / 1e6 # if_req in MHz
+        self._if_freq_mhz = self._if_freq / 1e6  # if_req in MHz
         return active_channels
 
     def on_deactivate(self):
@@ -70,7 +70,6 @@ class Pulse(GenericLogic):
         self._pulser.clear_all()
         self._pulser.set_sample_rate(card_idx, int(clk_rate))
         self.sample_rate = self.get_clk_rate()
-
 
     def get_clk_rate(self):
         self.sample_rate = self._pulser.get_sample_rate(card_idx=1)
@@ -98,7 +97,7 @@ class Pulse(GenericLogic):
         trigger=True,
         neg_mw=False,
         seq_map_req=True,
-        phase_shift=False
+        phase_shift=False,
     ):
         """
         clk_rate =  clock rate of the AWG in microseconds
@@ -149,21 +148,39 @@ class Pulse(GenericLogic):
             # Do ramsey
             # print("It does Ramsey.")
             self.play_ramsey(
-                seq_len, laser_times, apd_times, apd_ref, mw_times, freq, seq_map_req, rep,
-                trigger, phase_shift
+                seq_len,
+                laser_times,
+                apd_times,
+                apd_ref,
+                mw_times,
+                freq,
+                seq_map_req,
+                rep,
+                trigger,
+                phase_shift,
             )
 
         elif method == "rabi":
             # Do Rabi
             # print("It does Rabi.")
             self.play_rabi(
-                seq_len, laser_times, apd_times, apd_ref, mw_times, freq, rep, seq_map_req, trigger)
+                seq_len,
+                laser_times,
+                apd_times,
+                apd_ref,
+                mw_times,
+                freq,
+                rep,
+                seq_map_req,
+                trigger,
+            )
 
         else:
             self.log.warning(
                 "Method can only be: rabi, ramsey, delaysweep or delaysweep_ref"
             )
         return method, laser_times, apd_times, apd_ref, mw_times
+
     def get_step_count(self, array):
         step_count = int(((array[2] - array[1]) / array[3]) + 1)
         return step_count
@@ -304,15 +321,16 @@ class Pulse(GenericLogic):
 
     def play_rabi(
         self,
-        seq_len = 5,
-        laser_times = [1, 1, 2],
-        apd_times = [2.05, 0.25],
-        apd_ref = [3.05, 0.25],
-        mw_times = [1.05, 0, 0.9, 0.1],
-        freq = 2.87e9,
+        seq_len=5,
+        laser_times=[1, 1, 2],
+        apd_times=[2.05, 0.25],
+        apd_ref=[3.05, 0.25],
+        mw_times=[1.05, 0, 0.9, 0.1],
+        freq=2.87e9,
         rep=100,
         seq_map_req=True,
-        trigger=True):
+        trigger=True,
+    ):
         """
         all are in microseconds
         laser_times = [laser_in, wait, laser_re] all in microseconds
@@ -332,16 +350,21 @@ class Pulse(GenericLogic):
 
         mw_len = []
 
-
         card_idx = 1
 
-        self.clk_rate = self._pulser.get_sample_rate(card_idx) / 1e6 # To adapt it to the microsecond timing
+        self.clk_rate = (
+            self._pulser.get_sample_rate(card_idx) / 1e6
+        )  # To adapt it to the microsecond timing
         step_count = int(((mw_times[2] - mw_times[1]) / mw_times[3]) + 1)
 
         for i in range(step_count):
-            mw_len.append(round((mw_times[1] + (i * mw_times[3])), 3))  # starting with minimal length
+            mw_len.append(
+                round((mw_times[1] + (i * mw_times[3])), 3)
+            )  # starting with minimal length
 
-        t_centrewidth_list_mw = [] # get the size of the np.array right?np.array([[0, 0]])
+        t_centrewidth_list_mw = (
+            []
+        )  # get the size of the np.array right?np.array([[0, 0]])
         t_centrewidth_list_laser = self.convert_laser_val(laser_times)
         t_centrewidth_list_apd = self.convert_apd_val(apd_times)
         t_centrewidth_list_apd_ref = self.convert_apd_val(apd_ref)
@@ -352,25 +375,35 @@ class Pulse(GenericLogic):
                     "The total length needs to be larger that the apd_time sum"
                 )
             else:
-                t0, width = self.convert_mw_val_rabi(mw_times, i) # in microseconds
+                t0, width = self.convert_mw_val_rabi(mw_times, i)  # in microseconds
                 t_centrewidth_list_mw.append([np.array([[t0, width]])])
 
-        time_ax = self.time_axis(seq_len) # this includes waveform_padding
+        time_ax = self.time_axis(seq_len)  # this includes waveform_padding
         self._pulser.set_frequency(freq)
         output_frequency = self._pulser.get_frequency()
 
         for step in range(len(t_centrewidth_list_mw)):
-            iwaveform, qwwaveform = self._pulser.iq_pulses(time_ax, t_centrewidth_list_mw[step], output_frequency)
-            laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
+            iwaveform, qwwaveform = self._pulser.iq_pulses(
+                time_ax, t_centrewidth_list_mw[step], output_frequency
+            )
+            laser_waveform = self._pulser.box_envelope(
+                time_ax, t_centrewidth_list_laser
+            )
             apd_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd)  #
-            apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)  #
+            apd_ref_waveform = self._pulser.box_envelope(
+                time_ax, t_centrewidth_list_apd_ref
+            )  #
             analogs = {"i_chan": iwaveform, "q_chan": qwwaveform}
-            digitals = {"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": apd_ref_waveform} # read/sig?
+            digitals = {
+                "laser": laser_waveform,
+                "apd_sig": apd_waveform,
+                "apd_read": apd_ref_waveform,
+            }  # read/sig?
 
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
-                digital_output_map={0: [0, 1, 2]}
+                digital_output_map={0: [0, 1, 2]},
             )
 
         if trigger:
@@ -388,7 +421,7 @@ class Pulse(GenericLogic):
             loop_array = np.array([rep], dtype=np.int64)
             loops = np.repeat(loop_array, step_count)
             stop_condition_list = np.array([])
-            #only build a seq_map when its requested, if not dont do anything
+            # only build a seq_map when its requested, if not dont do anything
         if seq_map_req:
             self.seq_map = self.build_seq_map(step_count)
         else:
@@ -397,25 +430,27 @@ class Pulse(GenericLogic):
         self._pulser.load_sequence(
             loops_list=loops,
             segment_map=self.seq_map,
-            stop_condition_list=stop_condition_list,)
-
+            stop_condition_list=stop_condition_list,
+        )
 
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
         # self.sigUsedArrays.emit(analogs, digitals)
         return self.seq_map
 
-    def play_ramsey(self,
-                    seq_len = 5,
-                    laser_times = [1, 1, 2],
-                    apd_times = [3.25, 0.25],
-                    apd_ref = [4.25, 0.25],
-                    mw_times = [1.1, 0, 0.8, 0.1, 0.1],
-                    freq=2.87e9,
-                    seq_map_req=True,
-                    trigger=True,
-                    rep=100,
-                    phase_shift=True):
+    def play_ramsey(
+        self,
+        seq_len=5,
+        laser_times=[1, 1, 2],
+        apd_times=[3.25, 0.25],
+        apd_ref=[4.25, 0.25],
+        mw_times=[1.1, 0, 0.8, 0.1, 0.1],
+        freq=2.87e9,
+        seq_map_req=True,
+        trigger=True,
+        rep=100,
+        phase_shift=True,
+    ):
         """
         The arrays are given in microseconds
         It changes the distance between two pi/2 pusles, the position of the first pulse stays the same
@@ -442,10 +477,14 @@ class Pulse(GenericLogic):
         break_len = []
         card_idx = 1
 
-        step_count = int(((mw_times[2] - mw_times[1]) / mw_times[3]) + 1) # without unit
+        step_count = int(
+            ((mw_times[2] - mw_times[1]) / mw_times[3]) + 1
+        )  # without unit
 
         for i in range(step_count):
-            break_len.append((mw_times[1] + (i * mw_times[3])))  # starting with minimal length
+            break_len.append(
+                (mw_times[1] + (i * mw_times[3]))
+            )  # starting with minimal length
         t_centrewidth_list_laser = self.convert_laser_val(laser_times)
         t_centrewidth_list_apd = self.convert_apd_val(apd_times)
         t_centrewidth_list_apd_ref = self.convert_apd_val(apd_ref)
@@ -457,15 +496,17 @@ class Pulse(GenericLogic):
             return
         else:
             for i in break_len:
-                t0, t1, width = self.convert_mw_val_ramsey(mw_times, i)  # these values are in microseconds
+                t0, t1, width = self.convert_mw_val_ramsey(
+                    mw_times, i
+                )  # these values are in microseconds
                 if phase_shift:
                     mwpulse2append = [np.array([[t0, width]]), np.array([[t1, width]])]
                 else:
                     mwpulse2append = [np.array([[t0, width], [t1, width]])]
                 t_centrewidth_list_mw.append(mwpulse2append)
 
-        time_ax = self.time_axis(seq_len) # in microseconds
-        self._pulser.set_frequency(freq) # this one does freq - if_freq
+        time_ax = self.time_axis(seq_len)  # in microseconds
+        self._pulser.set_frequency(freq)  # this one does freq - if_freq
         output_frequency = self._pulser.get_frequency()
         if phase_shift:
             phases = np.array([0, np.pi])
@@ -473,17 +514,27 @@ class Pulse(GenericLogic):
             phases = None
 
         for mw_sequence_step in t_centrewidth_list_mw:
-            iwaveform, qwwaveform = self._pulser.iq_pulses(time_ax, mw_sequence_step, output_frequency, phases)
-            laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
+            iwaveform, qwwaveform = self._pulser.iq_pulses(
+                time_ax, mw_sequence_step, output_frequency, phases
+            )
+            laser_waveform = self._pulser.box_envelope(
+                time_ax, t_centrewidth_list_laser
+            )
             apd_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd)  #
-            apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)  #
+            apd_ref_waveform = self._pulser.box_envelope(
+                time_ax, t_centrewidth_list_apd_ref
+            )  #
             ## Add a minus sign here?
             analogs = {"i_chan": iwaveform, "q_chan": qwwaveform}
-            digitals = {"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": apd_ref_waveform} # read/sig?
+            digitals = {
+                "laser": laser_waveform,
+                "apd_sig": apd_waveform,
+                "apd_read": apd_ref_waveform,
+            }  # read/sig?
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
-                digital_output_map={0: [0, 1, 2]}
+                digital_output_map={0: [0, 1, 2]},
             )
 
         if trigger:
@@ -510,7 +561,8 @@ class Pulse(GenericLogic):
         self._pulser.load_sequence(
             loops_list=loops,
             segment_map=self.seq_map,
-            stop_condition_list=stop_condition_list)
+            stop_condition_list=stop_condition_list,
+        )
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
         # self.sigUsedArrays.emit(analogs, digitals)
@@ -518,14 +570,14 @@ class Pulse(GenericLogic):
 
     def delay_sweep(
         self,
-            seq_len=7,
-            laser_times=[0, 1, 5],
-            apd_times=[0.1, 1, 4, 0.1],
-            apd_ref=[4.5, 0.1],
-            mw_times=[0.2, 0.2],
-            rep=100,
-            trigger=True,
-            mw_pulse=False,
+        seq_len=7,
+        laser_times=[0, 1, 5],
+        apd_times=[0.1, 1, 4, 0.1],
+        apd_ref=[4.5, 0.1],
+        mw_times=[0.2, 0.2],
+        rep=100,
+        trigger=True,
+        mw_pulse=False,
     ):
         """
         seq_len =   whole length of the sequence in microseconds
@@ -549,7 +601,6 @@ class Pulse(GenericLogic):
         """
         apd_times_s = np.multiply(apd_times, 1e-6)
 
-
         # So far we just use card1
         card_idx = 1
 
@@ -565,26 +616,32 @@ class Pulse(GenericLogic):
         t_centrewidth_list_laser = self.convert_laser_val(laser_times)
         t_centrewidth_list_apd_ref = self.convert_apd_val(apd_ref)
         laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
-        apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)
+        apd_ref_waveform = self._pulser.box_envelope(
+            time_ax, t_centrewidth_list_apd_ref
+        )
         if mw_pulse:
             # replace this one
             t_centrewidth_list_mw = self.convert_mw_sweep(mw_times)
             mw_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_mw)
 
         else:  # if no MW is needed
-            zeros_mw = self.convert_mw_sweep([-1,0])
+            zeros_mw = self.convert_mw_sweep([-1, 0])
             mw_waveform = self._pulser.box_envelope(time_ax, zeros_mw)
-
 
         for i in apd_start:
             current_t_centerwidth = self.convert_apd_val([i * 1e6, apd_times[0]])
             apd_waveform = self._pulser.box_envelope(time_ax, current_t_centerwidth)
             analogs = {"i_chan": mw_waveform, "q_chan": np.zeros(len(mw_waveform))}
-            digitals = {"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": apd_ref_waveform}
+            digitals = {
+                "laser": laser_waveform,
+                "apd_sig": apd_waveform,
+                "apd_read": apd_ref_waveform,
+            }
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
-                digital_output_map={0: [0, 1, 2]})
+                digital_output_map={0: [0, 1, 2]},
+            )
 
         if trigger:
             # This sequence waits for a software trigger to start playing and moving to the next step.
@@ -612,14 +669,14 @@ class Pulse(GenericLogic):
 
     def delay_sweep_ref(
         self,
-            seq_len=7,
-            laser_times=[0, 1, 5],
-            apd_times=[0.1, 1, 4, 0.1],
-            apd_ref=[4.5, 0.1],
-            mw_times=[0.2, 0.2],
-            rep=100,
-            trigger=True,
-            mw_pulse=False,
+        seq_len=7,
+        laser_times=[0, 1, 5],
+        apd_times=[0.1, 1, 4, 0.1],
+        apd_ref=[4.5, 0.1],
+        mw_times=[0.2, 0.2],
+        rep=100,
+        trigger=True,
+        mw_pulse=False,
     ):
         """
         The same but asign them the other way around
@@ -658,7 +715,9 @@ class Pulse(GenericLogic):
         t_centrewidth_list_laser = self.convert_laser_val(laser_times)
         t_centrewidth_list_apd_ref = self.convert_apd_val(apd_ref)
         laser_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_laser)
-        apd_ref_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_apd_ref)
+        apd_ref_waveform = self._pulser.box_envelope(
+            time_ax, t_centrewidth_list_apd_ref
+        )
         if mw_pulse:
             t_centrewidth_list_mw = self.convert_mw_sweep(mw_times)
             mw_waveform = self._pulser.box_envelope(time_ax, t_centrewidth_list_mw)
@@ -671,11 +730,16 @@ class Pulse(GenericLogic):
             current_t_centerwidth = self.convert_apd_val([i * 1e6, apd_times[0]])
             apd_waveform = self._pulser.box_envelope(time_ax, current_t_centerwidth)
             analogs = {"i_chan": mw_waveform, "q_chan": np.zeros(len(mw_waveform))}
-            digitals = {"laser": laser_waveform, "apd_sig": apd_ref_waveform, "apd_read": apd_waveform}
+            digitals = {
+                "laser": laser_waveform,
+                "apd_sig": apd_ref_waveform,
+                "apd_read": apd_waveform,
+            }
             self._pulser.load_waveform(
                 iq_dictionary=analogs,
                 digital_pulses=digitals,
-                digital_output_map={0: [0, 1, 2]})
+                digital_output_map={0: [0, 1, 2]},
+            )
 
         if trigger == True:
             # This sequence waits for a software trigger to start playing and moving to the next step.
@@ -702,15 +766,14 @@ class Pulse(GenericLogic):
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
 
-
     def play_ttl(
-            self,
-            seq_len=2,
-            laser_out=True,
-            apd_sig_out=False,
-            apd_ref_out=False,
-            rep=100,
-            trigger=True):
+        self,
+        laser_out=True,
+        apd_sig_out=True,
+        apd_ref_out=False,
+        rep=100,
+        trigger=True,
+    ):
         """
         all are in microseconds
         This thing replaces the waveform test.
@@ -724,35 +787,61 @@ class Pulse(GenericLogic):
         We need at least 2 step_counts to be able to use the software trigger
         """
         card_idx = 1
-        self._pulser.set_sample_rate(card_idx, int(180 * 1e6)) # if the sampling rate is too low it throws an error
-        self.clk_rate = self._pulser.get_sample_rate(card_idx) / 1e6  # To adapt it to the microsecond timing
+        self._pulser.set_sample_rate(
+            card_idx, int(180 * 1e6)
+        )  # if the sampling rate is too low it throws an error
+        self.clk_rate = (
+            self._pulser.get_sample_rate(card_idx) / 1e6
+        )  # To adapt it to the microsecond timing
 
         step_count = 2
-        # print("step_count: ", step_count)  # Without unit
-        timeaxis = self.time_axis(seq_len)
-        if laser_out:  # high
-            t_centrewidth_list_laser = self.convert_laser_val([2*seq_len, 0, 0])
-        else:
-            t_centrewidth_list_laser = self.convert_laser_val([-1, seq_len*2, 0])
-        if apd_sig_out:  # high
-            t_centrewidth_list_apd = self.convert_apd_val([0, seq_len*2])
-        else:
-            t_centrewidth_list_apd = self.convert_apd_val([seq_len*2, 0])
-        if apd_ref_out:  # high
-            t_centrewidth_list_apd_ref = self.convert_apd_val([0, seq_len*2])
-        else:
-            t_centrewidth_list_apd_ref = self.convert_apd_val([seq_len*2, 0])
+        timeaxis = self.time_axis(step_count)
+        # if laser_out:  # high
+        #     t_centrewidth_list_laser = self.convert_laser_val([2*seq_len, 0, 0])
+        # else:
+        #     t_centrewidth_list_laser = self.convert_laser_val([-1, seq_len*2, 0])
+        # if apd_sig_out:  # high
+        #     t_centrewidth_list_apd = self.convert_apd_val([0, seq_len*2])
+        # else:
+        #     t_centrewidth_list_apd = self.convert_apd_val([seq_len*2, 0])
+        # if apd_ref_out:  # high
+        #     t_centrewidth_list_apd_ref = self.convert_apd_val([0, seq_len*2])
+        # else:
+        #     t_centrewidth_list_apd_ref = self.convert_apd_val([seq_len*2, 0])
 
-        for step in range(step_count):
-            laser_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_laser)
-            apd_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_apd)  #
-            apd_ref_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_apd_ref)  #
-            digitals = {"laser": laser_waveform, "apd_sig": apd_waveform, "apd_read": apd_ref_waveform}  # read/sig?
+        # for step in range(step_count):
+        #     laser_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_laser)
+        #     apd_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_apd)  #
+        #     apd_ref_waveform = self._pulser.box_envelope(timeaxis, t_centrewidth_list_apd_ref)  #
+        #     digitals = {
+        #         "laser": laser_waveform,
+        #         "apd_sig": apd_waveform,
+        #         "apd_read": apd_ref_waveform,
+        #     }  # read/sig?
+        #
+        #     self._pulser.load_waveform(
+        #         digital_pulses=digitals, digital_output_map={0: [0, 1, 2]}
+        #     )
+
+        laser_wforms = np.zeros((step_count, len(timeaxis)))
+        apd_sig_wforms = laser_wforms.copy()
+        apd_ref_wforms = laser_wforms.copy()
+
+        laser_wforms[0] = int(laser_out)
+        apd_sig_wforms[0] = int(apd_sig_out)
+        apd_ref_wforms[0] = int(apd_ref_out)
+
+        for laser_waveform, apd_waveform, apd_ref_waveform in zip(laser_wforms, apd_sig_wforms, apd_ref_wforms):
+            digitals = {
+                "laser": laser_waveform,
+                "apd_sig": apd_waveform,
+                "apd_read": apd_ref_waveform,
+            }
 
             self._pulser.load_waveform(
-                digital_pulses=digitals,
-                digital_output_map={0: [0, 1, 2]}
+                digital_pulses=digitals, digital_output_map={0: [0, 1, 2]}
             )
+
         if trigger:
             self._pulser.configure_ORmask(card_idx, None)
             self._pulser.configure_ANDmask(card_idx, None)
@@ -769,7 +858,8 @@ class Pulse(GenericLogic):
 
         self._pulser.load_sequence(
             loops_list=loops,
-            stop_condition_list=stop_condition_list,)
+            stop_condition_list=stop_condition_list,
+        )
 
         self._pulser.start_card(card_idx)
         self._pulser.arm_trigger(card_idx)
@@ -778,77 +868,89 @@ class Pulse(GenericLogic):
 
     def convert_mw_val_rabi(self, mw_times, current_len):
         # everything is in microseconds
-        if len(mw_times) == 4: # Rabi
+        if len(mw_times) == 4:  # Rabi
             t0 = mw_times[0] + current_len / 2
             width = current_len
         else:
-            raise ValueError('mw_times has a weird length')
+            raise ValueError("mw_times has a weird length")
         return t0, width
 
-    def convert_mw_val_ramsey(self, mw_times, current_wait_time): #mw_times = [start, distance_min, distance_max, steps, pulse length]
+    def convert_mw_val_ramsey(
+        self, mw_times, current_wait_time
+    ):  # mw_times = [start, distance_min, distance_max, steps, pulse length]
         # everything is in microseconds
-        if len(mw_times) == 5: # ramsey
+        if len(mw_times) == 5:  # ramsey
             t0 = mw_times[0] + mw_times[4] / 2
             t1 = mw_times[0] + current_wait_time + mw_times[4] + 0.5 * mw_times[4]
             width = mw_times[4]
         else:
-            raise ValueError('mw_times has a weird length')
+            raise ValueError("mw_times has a weird length")
         return t0, t1, width
 
-
-    def convert_laser_val(self, laser_times): # initialisation time, wait time, 2nd pulse time
+    def convert_laser_val(
+        self, laser_times
+    ):  # initialisation time, wait time, 2nd pulse time
         # everything is in microseconds
         if len(laser_times) == 3:
             t0_1 = laser_times[0] / 2
             width_1 = laser_times[0]
-            t0_2 = laser_times[0] + laser_times [1] + laser_times [2] / 2
+            t0_2 = laser_times[0] + laser_times[1] + laser_times[2] / 2
             width_2 = laser_times[2]
         else:
             raise ValueError(
-                "The laser_times array has a weird length! It should have [initialisation time, wait time, 2nd pulse time]")
+                "The laser_times array has a weird length! It should have [initialisation time, wait time, 2nd pulse time]"
+            )
             t0_1, t0_2, width_1, width_2 = 0
         t_centrewidth_list_laser = np.array([[t0_1, width_1], [t0_2, width_2]])
         return t_centrewidth_list_laser
-    def convert_apd_val(self, apd_times): # [time to start, length]
+
+    def convert_apd_val(self, apd_times):  # [time to start, length]
         # everything is in microseconds
         if len(apd_times) == 2:
             t0_1 = apd_times[0] + apd_times[1] / 2
             width_1 = apd_times[1]
         else:
             raise ValueError(
-                "The apd_(ref)_times array has a weird length! It should have [time to start, length]")
+                "The apd_(ref)_times array has a weird length! It should have [time to start, length]"
+            )
             t0_1, t0_2 = 0
         t_centrewidth_list_apd = np.array([[t0_1, width_1]])
         return t_centrewidth_list_apd
 
-    def convert_mw_sweep(self, mw_times_sweep): # [mw_wait_time, mw_pulse_time]
+    def convert_mw_sweep(self, mw_times_sweep):  # [mw_wait_time, mw_pulse_time]
         # everything is in microseconds
         if len(mw_times_sweep) == 2:
             t0_1 = mw_times_sweep[0] + mw_times_sweep[1] / 2
             width_1 = mw_times_sweep[1]
         else:
             raise ValueError(
-                "The apd_(ref)_times array has a weird length! It should have [time to start, length]")
+                "The apd_(ref)_times array has a weird length! It should have [time to start, length]"
+            )
             t0_1, t0_2 = 0
         t_centrewidth_list_mw_sweep = np.array([[t0_1, width_1]])
         return t_centrewidth_list_mw_sweep
 
-
-    def time_axis(self, seq_len=5): # we need the axis for iq stuff, it depends on the sequence length
+    def time_axis(
+        self, seq_len=5
+    ):  # we need the axis for iq stuff, it depends on the sequence length
         # samples = len of waveform ...how can we fix that
         # this includes waveform_padding
         # seq_len = seq_len * 1e-6 # this should be in seconds
         self.samples = self.get_samples(seq_len)
-        self.sample_rate = self.get_clk_rate() / 1e6 # To adapt it to the microsecond timing
-        self.time_ax = np.linspace(0, self.samples/ self.sample_rate, self.samples)
-        return self.time_ax # in units of microseconds
+        self.sample_rate = (
+            self.get_clk_rate() / 1e6
+        )  # To adapt it to the microsecond timing
+        self.time_ax = np.linspace(0, self.samples / self.sample_rate, self.samples)
+        return self.time_ax  # in units of microseconds
 
     def get_samples(self, seq_len=5):
         # seq_len = seq_len*1e-6
-        self.sample_rate = self.get_clk_rate() / 1e6 # To adapt it to the microsecond timing
+        self.sample_rate = (
+            self.get_clk_rate() / 1e6
+        )  # To adapt it to the microsecond timing
         samples = self._pulser.waveform_padding((seq_len * self.sample_rate))
         # this includes waveform_padding
-        return samples # in units of microseconds
+        return samples  # in units of microseconds
 
     def calc_sample_time(self):
         card_idx = 1
@@ -893,18 +995,17 @@ class Pulse(GenericLogic):
 
         real_lenghts = []
         for i in range(len(t_centerwidths)):
-            if (t_centerwidths[i][1] % 2) == 0: # even
+            if (t_centerwidths[i][1] % 2) == 0:  # even
                 if t_centerwidths[i][1] == 0:
                     pulse_len = t_centerwidths[i][1]
                 else:
                     pulse_len = t_centerwidths[i][1] + 1
-            else: # odd
+            else:  # odd
                 pulse_len = t_centerwidths[i][1]
             real_lenghts.append(pulse_len)
         # convert the number of samples to time:
         sample_time, clk_rate = self.calc_sample_time()
         time_axis = self.time_axis(seq_len)
-
 
         return real_lenghts
 
@@ -927,133 +1028,131 @@ class Pulse(GenericLogic):
         return self.seq_map
 
 
-
-
 # ###############     OLD STUFF!  Measure delay time of the system       ###############
-    # def delay_sweep_old(
-    #     self,
-    #     seq_len,
-    #     laser_times,
-    #     apd_times,
-    #     apd_ref,
-    #     mw_times,
-    #     rep=100,
-    #     trigger=True,
-    #     mw_pulse=False,
-    # ):
-    #     """
-    #     seq_len =   whole length of the sequence in microseconds
-    #     laser_times = [laser_in, wait, laser_re] all in microseconds
-    #             laser_in:   length of initialisation laser pulse (it starts right at the beginning) in microseconds
-    #             wait:       time between the end of the initialisation and the reinitialisation in microseconds
-    #             laser_re:   length of the reinitialisation pulse in microseconds
-    #     apd_times = [length, min_start, max_start, steps]
-    #             length:      time to wait until the pulse should start
-    #             min_start:    minimal length of the apd pulse
-    #             max_start:    maximal length of the apd pulse
-    #             steps:      step size of the apd pulse sweep
-    #
-    #     apd_ref = [time to start, length of the pulse] both in microseconds
-    #     mw_times = [mw_wait_time, mw_pulse_time] all in microseconds
-    #             mw_wait_time: time between the end of the first laser pulse and the beginning of the microwave (delay)
-    #             mw_pulse_time: length of the mw pulse in between the two laser pulses
-    #     rep =       repetition time when no trigger is used
-    #     mw_pulse =  With or without MW pulse in the middle
-    #     trigger =   either True: software trigger or False: no trigger at all
-    #     """
-    #     seq_len_s = seq_len * 1e-6
-    #     laser_times_s = np.multiply(laser_times, 1e-6)
-    #     mw_times_s = np.multiply(mw_times, 1e-6)
-    #     apd_times_s = np.multiply(apd_times, 1e-6)
-    #     apd_ref_s = np.multiply(apd_ref, 1e-6)
-    #
-    #     # So far we just use card1
-    #     card_idx = 1
-    #
-    #     # Set up the right channels:
-    #     mw_outchan = 2  # analog     A0 for card 1   Input at MW generator is +- 0.5 V
-    #     laser_outchan = 0  # digital    X0 Input of the laser is 0-1 V
-    #     apd_outchan = 1  # digital    X1
-    #     apd_ref_outchan = 2  # ADP reference this happens on Card1
-    #
-    #     clk_rate = self._pulser.get_sample_rate(card_idx)
-    #     segment_map = []
-    #
-    #     # build array with all the desired apd_start values
-    #     apd_start = []
-    #     step_count = int(((apd_times[2] - apd_times[1]) / apd_times[3]) + 1)
-    #     print("step_count: ", step_count)
-    #
-    #     for i in range(step_count):
-    #         apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
-    #     # creating empty arrays
-    #     dosequence = []
-    #     aosequence = []
-    #
-    #     # Create laser and apd waveform as they are constant (put it in microseconds)
-    #     laser_do_waveform = self.laser_seq(seq_len, laser_times)
-    #     apd_ref_do_waveform = self.apd_ref(
-    #         seq_len, apd_ref
-    #     )
-    #
-    #     for i in apd_start:
-    #         apd_wait_time = np.zeros(int(round(clk_rate * i)))
-    #         apd_on = np.ones(int(round(clk_rate * apd_times_s[0])))
-    #         apd_off = np.zeros(
-    #             int(round(clk_rate * (seq_len_s - (i + apd_times_s[0]))))
-    #         )
-    #         apd_do_waveform = np.concatenate((apd_wait_time, apd_on, apd_off))
-    #         len_apd_do_waveform = self._pulser.waveform_padding(len(apd_do_waveform))
-    #         difference = len_apd_do_waveform - (clk_rate * seq_len_s)
-    #         apd_do_waveform = np.concatenate(
-    #             (apd_do_waveform, np.zeros(int(difference)))
-    #         )
-    #         if mw_pulse:
-    #             mw_wait = np.zeros(
-    #                 int(round(clk_rate * (laser_times_s[0] + mw_times_s[0])))
-    #             )
-    #             mw_pulse_array = np.ones(int(round(clk_rate * mw_times_s[1])))
-    #             mw_off = np.zeros(
-    #                 int(
-    #                     round(
-    #                         clk_rate
-    #                         * (
-    #                             seq_len_s
-    #                             - (laser_times_s[0] + mw_times_s[0] + mw_times_s[1])
-    #                         )
-    #                     )
-    #                 )
-    #             )
-    #
-    #             mw_ao_waveform = np.concatenate((mw_wait, mw_pulse_array, mw_off))
-    #
-    #             len_mw_ao_waveform = self._pulser.waveform_padding(len(mw_ao_waveform))
-    #             difference = len_mw_ao_waveform - (clk_rate * seq_len_s)
-    #             mw_ao_waveform = np.concatenate(
-    #                 (mw_ao_waveform, np.zeros(int(difference)))
-    #             )
-    #
-    #             ao_dict = {mw_outchan: mw_ao_waveform}
-    #
-    #         else:  # if no MW is needed
-    #             d_off = np.zeros(int(round(clk_rate * seq_len_s)))
-    #             len_d_off = self._pulser.waveform_padding(len(d_off))
-    #             difference = len_d_off - (clk_rate * seq_len_s)
-    #             d_off = np.concatenate((d_off, np.zeros(int(difference))))
-    #             # Creates a dict for the analog channel if no MW is needed
-    #             ao_dict = {mw_outchan: d_off}
-    #
-    #         # Now all the waveformes are prepared and have the same length
-    #         do_dict = {
-    #             laser_outchan: laser_do_waveform,
-    #             apd_outchan: apd_do_waveform,
-    #             apd_ref_outchan: apd_ref_do_waveform,
-    #         }
-    #         dosequence.append(do_dict)
-    #         aosequence.append(ao_dict)
-    #
-    #     self.aosequence = aosequence
-    #     self.dosequence = dosequence
+# def delay_sweep_old(
+#     self,
+#     seq_len,
+#     laser_times,
+#     apd_times,
+#     apd_ref,
+#     mw_times,
+#     rep=100,
+#     trigger=True,
+#     mw_pulse=False,
+# ):
+#     """
+#     seq_len =   whole length of the sequence in microseconds
+#     laser_times = [laser_in, wait, laser_re] all in microseconds
+#             laser_in:   length of initialisation laser pulse (it starts right at the beginning) in microseconds
+#             wait:       time between the end of the initialisation and the reinitialisation in microseconds
+#             laser_re:   length of the reinitialisation pulse in microseconds
+#     apd_times = [length, min_start, max_start, steps]
+#             length:      time to wait until the pulse should start
+#             min_start:    minimal length of the apd pulse
+#             max_start:    maximal length of the apd pulse
+#             steps:      step size of the apd pulse sweep
+#
+#     apd_ref = [time to start, length of the pulse] both in microseconds
+#     mw_times = [mw_wait_time, mw_pulse_time] all in microseconds
+#             mw_wait_time: time between the end of the first laser pulse and the beginning of the microwave (delay)
+#             mw_pulse_time: length of the mw pulse in between the two laser pulses
+#     rep =       repetition time when no trigger is used
+#     mw_pulse =  With or without MW pulse in the middle
+#     trigger =   either True: software trigger or False: no trigger at all
+#     """
+#     seq_len_s = seq_len * 1e-6
+#     laser_times_s = np.multiply(laser_times, 1e-6)
+#     mw_times_s = np.multiply(mw_times, 1e-6)
+#     apd_times_s = np.multiply(apd_times, 1e-6)
+#     apd_ref_s = np.multiply(apd_ref, 1e-6)
+#
+#     # So far we just use card1
+#     card_idx = 1
+#
+#     # Set up the right channels:
+#     mw_outchan = 2  # analog     A0 for card 1   Input at MW generator is +- 0.5 V
+#     laser_outchan = 0  # digital    X0 Input of the laser is 0-1 V
+#     apd_outchan = 1  # digital    X1
+#     apd_ref_outchan = 2  # ADP reference this happens on Card1
+#
+#     clk_rate = self._pulser.get_sample_rate(card_idx)
+#     segment_map = []
+#
+#     # build array with all the desired apd_start values
+#     apd_start = []
+#     step_count = int(((apd_times[2] - apd_times[1]) / apd_times[3]) + 1)
+#     print("step_count: ", step_count)
+#
+#     for i in range(step_count):
+#         apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
+#     # creating empty arrays
+#     dosequence = []
+#     aosequence = []
+#
+#     # Create laser and apd waveform as they are constant (put it in microseconds)
+#     laser_do_waveform = self.laser_seq(seq_len, laser_times)
+#     apd_ref_do_waveform = self.apd_ref(
+#         seq_len, apd_ref
+#     )
+#
+#     for i in apd_start:
+#         apd_wait_time = np.zeros(int(round(clk_rate * i)))
+#         apd_on = np.ones(int(round(clk_rate * apd_times_s[0])))
+#         apd_off = np.zeros(
+#             int(round(clk_rate * (seq_len_s - (i + apd_times_s[0]))))
+#         )
+#         apd_do_waveform = np.concatenate((apd_wait_time, apd_on, apd_off))
+#         len_apd_do_waveform = self._pulser.waveform_padding(len(apd_do_waveform))
+#         difference = len_apd_do_waveform - (clk_rate * seq_len_s)
+#         apd_do_waveform = np.concatenate(
+#             (apd_do_waveform, np.zeros(int(difference)))
+#         )
+#         if mw_pulse:
+#             mw_wait = np.zeros(
+#                 int(round(clk_rate * (laser_times_s[0] + mw_times_s[0])))
+#             )
+#             mw_pulse_array = np.ones(int(round(clk_rate * mw_times_s[1])))
+#             mw_off = np.zeros(
+#                 int(
+#                     round(
+#                         clk_rate
+#                         * (
+#                             seq_len_s
+#                             - (laser_times_s[0] + mw_times_s[0] + mw_times_s[1])
+#                         )
+#                     )
+#                 )
+#             )
+#
+#             mw_ao_waveform = np.concatenate((mw_wait, mw_pulse_array, mw_off))
+#
+#             len_mw_ao_waveform = self._pulser.waveform_padding(len(mw_ao_waveform))
+#             difference = len_mw_ao_waveform - (clk_rate * seq_len_s)
+#             mw_ao_waveform = np.concatenate(
+#                 (mw_ao_waveform, np.zeros(int(difference)))
+#             )
+#
+#             ao_dict = {mw_outchan: mw_ao_waveform}
+#
+#         else:  # if no MW is needed
+#             d_off = np.zeros(int(round(clk_rate * seq_len_s)))
+#             len_d_off = self._pulser.waveform_padding(len(d_off))
+#             difference = len_d_off - (clk_rate * seq_len_s)
+#             d_off = np.concatenate((d_off, np.zeros(int(difference))))
+#             # Creates a dict for the analog channel if no MW is needed
+#             ao_dict = {mw_outchan: d_off}
+#
+#         # Now all the waveformes are prepared and have the same length
+#         do_dict = {
+#             laser_outchan: laser_do_waveform,
+#             apd_outchan: apd_do_waveform,
+#             apd_ref_outchan: apd_ref_do_waveform,
+#         }
+#         dosequence.append(do_dict)
+#         aosequence.append(ao_dict)
+#
+#     self.aosequence = aosequence
+#     self.dosequence = dosequence
 #
 #
 #     # Otherwise its not possible to send 3.5 and 3V at the same time
@@ -1093,159 +1192,159 @@ class Pulse(GenericLogic):
 
 
 # def delay_sweep_ref_old(
-        #         self,
-        #         seq_len,
-        #         laser_times,
-        #         apd_times,
-        #         apd_ref,
-        #         mw_times,
-        #         rep=100,
-        #         trigger=bool,
-        #         mw_pulse=bool,
-        # ):
-        #     """
-        #     seq_len =   whole length of the sequence in microseconds
-        #     laser_times = [laser_in, wait, laser_re] all in microseconds
-        #             laser_in:   length of initialisation laser pulse (it starts right at the beginning) in microseconds
-        #             wait:       time between the end of the initialisation and the reinitialisation in microseconds
-        #             laser_re:   length of the reinitialisation pulse in microseconds
-        #     apd_times = [length, min_start, max_start, steps] this will be connected to the reference apd pulse but still doing the sweep
-        #             length:      time to wait until the pulse should start
-        #             min_start:    minimal length of the apd pulse
-        #             max_start:    maximal length of the apd pulse
-        #             steps:      step size of the apd pulse sweep
-        #     apd_ref = [time to start, length of the pulse] both in microseconds this will be connected to the real apd put it somewhere and dont sweep it
-        #     mw_times = [mw_wait_time, mw_pulse_time] all in microseconds
-        #             mw_wait_time: time between the end of the first laser pulse and the beginning of the microwave (delay)
-        #             mw_pulse_time: length of the mw pulse in between the two laser pulses
-        #     rep =       repetition time when no trigger is used
-        #     mw_pulse =  With or without MW pulse in the middle
-        #     trigger =   either True: software trigger or False: no trigger at all
-        #     """
-        #     seq_len_s = seq_len * 1e-6
-        #     laser_times_s = np.multiply(laser_times, 1e-6)
-        #     mw_times_s = np.multiply(mw_times, 1e-6)
-        #     apd_times_s = np.multiply(apd_times, 1e-6)
-        #     apd_ref_s = np.multiply(apd_ref, 1e-6)
-        #
-        #     # Sofar we just use card1
-        #     card_idx = 1
-        #
-        #     # Set up the right channels:
-        #     mw_outchan = 2  # analog     A0 for card 1   Input at MW generator is +- 0.5 V
-        #     laser_outchan = 0  # digital    X0 Input of the laser is 0-1 V
-        #     apd_outchan = 1  # digital    X1
-        #     apd_ref_outchan = 2  # ADP reference this happens on Card1
-        #
-        #     clk_rate = self._pulser.get_sample_rate(card_idx)
-        #     segment_map = []
-        #
-        #     # build array with all the desired apd_start values
-        #     apd_start = []
-        #     step_count = int(((apd_times[2] - apd_times[1]) / apd_times[3]) + 1)
-        #     print("step_count: ", step_count)
-        #
-        #     for i in range(step_count):
-        #         apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
-        #     # creating empty arrays
-        #     dosequence = []
-        #     aosequence = []
-        #
-        #     # Create laser and apd waveform as they are constant (put it in microseconds)
-        #     laser_do_waveform = self.laser_seq(seq_len, laser_times)
-        #     apd_ref_do_waveform = self.apd_ref(
-        #         seq_len, apd_ref
-        #     )
-        #
-        #     for i in apd_start:
-        #         apd_wait_time = np.zeros(int(round(clk_rate * i)))
-        #         apd_on = np.ones(int(round(clk_rate * apd_times_s[0])))
-        #         apd_off = np.zeros(
-        #             int(round(clk_rate * (seq_len_s - (i + apd_times_s[0]))))
-        #         )
-        #         apd_do_waveform = np.concatenate((apd_wait_time, apd_on, apd_off))
-        #         len_apd_do_waveform = self._pulser.waveform_padding(len(apd_do_waveform))
-        #         difference = len_apd_do_waveform - (clk_rate * seq_len_s)
-        #         apd_do_waveform = np.concatenate(
-        #             (apd_do_waveform, np.zeros(int(difference)))
-        #         )
-        #         if mw_pulse:
-        #             mw_wait = np.zeros(
-        #                 int(round(clk_rate * (laser_times_s[0] + mw_times_s[0])))
-        #             )
-        #             mw_pulse_array = np.ones(int(round(clk_rate * mw_times_s[1])))
-        #             mw_off = np.zeros(
-        #                 int(
-        #                     round(
-        #                         clk_rate
-        #                         * (
-        #                                 seq_len_s
-        #                                 - (laser_times_s[0] + mw_times_s[0] + mw_times_s[1])
-        #                         )
-        #                     )
-        #                 )
-        #             )
-        #             mw_ao_waveform = np.concatenate((mw_wait, mw_pulse_array, mw_off))
-        #             len_mw_ao_waveform = self._pulser.waveform_padding(len(mw_ao_waveform))
-        #             difference = len_mw_ao_waveform - (clk_rate * seq_len_s)
-        #             mw_ao_waveform = np.concatenate(
-        #                 (mw_ao_waveform, np.zeros(int(difference)))
-        #             )
-        #             analogs = {"i_chan": mw_ao_waveform, "q_chan": np.zeros(len(mw_ao_waveform))}
-        #
-        #         else:  # if no MW is needed
-        #             d_off = np.zeros(int(round(clk_rate * seq_len_s)))
-        #             len_d_off = self._pulser.waveform_padding(len(d_off))
-        #             difference = len_d_off - (clk_rate * seq_len_s)
-        #             d_off = np.concatenate((d_off, np.zeros(int(difference))))
-        #             # Creates a dict for the analog channel if no MW is needed
-        #             analogs = {"i_chan": mw_ao_waveform, "q_chan": np.zeros(len(mw_ao_waveform))}
-        #
-        #         # Now all the waveformes are prepared and have the same length
-        #         do_dict = {
-        #             laser_outchan: laser_do_waveform,
-        #             apd_outchan: apd_ref_do_waveform,
-        #             apd_ref_outchan: apd_do_waveform,
-        #         }
-        #         dosequence.append(do_dict)
-        #         aosequence.append(ao_dict)
-        #
-        #     ###
-        #     # Otherwise its not possible to send 3.5 and 3V at the same time
-        #     # digital_output_map = {0: [laser_outchan], 1: [apd_outchan]}
-        #     digital_output_map = {0: [laser_outchan, apd_outchan], 1: [apd_ref_outchan]}
-        #     for aos, dos in zip(aosequence, dosequence):
-        #         # Loads waveforms to the awg
-        #         self._pulser.load_waveform(
-        #             iq_dictionary=aos,
-        #             digital_pulses=dos,
-        #             digital_output_map=digital_output_map,
-        #         )
-        #
-        #     if trigger == True:
-        #         # This sequence waits for a software trigger to start playing and moving to the next step.
-        #         self._pulser.configure_ORmask(card_idx, None)
-        #         self._pulser.configure_ANDmask(card_idx, None)
-        #         array = np.array([0x40000000], dtype=np.int64)
-        #         stop_condition_list = np.repeat(array, step_count)
-        #         loops = np.ones((len(aosequence)), dtype=np.int64)
-        #
-        #     else:
-        #         # This sequence immediately starts after the sequences are loaded
-        #         self._pulser.configure_ORmask(card_idx, "immediate")
-        #         self._pulser.configure_ANDmask(card_idx, None)
-        #         loop_array = np.array([rep], dtype=np.int64)
-        #         loops = np.repeat(loop_array, step_count)
-        #         stop_condition_list = np.array([])
-        #
-        #         # makes the waveforms repeat in loops
-        #     self._pulser.load_sequence(  # digital_sequences=dosequence,
-        #         loops_list=loops,
-        #         segment_map=segment_map,
-        #         stop_condition_list=stop_condition_list,
-        #     )
-        #     self._pulser.start_card(card_idx)
-        #     self._pulser.arm_trigger(card_idx)
+#         self,
+#         seq_len,
+#         laser_times,
+#         apd_times,
+#         apd_ref,
+#         mw_times,
+#         rep=100,
+#         trigger=bool,
+#         mw_pulse=bool,
+# ):
+#     """
+#     seq_len =   whole length of the sequence in microseconds
+#     laser_times = [laser_in, wait, laser_re] all in microseconds
+#             laser_in:   length of initialisation laser pulse (it starts right at the beginning) in microseconds
+#             wait:       time between the end of the initialisation and the reinitialisation in microseconds
+#             laser_re:   length of the reinitialisation pulse in microseconds
+#     apd_times = [length, min_start, max_start, steps] this will be connected to the reference apd pulse but still doing the sweep
+#             length:      time to wait until the pulse should start
+#             min_start:    minimal length of the apd pulse
+#             max_start:    maximal length of the apd pulse
+#             steps:      step size of the apd pulse sweep
+#     apd_ref = [time to start, length of the pulse] both in microseconds this will be connected to the real apd put it somewhere and dont sweep it
+#     mw_times = [mw_wait_time, mw_pulse_time] all in microseconds
+#             mw_wait_time: time between the end of the first laser pulse and the beginning of the microwave (delay)
+#             mw_pulse_time: length of the mw pulse in between the two laser pulses
+#     rep =       repetition time when no trigger is used
+#     mw_pulse =  With or without MW pulse in the middle
+#     trigger =   either True: software trigger or False: no trigger at all
+#     """
+#     seq_len_s = seq_len * 1e-6
+#     laser_times_s = np.multiply(laser_times, 1e-6)
+#     mw_times_s = np.multiply(mw_times, 1e-6)
+#     apd_times_s = np.multiply(apd_times, 1e-6)
+#     apd_ref_s = np.multiply(apd_ref, 1e-6)
+#
+#     # Sofar we just use card1
+#     card_idx = 1
+#
+#     # Set up the right channels:
+#     mw_outchan = 2  # analog     A0 for card 1   Input at MW generator is +- 0.5 V
+#     laser_outchan = 0  # digital    X0 Input of the laser is 0-1 V
+#     apd_outchan = 1  # digital    X1
+#     apd_ref_outchan = 2  # ADP reference this happens on Card1
+#
+#     clk_rate = self._pulser.get_sample_rate(card_idx)
+#     segment_map = []
+#
+#     # build array with all the desired apd_start values
+#     apd_start = []
+#     step_count = int(((apd_times[2] - apd_times[1]) / apd_times[3]) + 1)
+#     print("step_count: ", step_count)
+#
+#     for i in range(step_count):
+#         apd_start.append((apd_times_s[1] + (i * apd_times_s[3])))
+#     # creating empty arrays
+#     dosequence = []
+#     aosequence = []
+#
+#     # Create laser and apd waveform as they are constant (put it in microseconds)
+#     laser_do_waveform = self.laser_seq(seq_len, laser_times)
+#     apd_ref_do_waveform = self.apd_ref(
+#         seq_len, apd_ref
+#     )
+#
+#     for i in apd_start:
+#         apd_wait_time = np.zeros(int(round(clk_rate * i)))
+#         apd_on = np.ones(int(round(clk_rate * apd_times_s[0])))
+#         apd_off = np.zeros(
+#             int(round(clk_rate * (seq_len_s - (i + apd_times_s[0]))))
+#         )
+#         apd_do_waveform = np.concatenate((apd_wait_time, apd_on, apd_off))
+#         len_apd_do_waveform = self._pulser.waveform_padding(len(apd_do_waveform))
+#         difference = len_apd_do_waveform - (clk_rate * seq_len_s)
+#         apd_do_waveform = np.concatenate(
+#             (apd_do_waveform, np.zeros(int(difference)))
+#         )
+#         if mw_pulse:
+#             mw_wait = np.zeros(
+#                 int(round(clk_rate * (laser_times_s[0] + mw_times_s[0])))
+#             )
+#             mw_pulse_array = np.ones(int(round(clk_rate * mw_times_s[1])))
+#             mw_off = np.zeros(
+#                 int(
+#                     round(
+#                         clk_rate
+#                         * (
+#                                 seq_len_s
+#                                 - (laser_times_s[0] + mw_times_s[0] + mw_times_s[1])
+#                         )
+#                     )
+#                 )
+#             )
+#             mw_ao_waveform = np.concatenate((mw_wait, mw_pulse_array, mw_off))
+#             len_mw_ao_waveform = self._pulser.waveform_padding(len(mw_ao_waveform))
+#             difference = len_mw_ao_waveform - (clk_rate * seq_len_s)
+#             mw_ao_waveform = np.concatenate(
+#                 (mw_ao_waveform, np.zeros(int(difference)))
+#             )
+#             analogs = {"i_chan": mw_ao_waveform, "q_chan": np.zeros(len(mw_ao_waveform))}
+#
+#         else:  # if no MW is needed
+#             d_off = np.zeros(int(round(clk_rate * seq_len_s)))
+#             len_d_off = self._pulser.waveform_padding(len(d_off))
+#             difference = len_d_off - (clk_rate * seq_len_s)
+#             d_off = np.concatenate((d_off, np.zeros(int(difference))))
+#             # Creates a dict for the analog channel if no MW is needed
+#             analogs = {"i_chan": mw_ao_waveform, "q_chan": np.zeros(len(mw_ao_waveform))}
+#
+#         # Now all the waveformes are prepared and have the same length
+#         do_dict = {
+#             laser_outchan: laser_do_waveform,
+#             apd_outchan: apd_ref_do_waveform,
+#             apd_ref_outchan: apd_do_waveform,
+#         }
+#         dosequence.append(do_dict)
+#         aosequence.append(ao_dict)
+#
+#     ###
+#     # Otherwise its not possible to send 3.5 and 3V at the same time
+#     # digital_output_map = {0: [laser_outchan], 1: [apd_outchan]}
+#     digital_output_map = {0: [laser_outchan, apd_outchan], 1: [apd_ref_outchan]}
+#     for aos, dos in zip(aosequence, dosequence):
+#         # Loads waveforms to the awg
+#         self._pulser.load_waveform(
+#             iq_dictionary=aos,
+#             digital_pulses=dos,
+#             digital_output_map=digital_output_map,
+#         )
+#
+#     if trigger == True:
+#         # This sequence waits for a software trigger to start playing and moving to the next step.
+#         self._pulser.configure_ORmask(card_idx, None)
+#         self._pulser.configure_ANDmask(card_idx, None)
+#         array = np.array([0x40000000], dtype=np.int64)
+#         stop_condition_list = np.repeat(array, step_count)
+#         loops = np.ones((len(aosequence)), dtype=np.int64)
+#
+#     else:
+#         # This sequence immediately starts after the sequences are loaded
+#         self._pulser.configure_ORmask(card_idx, "immediate")
+#         self._pulser.configure_ANDmask(card_idx, None)
+#         loop_array = np.array([rep], dtype=np.int64)
+#         loops = np.repeat(loop_array, step_count)
+#         stop_condition_list = np.array([])
+#
+#         # makes the waveforms repeat in loops
+#     self._pulser.load_sequence(  # digital_sequences=dosequence,
+#         loops_list=loops,
+#         segment_map=segment_map,
+#         stop_condition_list=stop_condition_list,
+#     )
+#     self._pulser.start_card(card_idx)
+#     self._pulser.arm_trigger(card_idx)
 
 
 #     def do_cw_old(self, seq_len):
@@ -2227,18 +2326,17 @@ class Pulse(GenericLogic):
 #         self.start_card(card_idx)
 #         self.arm_trigger(card_idx)
 
-    # def calc_len_error(self, t_centerwidths, seq_len):
-    #     # print(len(t_centerwidths))
-    #     # print(t_centerwidths[0][1])
-    #     real_lenghts = []
-    #     for i in range(len(t_centerwidths)):
-    #         if (t_centerwidths[i][1] % 2) == 0: # even
-    #             if t_centerwidths[i][1] == 0:
-    #                 pulse_len = t_centerwidths[i][1]
-    #             else:
-    #                 pulse_len = t_centerwidths[i][1] + 1
-    #         else: # odd
-    #             pulse_len = t_centerwidths[i][1]
-    #         real_lenghts.append(pulse_len)
-    #     return real_lenghts
-
+# def calc_len_error(self, t_centerwidths, seq_len):
+#     # print(len(t_centerwidths))
+#     # print(t_centerwidths[0][1])
+#     real_lenghts = []
+#     for i in range(len(t_centerwidths)):
+#         if (t_centerwidths[i][1] % 2) == 0: # even
+#             if t_centerwidths[i][1] == 0:
+#                 pulse_len = t_centerwidths[i][1]
+#             else:
+#                 pulse_len = t_centerwidths[i][1] + 1
+#         else: # odd
+#             pulse_len = t_centerwidths[i][1]
+#         real_lenghts.append(pulse_len)
+#     return real_lenghts
