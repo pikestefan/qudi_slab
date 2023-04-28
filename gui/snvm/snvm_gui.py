@@ -23,24 +23,17 @@ top-level directory of this distribution and at <https://github.com/Ulm-IQO/qudi
 import numpy as np
 import os
 import pyqtgraph as pg
-import time
-from math import ceil
-
 from core.connector import Connector
 from core.configoption import ConfigOption
-from core.statusvariable import StatusVar
 from qtwidgets.scan_plotwidget import ScanImageItem
 from gui.guibase import GUIBase
-from gui.guiutils import ColorBar, InteractiveColBar
+from gui.guiutils import InteractiveColBar
 from gui.colordefs import ColorScaleInferno, BlackAndWhite
-from gui.colordefs import QudiPalettePale as palette
-from gui.fitsettings import FitParametersWidget
 from qtpy import QtCore
-from qtpy import QtGui
 from qtpy import QtWidgets
 from qtpy import uic
 
-# mergeme
+
 class SnvmWindow(QtWidgets.QMainWindow):
     """Create the Mainwindow based on the corresponding *.ui file."""
 
@@ -190,7 +183,7 @@ class SnvmGui(GUIBase):
         "cbar_count_multiplier", default=1e-3, missing="info"
     )
     cbar_afm_multiplier = ConfigOption(
-        "cbar_afm_multplier", default=20e3 / 3, missing="info"
+        "cbar_afm_multplier", default=4e3 / 10, missing="info"
     )
     mwspinbox_float_resolution = ConfigOption("mwspinbox_float_resolution", default=6)
 
@@ -218,6 +211,21 @@ class SnvmGui(GUIBase):
         self.initSnvmSettings()
         self.initPodmrSettings()
 
+    def on_deactivate(self):
+        """Reverse steps of activation
+
+        @return int: error code (0:OK, -1:error)
+        """
+        self._mainwindow.close()
+        return 0
+
+    def show(self):
+        """Make main window visible and put it above all other windows."""
+        # Show the Main Confocal GUI:
+        self._mainwindow.show()
+        self._mainwindow.activateWindow()
+        self._mainwindow.raise_()
+
     def initMainUI(self):
         """Definition, configuration and initialisation of the confocal GUI.
 
@@ -241,7 +249,9 @@ class SnvmGui(GUIBase):
         self.afm_cmap = BlackAndWhite()
         self._crosshair_maxrange = None
 
+        ###################################
         # Set up the SNVM image and colorbar
+        ###################################
         self.snvm_image = ScanImageItem(axisOrder="row-major")
         self.snvm_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.multiFreqPlotView.addItem(self.snvm_image)
@@ -271,8 +281,12 @@ class SnvmGui(GUIBase):
             label="Counts (kHz)",
             width=80,
         )
+        ###################################
+        ###################################
 
+        ###################################
         # Set up the AFM image and colorbar
+        ###################################
         self.afm_image = ScanImageItem(axisOrder="row-major")
         self._mainwindow.afmPlotView.addItem(self.afm_image)
         self._mainwindow.afmPlotView.setLabel("bottom", "X (nm)")
@@ -301,8 +315,12 @@ class SnvmGui(GUIBase):
             label="Height (nm)",
             width=80,
         )
+        ###################################
+        ###################################
 
+        ###################################
         # Set up the confocal image and colorbar
+        ###################################
         self.cfc_image = ScanImageItem(axisOrder="row-major")
         self.cfc_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.confocalScannerView.addItem(self.cfc_image)
@@ -329,8 +347,12 @@ class SnvmGui(GUIBase):
             label="Counts (kHz)",
             width=80,
         )
+        ###################################
+        ###################################
 
+        ###################################
         # Set up the optimizer image and colorbar
+        ###################################
         self.optimizer_image = ScanImageItem(axisOrder="row-major")
         self.optimizer_image.setLookupTable(self.photon_colormap.lut)
         self._mainwindow.optimizerView.addItem(self.optimizer_image)
@@ -345,10 +367,15 @@ class SnvmGui(GUIBase):
             self._mainwindow.optimizerCbarView,
             lut=self.photon_colormap.lut,
             multiplier=self.cbar_count_multiplier,
-            width=60
+            label="Counts (kHz)",
+            width=80,
         )
+        ###################################
+        ###################################
 
+        ###################################
         # Set up the ODMR plot
+        ###################################
         self.curr_odmr_trace = pg.PlotDataItem(
             skipFiniteCheck=False, connect="finite", pen=pg.mkPen(color="w")
         )
@@ -359,6 +386,8 @@ class SnvmGui(GUIBase):
         self._mainwindow.odmrPlotWidget.addItem(self.average_odmr_trace)
         self._mainwindow.odmrPlotWidget.setLabel("bottom", "Frequency (GHz)")
         self._mainwindow.odmrPlotWidget.setLabel("left", "Counts (GHz)")
+        ###################################
+        ###################################
 
         # Quick settings for the spinbox to view the frequency slices
         self._mainwindow.frequencySliceSelector.lineEdit().setReadOnly(True)
@@ -411,12 +440,8 @@ class SnvmGui(GUIBase):
         self._mainwindow.tipTraceViewSpinBox.valueChanged.connect(
             self.refresh_confocal_image
         )
-        self._mainwindow.sampleXSlider.sliderMoved.connect(
-            self.slider_move_crosshair
-        )
-        self._mainwindow.sampleYSlider.sliderMoved.connect(
-            self.slider_move_crosshair
-        )
+        self._mainwindow.sampleXSlider.sliderMoved.connect(self.slider_move_crosshair)
+        self._mainwindow.sampleYSlider.sliderMoved.connect(self.slider_move_crosshair)
 
         self._mainwindow.tipXSlider.sliderMoved.connect(self.slider_move_crosshair)
         self._mainwindow.tipYSlider.sliderMoved.connect(self.slider_move_crosshair)
@@ -445,7 +470,6 @@ class SnvmGui(GUIBase):
                     spinbox.setMinimum(maxrange[ii][0])
                     spinbox.setMaximum(maxrange[ii][1])
                     spinbox.editingFinished.connect(self.scanning_ranges_edited)
-
 
         self._mainwindow.scanningSettingsTab.currentChanged.connect(
             self.scanning_tab_pressed
@@ -486,9 +510,47 @@ class SnvmGui(GUIBase):
 
         self._mainwindow.actionStop_scan.setEnabled(False)
 
-        self.disable_snvm_interactions()
-        self.enable_conf_interactions()
+        self.snvm_interactions_enabled(enabled=False)
+        self.conf_interactions_enabled()
         self.show()
+
+    def initOptimizer(self):
+        self._optim_dialog = OptimizerSettingDialog()
+        # Connect the action of the settings window with the code:
+        self._optim_dialog.accepted.connect(self.update_optimizer_settings)
+        self._optim_dialog.rejected.connect(self.keep_former_optimizer_settings)
+        self._optim_dialog.buttonBox.button(
+            QtWidgets.QDialogButtonBox.Apply
+        ).clicked.connect(self.update_optimizer_settings)
+
+        # Set up and connect xy channel combobox
+        stacks = self._scanning_logic.get_stack_names()
+        for n, stack in enumerate(stacks):
+            self._optim_dialog.optimScanner_ComboBox.addItem(stack, n)
+
+        # write the configuration to the settings window of the GUI.
+        self.keep_former_optimizer_settings()
+
+    def initSnvmSettings(self):
+        self._snvm_dialog = SnvmSettingDialog()
+        # Connect the action of the settings window with the code:
+        self._snvm_dialog.accepted.connect(self.update_snvm_settings)
+        self._snvm_dialog.rejected.connect(self.keep_former_snvm_settings)
+        self._snvm_dialog.buttonBox.button(
+            QtWidgets.QDialogButtonBox.Apply
+        ).clicked.connect(self.update_optimizer_settings)
+
+        # write the configuration to the settings window of the GUI.
+        self.keep_former_snvm_settings()
+
+    def initPodmrSettings(self):
+        self._podmr_dialog = PulsedODMRSettingDialog()
+        # Connect the action of the settings window with the code:
+        self._podmr_dialog.accepted.connect(self.update_podmr_settings)
+        self._podmr_dialog.rejected.connect(self.keep_former_podmr_settings)
+
+        # write the configuration to the settings window of the GUI.
+        self.keep_former_podmr_settings()
 
     def _init_odmr_settings(self):
         # Also here, store in a dictionary if the widgets need to be accessed in for loops
@@ -680,11 +742,35 @@ class SnvmGui(GUIBase):
         )
 
         self._sample_spinboxedsliders = dict()
-        self._sample_spinboxedsliders['x'] = [self._mainwindow.sampleXSlider, self._mainwindow.sampleXSliderSpinBox]
-        self._sample_spinboxedsliders['y'] = [self._mainwindow.sampleYSlider, self._mainwindow.sampleYSliderSpinBox]
+        self._sample_spinboxedsliders["x"] = [
+            self._mainwindow.sampleXSlider,
+            self._mainwindow.sampleXSliderSpinBox,
+        ]
+        self._sample_spinboxedsliders["y"] = [
+            self._mainwindow.sampleYSlider,
+            self._mainwindow.sampleYSliderSpinBox,
+        ]
         self._tip_spinboxedsliders = dict()
-        self._tip_spinboxedsliders['x'] = [self._mainwindow.tipXSlider, self._mainwindow.tipXSliderSpinBox]
-        self._tip_spinboxedsliders['y'] = [self._mainwindow.tipYSlider, self._mainwindow.tipYSliderSpinBox]
+        self._tip_spinboxedsliders["x"] = [
+            self._mainwindow.tipXSlider,
+            self._mainwindow.tipXSliderSpinBox,
+        ]
+        self._tip_spinboxedsliders["y"] = [
+            self._mainwindow.tipYSlider,
+            self._mainwindow.tipYSliderSpinBox,
+        ]
+
+        # FIXME: there is a bug with the sliders: after using them, if the crosshair is grabbed it freezes the GUI.
+        #  Disable the sliders and SpinBoxes for now.
+        self._mainwindow.sampleXSlider.setEnabled(False)
+        self._mainwindow.sampleXSliderSpinBox.setEnabled(False)
+        self._mainwindow.sampleYSlider.setEnabled(False)
+        self._mainwindow.sampleYSliderSpinBox.setEnabled(False)
+        self._mainwindow.tipXSlider.setEnabled(False)
+        self._mainwindow.tipXSliderSpinBox.setEnabled(False)
+        self._mainwindow.tipYSlider.setEnabled(False)
+        self._mainwindow.tipYSliderSpinBox.setEnabled(False)
+        # FIXME: end of FIXME
 
         self.pxbypx_odmr = self._mainwindow.pxbypxodmr_plotting.isChecked()
 
@@ -710,59 +796,6 @@ class SnvmGui(GUIBase):
 
         # write the configuration to the settings window of the GUI.
         self.keep_former_optimizer_settings()
-
-    def initOptimizer(self):
-        self._optim_dialog = OptimizerSettingDialog()
-        # Connect the action of the settings window with the code:
-        self._optim_dialog.accepted.connect(self.update_optimizer_settings)
-        self._optim_dialog.rejected.connect(self.keep_former_optimizer_settings)
-        self._optim_dialog.buttonBox.button(
-            QtWidgets.QDialogButtonBox.Apply
-        ).clicked.connect(self.update_optimizer_settings)
-
-        # Set up and connect xy channel combobox
-        stacks = self._scanning_logic.get_stack_names()
-        for n, stack in enumerate(stacks):
-            self._optim_dialog.optimScanner_ComboBox.addItem(stack, n)
-
-        # write the configuration to the settings window of the GUI.
-        self.keep_former_optimizer_settings()
-
-    def initSnvmSettings(self):
-        self._snvm_dialog = SnvmSettingDialog()
-        # Connect the action of the settings window with the code:
-        self._snvm_dialog.accepted.connect(self.update_snvm_settings)
-        self._snvm_dialog.rejected.connect(self.keep_former_snvm_settings)
-        self._snvm_dialog.buttonBox.button(
-            QtWidgets.QDialogButtonBox.Apply
-        ).clicked.connect(self.update_optimizer_settings)
-
-        # write the configuration to the settings window of the GUI.
-        self.keep_former_snvm_settings()
-
-    def initPodmrSettings(self):
-        self._podmr_dialog = PulsedODMRSettingDialog()
-        # Connect the action of the settings window with the code:
-        self._podmr_dialog.accepted.connect(self.update_podmr_settings)
-        self._podmr_dialog.rejected.connect(self.keep_former_podmr_settings)
-
-        # write the configuration to the settings window of the GUI.
-        self.keep_former_podmr_settings()
-
-    def on_deactivate(self):
-        """Reverse steps of activation
-
-        @return int: error code (0:OK, -1:error)
-        """
-        self._mainwindow.close()
-        return 0
-
-    def show(self):
-        """Make main window visible and put it above all other windows."""
-        # Show the Main Confocal GUI:
-        self._mainwindow.show()
-        self._mainwindow.activateWindow()
-        self._mainwindow.raise_()
 
     def prepare_snvm_scan(self):
         # Get the scanning settings from the GUI, and set them in the logic
@@ -886,37 +919,44 @@ class SnvmGui(GUIBase):
         self._scanning_logic.start_confocal_scanning()
 
     def snvm_confocal_finished(self, was_snvm):
-        self.enable_opti_interactions()
+        self._mainwindow.actionOptimize.setEnabled(True)
 
         if was_snvm:
-            self.enable_snvm_interactions()
+            self.snvm_interactions_enabled()
         else:
-            self.enable_conf_interactions()
+            self.conf_interactions_enabled()
 
-    def disable_snvm_interactions(self):
-        self._mainwindow.actionStart_snvm_scan.setEnabled(False)
-        self._mainwindow.actionResume_snvm_scan.setEnabled(False)
-        self._mainwindow.action_snvm_goToPoint.setEnabled(False)
+    def snvm_interactions_enabled(self, enabled=True):
+        self._mainwindow.actionStart_snvm_scan.setEnabled(enabled)
+        self._mainwindow.actionResume_snvm_scan.setEnabled(enabled)
+        self._mainwindow.action_snvm_goToPoint.setEnabled(enabled)
         for setting in self._afm_widgets.values():
-            setting.setEnabled(False)
+            setting.setEnabled(enabled)
         for setting in self._odmr_widgets.values():
-            setting.setEnabled(False)
-        self._mainwindow.actionStop_scan.setEnabled(True)
+            setting.setEnabled(enabled)
+        self._mainwindow.actionStop_scan.setEnabled(not enabled)
 
-        self._mainwindow.podmr_selected.setEnabled(False)
-        self.podmr_interactions_enabled(False)
+        if enabled:
+            podmr_active = self._mainwindow.podmr_selected.checkState()
+            self.podmr_interactions_enabled(podmr_active)
+        else:
+            self._mainwindow.podmr_selected.setEnabled(False)
 
-    def disable_conf_interactions(self):
-        self._mainwindow.actionStart_conf_scan.setEnabled(False)
-        self._mainwindow.actionResume_conf_scan.setEnabled(False)
-        self._mainwindow.action_cfc_goToPoint.setEnabled(False)
+    def conf_interactions_enabled(self, enabled=True):
+        self._mainwindow.actionStart_conf_scan.setEnabled(enabled)
+        self._mainwindow.actionResume_conf_scan.setEnabled(enabled)
+        self._mainwindow.action_cfc_goToPoint.setEnabled(enabled)
         for setting in self._conf_widgets.values():
-            setting.setEnabled(False)
-        self._mainwindow.actionStop_scan.setEnabled(True)
+            setting.setEnabled(enabled)
+        self._mainwindow.actionStop_scan.setEnabled(not enabled)
 
-    def disable_interactions(self):
-        self._mainwindow.actionOptimize.setEnabled(False)
-        self._mainwindow.actionStop_scan.setEnabled(True)
+    def opti_interactions_enabled(self, enabled=True):
+        tabval = self._mainwindow.scanningSettingsTab.currentIndex()
+        if tabval == 0:
+            self.snvm_interactions_enabled(enabled=enabled)
+        else:
+            self.conf_interactions_enabled(enabled=enabled)
+        self._mainwindow.actionOptimize.setEnabled(enabled)
 
     def podmr_interactions_enabled(self, enabled):
         self._mainwindow.podmr_pipulse.setEnabled(enabled)
@@ -925,34 +965,6 @@ class SnvmGui(GUIBase):
     def update_podmr_active(self, value):
         self._scanning_logic.podmr_active = value
         self.podmr_interactions_enabled(value)
-
-    def enable_snvm_interactions(self):
-        self._mainwindow.actionStart_snvm_scan.setEnabled(True)
-        self._mainwindow.actionResume_snvm_scan.setEnabled(True)
-        self._mainwindow.action_snvm_goToPoint.setEnabled(True)
-        for setting in self._afm_widgets.values():
-            setting.setEnabled(True)
-        for setting in self._odmr_widgets.values():
-            setting.setEnabled(True)
-        self._mainwindow.actionStop_scan.setEnabled(False)
-
-        self._mainwindow.podmr_selected.setEnabled(True)
-        self.podmr_interactions_enabled(self._mainwindow.podmr_selected.checkState())
-
-    def enable_conf_interactions(self):
-        self._mainwindow.actionStart_conf_scan.setEnabled(True)
-        self._mainwindow.actionResume_conf_scan.setEnabled(True)
-        self._mainwindow.action_cfc_goToPoint.setEnabled(True)
-        for setting in self._conf_widgets.values():
-            setting.setEnabled(True)
-        self._mainwindow.actionStop_scan.setEnabled(False)
-
-    def enable_opti_interactions(self):
-        self._mainwindow.actionOptimize.setEnabled(True)
-
-    def enable_interactions(self):
-        self._mainwindow.actionOptimize.setEnabled(True)
-        self._mainwindow.actionStop_scan.setEnabled(False)
 
     def accept_frequency_ranges(self):
         """
@@ -990,12 +1002,13 @@ class SnvmGui(GUIBase):
         self._mainwindow.odmrPlotWidget.setXRange(startfreq, stopfreq)
 
     def stop_scanning_request(self):
+        self._mainwindow.actionStop_scan.setEnabled(False)
         self._scanning_logic.stopRequested = True
         self._optimizer_logic.stop_refocus()
 
     def scanning_action_clicked(self):
         sendername = self.sender().objectName()
-        self.disable_interactions()
+        self.opti_interactions_enabled(enabled=False)
         if sendername == "actionOptimize":
             self.sigStartOptimizer.emit()
         elif sendername == "action_snvm_goToPoint":
@@ -1005,14 +1018,14 @@ class SnvmGui(GUIBase):
             self._mainwindow.actionStop_scan.setEnabled(False)
             self.sigGoTo.emit("cfc")
         elif sendername == "actionStart_conf_scan":
-            self.disable_conf_interactions()
+            self.conf_interactions_enabled(enabled=False)
             self.sigStartScanningConf.emit()
         elif sendername == "actionStart_snvm_scan":
-            self.disable_snvm_interactions()
+            self.snvm_interactions_enabled(enabled=False)
             self.sigStartScanningSnvm.emit()
 
     def optimize_counts(self):
-        self.disable_interactions()
+        self.opti_interactions_enabled(enabled=False)
 
         crosshair_pos = self._mainwindow.confocalScannerView.get_crosshair_pos()
         crosshair_pos = [pos * self.xy_range_multiplier for pos in crosshair_pos]
@@ -1027,7 +1040,7 @@ class SnvmGui(GUIBase):
             self._scanning_logic.go_to_point(
                 coords, stack=self._optimizer_logic.optimizer_stack
             )
-            self.enable_interactions()
+            self.opti_interactions_enabled()
 
     def refresh_snvm_image(self):
         if self._mainwindow.viewtracesample:
@@ -1068,8 +1081,7 @@ class SnvmGui(GUIBase):
     def refresh_optimizer_image(self):
         curr_image = self._optimizer_logic.xy_refocus_image[:, :, 2]
 
-        opt_image = curr_image * self.cbar_count_multiplier
-
+        opt_image = curr_image
         self.update_image_levels(opt_image, self.optimizer_image, self.opt_cb)
 
     def refresh_odmr_plot_pxbypx(self, odmr_rep_index=None):
@@ -1091,6 +1103,18 @@ class SnvmGui(GUIBase):
             self._scanning_logic.freq_axis / self.startstopFreq_multiplier,
             self._scanning_logic.last_odmr_trace,
         )
+
+    def refresh_colorbar(self, cbar, cbar_range):
+        cbar.refresh_colorbar(*cbar_range)
+
+    def get_cb_range(self, image):
+        imrange = [0, 1]
+        image_nonzero = image[image != 0]
+        if len(image_nonzero) > 0:
+            imrange = [image_nonzero.min(), image_nonzero.max()]
+        if imrange[0] == imrange[1]:
+            imrange[1] = imrange[0] * 1.01
+        return imrange
 
     def update_image_levels(self, image, imageitem, cbar):
         minimage, maximage = self.get_cb_range(image)
@@ -1205,28 +1229,6 @@ class SnvmGui(GUIBase):
             self._optim_dialog.everyNPixelsDoubleSpinBox.value()
         )
 
-    def keep_former_optimizer_settings(self):
-        self._optim_dialog.xy_optimizer_range_DoubleSpinBox.setValue(
-            self._optimizer_logic.refocus_XY_size * 1e6
-        )
-        self._optim_dialog.xy_optimizer_resolution_SpinBox.setValue(
-            self._optimizer_logic.optimizer_XY_res
-        )
-        self._optim_dialog.intTime_SpinBox.setValue(
-            self._optimizer_logic.integration_time
-        )
-
-        opt_stack = self._optimizer_logic.optimizer_stack
-        index = self._optim_dialog.optimScanner_ComboBox.findText(opt_stack)
-        self._optim_dialog.optimScanner_ComboBox.setCurrentIndex(index)
-
-        self._optim_dialog.optimizeDuringScanCheckBox.setChecked(
-            self._scanning_logic.optimize_while_scanning
-        )
-        self._optim_dialog.everyNPixelsDoubleSpinBox.setValue(
-            self._scanning_logic.every_N_pixels
-        )
-
     def update_snvm_settings(self):
         self._scanning_logic.set_motion_speed(
             self._snvm_dialog.slowSpeedConfSpinBox.value(), stack="tip"
@@ -1263,31 +1265,6 @@ class SnvmGui(GUIBase):
         )
         self._scanning_logic.podmr_clkrate = self._podmr_dialog.podmr_clkrate.value()
 
-    def keep_former_podmr_settings(self):
-        self._podmr_dialog.podmr_start_delay.setValue(
-            self._scanning_logic.podmr_start_delay
-        )
-        self._podmr_dialog.podmr_laser_init.setValue(
-            self._scanning_logic.podmr_laser_init
-        )
-        self._podmr_dialog.podmr_laser_read.setValue(
-            self._scanning_logic.podmr_laser_read
-        )
-        self._podmr_dialog.podmr_init_delay.setValue(
-            self._scanning_logic.podmr_init_delay
-        )
-        self._podmr_dialog.podmr_read_delay.setValue(
-            self._scanning_logic.podmr_read_delay
-        )
-        self._podmr_dialog.podmr_apd_delay.setValue(
-            self._scanning_logic.podmr_apd_delay
-        )
-        self._podmr_dialog.podmr_apd_read.setValue(self._scanning_logic.podmr_apd_read)
-        self._podmr_dialog.podmr_final_delay.setValue(
-            self._scanning_logic.podmr_final_delay
-        )
-        self._podmr_dialog.podmr_clkrate.setValue(self._scanning_logic.podmr_clkrate)
-
     def update_scanning_range_snvm(self, rect):
         x, y, width, height = rect.getRect()
         x_end = x + width
@@ -1316,17 +1293,52 @@ class SnvmGui(GUIBase):
         self._afm_widgets["xMaxRangeConf"].setValue(x_end)
         self._afm_widgets["yMaxRangeConf"].setValue(y_end)
 
-    def get_cb_range(self, image):
-        imrange = [0, 1]
-        image_nonzero = image[image != 0]
-        if len(image_nonzero) > 0:
-            imrange = [image_nonzero.min(), image_nonzero.max()]
-        if imrange[0] == imrange[1]:
-            imrange[1] = imrange[0] * 1.01
-        return imrange
+    def keep_former_optimizer_settings(self):
+        self._optim_dialog.xy_optimizer_range_DoubleSpinBox.setValue(
+            self._optimizer_logic.refocus_XY_size * 1e6
+        )
+        self._optim_dialog.xy_optimizer_resolution_SpinBox.setValue(
+            self._optimizer_logic.optimizer_XY_res
+        )
+        self._optim_dialog.intTime_SpinBox.setValue(
+            self._optimizer_logic.integration_time
+        )
 
-    def refresh_colorbar(self, cbar, cbar_range):
-        cbar.refresh_colorbar(*cbar_range)
+        opt_stack = self._optimizer_logic.optimizer_stack
+        index = self._optim_dialog.optimScanner_ComboBox.findText(opt_stack)
+        self._optim_dialog.optimScanner_ComboBox.setCurrentIndex(index)
+
+        self._optim_dialog.optimizeDuringScanCheckBox.setChecked(
+            self._scanning_logic.optimize_while_scanning
+        )
+        self._optim_dialog.everyNPixelsDoubleSpinBox.setValue(
+            self._scanning_logic.every_N_pixels
+        )
+
+    def keep_former_podmr_settings(self):
+        self._podmr_dialog.podmr_start_delay.setValue(
+            self._scanning_logic.podmr_start_delay
+        )
+        self._podmr_dialog.podmr_laser_init.setValue(
+            self._scanning_logic.podmr_laser_init
+        )
+        self._podmr_dialog.podmr_laser_read.setValue(
+            self._scanning_logic.podmr_laser_read
+        )
+        self._podmr_dialog.podmr_init_delay.setValue(
+            self._scanning_logic.podmr_init_delay
+        )
+        self._podmr_dialog.podmr_read_delay.setValue(
+            self._scanning_logic.podmr_read_delay
+        )
+        self._podmr_dialog.podmr_apd_delay.setValue(
+            self._scanning_logic.podmr_apd_delay
+        )
+        self._podmr_dialog.podmr_apd_read.setValue(self._scanning_logic.podmr_apd_read)
+        self._podmr_dialog.podmr_final_delay.setValue(
+            self._scanning_logic.podmr_final_delay
+        )
+        self._podmr_dialog.podmr_clkrate.setValue(self._scanning_logic.podmr_clkrate)
 
     def keep_former_snvm_settings(self):
         self._snvm_dialog.slowSpeedConfSpinBox.setValue(
@@ -1394,8 +1406,8 @@ class SnvmGui(GUIBase):
             range = self.sample_ranges
             sliders = self._sample_spinboxedsliders
 
-        xslider, xspinbox = sliders['x']
-        yslider, yspinbox = sliders['y']
+        xslider, xspinbox = sliders["x"]
+        yslider, yspinbox = sliders["y"]
 
         x_coeff = range[0][1] - range[0][0]
         y_coeff = range[1][1] - range[1][0]
@@ -1420,11 +1432,11 @@ class SnvmGui(GUIBase):
     def scanning_tab_pressed(self, tab_index):
         if not self._mainwindow.actionStop_scan.isEnabled():
             if tab_index == 0:
-                self.disable_conf_interactions()
-                self.enable_snvm_interactions()
+                self.conf_interactions_enabled(enabled=False)
+                self.snvm_interactions_enabled()
             if tab_index == 1:
-                self.disable_snvm_interactions()
-                self.enable_conf_interactions()
+                self.snvm_interactions_enabled(enabled=False)
+                self.conf_interactions_enabled()
 
     def scanning_ranges_edited(self):
         sender = self.sender()
@@ -1466,7 +1478,7 @@ class SnvmGui(GUIBase):
 
     def go_to_finished(self, callertag):
         if callertag == "gui":
-            self.enable_interactions()
+            self.opti_interactions_enabled()
             self._mainwindow.actionStop_scan.setEnabled(True)
         else:
             pass
