@@ -40,6 +40,8 @@ class ODMRPxLogic(GenericLogic):
     fitlogic = Connector(interface='FitLogic')
     mw_source = Connector(interface='MicrowaveInterface')
     savelogic = Connector(interface='HDF5SaveLogic')
+    pulser = Connector(interface="PulserInterface")
+    master_pulselogic = Connector(interface="MasterPulse")
 
     # config option
     mw_scanmode = ConfigOption(
@@ -60,6 +62,20 @@ class ODMRPxLogic(GenericLogic):
     mw_stops = [2920e6]
     mw_steps = [1e6]
     averages = StatusVar('averages', 5)  # Averages
+
+    # Pulsed ODMR settings
+    podmr_active = StatusVar("podmr_active", False)
+    podmr_start_delay = StatusVar("podmr_start_delay", 0)
+    podmr_laser_init = StatusVar("podmr_laser_init", 1500e-9)
+    podmr_laser_read = StatusVar("podmr_laser_read", 500e-9)
+    podmr_init_delay = StatusVar("podmr_init_delay", 350e-9)
+    podmr_read_delay = StatusVar("podmr_read_delay", 350e-9)
+    podmr_apd_delay = StatusVar("podmr_apd_delay", 0)
+    podmr_apd_read = StatusVar("podmr_apd_read", 500e-9)
+    podmr_final_delay = StatusVar("podmr_final_delay", 0)
+    podmr_clkrate = StatusVar("podmr_clkrate", 1250e6)
+    podmr_pipulse = StatusVar("pdomr_pipulse", 500e-9)
+
     fc = StatusVar('fits', None)
     integration_time = StatusVar('integration_time', 30e-3)  # In ms
     _oversampling = StatusVar('oversampling', default=10)
@@ -81,6 +97,8 @@ class ODMRPxLogic(GenericLogic):
     def on_activate(self):
         self._mw_source = self.mw_source()
         self._photon_counter = self.photon_counter()
+        self._master_pulselogic = self.master_pulselogic()
+        self._pulser = self.pulser()
         self._savelogic = self.savelogic()
         self._fitlogic = self.fitlogic()
 
@@ -158,8 +176,8 @@ class ODMRPxLogic(GenericLogic):
         self._photon_samples = self._pxtime_to_samples()
 
         self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
-        self._mw_source.set_mod(False)
         self._mw_source.module_state.lock()
+        self._mw_source.set_IQmod(self.podmr_active)
         try:
             pass
             # FIXME: look into how to operate the srs in list mode
@@ -168,12 +186,113 @@ class ODMRPxLogic(GenericLogic):
             self.log.error("Failed loading the frequency axis into the ODMR scanner. Aborted execution.")
             #self._odmrscanner.module_state.unlock()
 
+    def load_pulse_sequence(self):
+        # Convert all the natural units in ns and GHz
+        clkrate = round(self.podmr_clkrate * 1e-9)
+
+        start_delay = self.podmr_start_delay * 1e9
+        laser_init = self.podmr_laser_init * 1e9
+        laser_read = self.podmr_laser_read * 1e9
+        init_delay = self.podmr_init_delay * 1e9
+        read_delay = self.podmr_read_delay * 1e9
+        apd_delay = self.podmr_apd_delay * 1e9
+        apd_read = self.podmr_apd_read * 1e9
+        final_delay = self.podmr_final_delay * 1e9
+
+        pipulse = self.podmr_pipulse * 1e9
+        init_center = start_delay + laser_init / 2
+        mw_center = init_center + laser_init / 2 + init_delay + pipulse / 2
+        read_center = mw_center + pipulse / 2 + read_delay + laser_read / 2
+        apd_center = mw_center + pipulse / 2 + read_delay + apd_delay + apd_read / 2
+
+        tot_time = (
+            start_delay
+            + laser_init
+            + init_delay
+            + pipulse
+            + read_delay
+            + max(laser_read + final_delay, apd_delay + apd_read)
+        )
+
+        tot_samples = self._pulser.waveform_padding(tot_time * clkrate)
+        timeax = np.linspace(0, tot_samples / clkrate, tot_samples)
+        blank_signal = np.zeros_like(timeax)
+        high_signal = blank_signal + 1
+
+        mw_waveform = self._pulser.box_envelope(
+            timeax, np.array([[mw_center, pipulse]])
+        )
+        laser_waveform = self._pulser.box_envelope(
+            timeax, np.array([[init_center, laser_init], [read_center, laser_read]])
+        )
+        apd_waveform = self._pulser.box_envelope(
+            timeax, np.array([[apd_center, apd_read]])
+        )
+
+        card_idx = 1
+        self._pulser.stop_all()
+        self._pulser.set_sample_rate(card_idx, int(self.podmr_clkrate))
+
+        steps = 2
+        do_map = {1: [0, 1, 2]}
+        for step in range(steps):
+            if step == 0:
+                self._pulser.load_waveform(
+                    iq_dictionary={"i_chan": mw_waveform, "q_chan": blank_signal},
+                    digital_pulses={
+                        "laser": laser_waveform,
+                        "apd_sig": apd_waveform,
+                        "apd_read": blank_signal,
+                    },
+                    digital_output_map=do_map,
+                )
+            else:
+                # This waveform is going to be used when the optimizer is called
+                self._pulser.load_waveform(
+                    iq_dictionary={"i_chan": blank_signal, "q_chan": blank_signal},
+                    digital_pulses={
+                        "laser": high_signal,
+                        "apd_sig": high_signal,
+                        "apd_read": blank_signal,
+                    },
+                    digital_output_map=do_map,
+                )
+
+        self._pulser.configure_ORmask(card_idx, None)
+        self._pulser.configure_ANDmask(card_idx, None)
+
+        loops = np.ones(steps, dtype=np.int64)
+
+        stop_condition_list = np.array(
+            [
+                0x40000000,
+            ]
+            * steps,
+            dtype=np.int64,
+        )
+
+        self._pulser.load_sequence(
+            loops_list=loops,
+            stop_condition_list=stop_condition_list,
+        )
+
+        self._pulser.start_card(card_idx)
+        self._pulser.arm_trigger(card_idx)
+
+        self._pulser.send_software_trig(card_idx)
+
 
     def start_odmr(self):
         self.module_state.lock()
 
         self._prepare_count_matrix()
         self._prepare_devices()
+
+        if self.podmr_active:
+            self.load_pulse_sequence()
+        else:
+            # With this line, make sure that the AWG is playing in CW mode if normal ODMR is requested.
+            self._master_pulselogic.cw()
 
         self._mw_source.set_frequency(self.freq_axis[self._freq_scanning_index])
         self._mw_source.set_power(self.sweep_mw_power)
@@ -193,6 +312,26 @@ class ODMRPxLogic(GenericLogic):
 
         self.sigFreqPxAcquired.emit()
 
+    def stop_odmr(self):
+        if self.stopRequested:
+            with self.threadlock:
+                self._mw_source.off()
+                if self.podmr_active:
+                    self._master_pulselogic.cw()
+                    self._mw_source.set_IQmod(self.podmr_active)
+                self._photon_counter.close_counters()
+                try:
+                    self._photon_counter.module_state.unlock()
+                except Exception as e:
+                    self.log.exception('Could not unlock counter device.')
+                try:
+                    self._mw_source.module_state.unlock()
+                except Exception as e:
+                    self.log.exception('Could not unlock mw source.')
+                self.module_state.unlock()
+            self.stopRequested = False
+            self.sigOdmrFinished.emit()
+
     def _next_freq_pixel(self):
         self._freq_scanning_index += 1
         if self._freq_scanning_index == self._freq_axis_length:
@@ -206,23 +345,6 @@ class ODMRPxLogic(GenericLogic):
             self.sigStopOdmr.emit()
         else:
             self.sigContinueOdmr.emit()
-
-    def stop_odmr(self):
-        if self.stopRequested:
-            with self.threadlock:
-                self._mw_source.off()
-                self._photon_counter.close_counters()
-                try:
-                    self._photon_counter.module_state.unlock()
-                except Exception as e:
-                    self.log.exception('Could not unlock counter device.')
-                try:
-                    self._mw_source.module_state.unlock()
-                except Exception as e:
-                    self.log.exception('Could not unlock mw source.')
-                self.module_state.unlock()
-            self.stopRequested = False
-            self.sigOdmrFinished.emit()
 
     def save_data(self):
         odmr = {
