@@ -116,12 +116,17 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         """
         Sets the frequency of the mw source. The actual value is set to be freq - if modulation frequency.
         @param float freq: The desired output frequency.
-        @param bool bypass_if: If True, the set frequency is not shifted by the IF modulation frequency.
         @return:
         """
 
         lo_frequency = freq - self._if_freq * 1e6
         self._mwsource.set_frequency(lo_frequency)
+
+    def set_frequency_iqbypass(self, freq=0):
+        """
+        Sets the frequency without taking into account the IF frequency modulation used for IQ.
+        """
+        self._mwsource.set_frequency(freq)
 
     def load_waveform(
         self, iq_dictionary=dict(), digital_pulses=dict(), digital_output_map=dict()
@@ -225,7 +230,6 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
             )
 
             pulse_sequence = envelope_function(timeaxis, t_centrewidth)
-
             Icomp = pulse_sequence * Imodulation
             Qcomp = pulse_sequence * Qmodulation
 
@@ -435,15 +439,14 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         """
         self.stop_all()
         useconds = 50
-        clk_rate = 800
-        self._if_freq /= 1e6 # in MHz
+        clk_rate = 1250
 
         card_idx = 1
         self.set_sample_rate(card_idx, int(clk_rate * 1e6))
 
         samples = self.waveform_padding((useconds * clk_rate))
         time_ax = np.linspace(0, samples / clk_rate, samples)
-        mw_times = [np.array([[25, 10]]), np.array([[25, 10]])]
+        mw_times = [np.array([[2.4, 0.1]]), np.array([[2.4, .1]])]
 
         for step in range(len(mw_times)):
             iwaveform, qwaveform = self.iq_pulses_test(time_ax, [mw_times[step]], 2.85e9, Iamp_val, Qamp_val,
@@ -473,7 +476,6 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
 
         self.start_card(card_idx)
         self.arm_trigger(card_idx)
-        self._if_freq *= 1e6
         self.send_software_trig(1)
 
     def stop_all(self):
@@ -502,6 +504,7 @@ class IQPulserInterfuse(GenericLogic, MicrowaveInterface, PulserInterface):
         @param str pulsenvelope:
         @return tuple: the I and Q waveforms.
         """
+
         envelope_function = self._envelope_dictionary[pulsenvelope]
         # print(t_centrewidth_list)
         if phases is None:
