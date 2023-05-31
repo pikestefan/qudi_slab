@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1239</width>
-    <height>540</height>
+    <height>643</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -502,7 +502,7 @@
   <customwidget>
    <class>ScienDSpinBox</class>
    <extends>QDoubleSpinBox</extends>
-   <header>qtwidgets.scientific_spinbox.h</header>
+   <header location="global">qtwidgets.scientific_spinbox.h</header>
   </customwidget>
   <customwidget>
    <class>FitSettingsComboBox</class>

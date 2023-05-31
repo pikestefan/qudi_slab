@@ -278,9 +278,10 @@ class SaturationGui(GUIBase):
         # Send saturation settings to the logic
         self.sigStartSaturationMeasurement.emit(plot_index, start, stop, steps, integration_time)
 
+
     @QtCore.Slot(int, np.ndarray, np.ndarray)
-    def receive_saturation_data(self, plot_index, photo_diode_volatge, counts):
-        self.update_data(plot_index, [photo_diode_volatge], [counts], True)
+    def receive_saturation_data(self, plot_index, photo_diode_voltage, counts):
+        self.update_data(plot_index, [photo_diode_voltage], [counts], True)
         self._plot_logic.update_auto_range(plot_index, True, True)
 
     @QtCore.Slot(int)
@@ -600,11 +601,13 @@ class SaturationGui(GUIBase):
         """ Handling the save button to save the data into a file. """
         self._flush_pg_proxy(plot_index)
         self._plot_logic.save_data(plot_index=plot_index)
+        self._saturation_logic.save_data()
 
     def save_all_clicked(self):
         """ Handling the save button to save the data into a file. """
         for plot_index, _ in enumerate(self._plot_dockwidgets):
             self.save_clicked(plot_index)
+        self._saturation_logic.save_data()
 
     def remove_clicked(self, plot_index):
         self._flush_pg_proxy(plot_index)
