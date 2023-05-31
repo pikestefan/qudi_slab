@@ -95,6 +95,8 @@ class MasterPulse(GenericLogic):
     mw_min_len_rabi = StatusVar("mw_min_len_rabi", 0e-6)
     mw_stop_distance_rabi = StatusVar("mw_stop_distance_rabi", 900e-9)
     mw_steps_rabi = StatusVar("mw_steps_rabi", 500e-9)
+    no_iq_mod = StatusVar("no_iq_mod", False)
+
 
     # ramsey tab
     mw_start_distance_ramsey = StatusVar("mw_start_distance_ramsey", 1.3e-6)
@@ -298,7 +300,8 @@ class MasterPulse(GenericLogic):
             self._pulselogic.play_ttl()
         else:
             self._pulselogic.play_ttl(
-                seq_len=2, laser_out=False, apd_sig_out=False, apd_ref_out=False
+                #seq_len=2,
+                laser_out=False, apd_sig_out=False, apd_ref_out=False
             )
 
     def stop_awg(self):  # Makes everything stop
@@ -408,9 +411,10 @@ class MasterPulse(GenericLogic):
             trigger=self.trigger_setting,
             seq_map_req=self.seq_map_req,
             phase_shift=self.phase_shift,
+            no_iq_mod=self.no_iq_mod,
         )
 
-        self._sequence_map = self._pulselogic.get_seq_map()
+        self.seq_map = self._pulselogic.get_seq_map()
 
         return method, laser_times, apd_times, apd_ref, mw_times
 
@@ -536,6 +540,7 @@ class MasterPulse(GenericLogic):
         self.awg()
         self.sigSeqPlaying.emit(True)
         self.sigContinueLoop.emit()
+        # print(self.seq_map)
 
     # TODO: original continue_loop in here!
     #  ###################
@@ -610,12 +615,10 @@ class MasterPulse(GenericLogic):
         self.trigger()  # sends a software trigger to the AWG
         if not self.stopRequested:
             counts, ref_counts = self.acquire_pixel()
-
-            if self._sequence_map:
-                step = self._sequence_map[self.step_index]
-            else:
+            if len(self.seq_map) == 0:
                 step = self.step_index
-
+            else:
+                step = self.seq_map[self.step_index]
             self.count_matrix[self.av_index, step] = counts
             self.count_matrix_ref[self.av_index, step] = ref_counts
 
@@ -842,6 +845,7 @@ class MasterPulse(GenericLogic):
             self._laser.set_voltage(0.95)
         else:
             self._laser.set_voltage(self.laser_power)
+
 
     def do_fit(self, fit_function=None):
         """
@@ -1133,34 +1137,38 @@ class MasterPulse(GenericLogic):
         """
         if self.method == "rabi":
             self.step_count = self._pulselogic.get_step_count(self.mw_times_rabi)
+            self.seq_map = self._pulselogic.build_seq_map(self.step_count)  # , self.seq_map_req)
         elif self.method == "ramsey":
             self.step_count = self._pulselogic.get_step_count(self.mw_times_ramsey)
+            self.seq_map = self._pulselogic.build_seq_map(self.step_count)  # , self.seq_map_req)
         else:
             self.step_count = self._pulselogic.get_step_count(self.apd_times_sweep)
-        self.seq_map = self._pulselogic.build_seq_map(self.step_count, self.seq_map_req)
+            self.log.warning("Sequence map for something else than rabi and ramsey is not implemented.")
+            self.seq_map = self._pulselogic.build_seq_map(self.step_count)
 
         return self.step_count, self.seq_map
 
-    def recalc_from_seq_map(self, array):
-        """
-        array = the data array in the order of the seq_map
-        seq_map = gives the oder of the data points
-        # what happens if seq_map = []
-
-        """
-        step_count, seq_map = self.get_seq_map()
-        array_new = np.zeros(len(seq_map))
-        for n in range(step_count):
-            array_new[seq_map[n]] = array[n]
-        # print('seq_map', seq_map)
-        # print('array', array)
-        # print('array_new', array_new)
-        return array_new
+    # def recalc_from_seq_map(self, array):
+    #     """
+    #     array = the data array in the order of the seq_map
+    #     seq_map = gives the oder of the data points
+    #     # what happens if seq_map = []
+    #
+    #     """
+    #     step_count, seq_map = self.get_seq_map()
+    #     array_new = np.zeros(len(seq_map))
+    #     for n in range(step_count):
+    #         array_new[seq_map[n]] = array[n]
+    #     # print('seq_map', seq_map)
+    #     # print('array', array)
+    #     # print('array_new', array_new)
+    #     return array_new
 
     def calc_seq_len(self):
-        self.seq_len = self.laser_in + self.laser_off + self.laser_re
         if self.method == "delaysweep" or self.method == "delaysweep_ref":
-            self.seq_len = self.laser_in + self.laser_off + self.laser_re + 1
+            self.seq_len = self.laser_in + self.laser_off + self.laser_re + 2e-6
+        else:
+            self.seq_len = self.laser_in + self.laser_off + self.laser_re
         return self.seq_len
 
     # def recalc_seq_map_test(self, array, seq_map, step_count):
@@ -1177,14 +1185,14 @@ class MasterPulse(GenericLogic):
     #     # print('array', array)
     #     #     print('array_new', array_new)
     #     return array_new
-    def recalc_matrix(self, count_matrix):
-        ## It is improtant that the sequence map starts with 0!
-        rows = np.size(count_matrix, 0)
-        count_maxtrix_new = []
-        seq_map = [0, 4, 1, 3, 2]
-        step_count = len(seq_map)
-        print(rows)
-        for n in range(rows):
-            nrow = self.recalc_from_seq_map(count_matrix[n])
-            count_maxtrix_new.append(nrow)
-        return count_maxtrix_new
+    # def recalc_matrix(self, count_matrix):
+    #     ## It is improtant that the sequence map starts with 0!
+    #     rows = np.size(count_matrix, 0)
+    #     count_maxtrix_new = []
+    #     seq_map = [0, 4, 1, 3, 2]
+    #     step_count = len(seq_map)
+    #     print(rows)
+    #     for n in range(rows):
+    #         nrow = self.recalc_from_seq_map(count_matrix[n])
+    #         count_maxtrix_new.append(nrow)
+    #     return count_maxtrix_new

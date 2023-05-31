@@ -40,7 +40,7 @@ class PulsedMainWindow(QtWidgets.QMainWindow):
     def __init__(self):
         # Get the path to the *.ui file
         this_dir = os.path.dirname(__file__)
-        ui_file = os.path.join(this_dir, 'pulsed_testtest2.ui') #takes the qt designer file for layout
+        ui_file = os.path.join(this_dir, 'pulsed.ui') #takes the qt designer file for layout
 
         # Load it
         super(PulsedMainWindow, self).__init__()
@@ -77,8 +77,8 @@ class PulsedGui(GUIBase):
 
         # Adjust range of scientific spinboxes above what is possible in Qt Designer
         # This makes sense for the microwave at least?
-        self._mw.mw_power.setMaximum(-5)
-        self._mw.mw_power.setMinimum(-50)
+        self._mw.mw_power.setMaximum(16)
+        self._mw.mw_power.setMinimum(-100)
         self._mw.mw_freq.setMaximum(6000e6)
         self._mw.laser_power_2.setMaximum(1)
         self._mw.laser_power_2.setMinimum(0)
@@ -139,6 +139,7 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.sigFitUpdated.connect(self.update_fit, QtCore.Qt.QueuedConnection)
         self._master_pulselogic._pulser._awg.sigStepLoaded.connect(self.update_progressbar, QtCore.Qt.QueuedConnection)
         self._master_pulselogic.sigSeqPlaying.connect(self.update_seqplay_led, QtCore.Qt.QueuedConnection)
+
 
     def _setup_plots(self):
         # Set up the plots
@@ -220,6 +221,7 @@ class PulsedGui(GUIBase):
         self._mw.mw_start_time_delay.setEnabled(val)
         self._mw.mw_len_delay.setEnabled(val)
         self._mw.seq_map_req.setEnabled(val)
+        self._mw.no_iq_mod_checkBox.setEnabled(val)
         self._mw.checkBox_phase_shift_ramsey.setEnabled(val)
 
         self._mw.mw_stop_distance_rabi.setEnabled(val)
@@ -235,6 +237,7 @@ class PulsedGui(GUIBase):
         self._mw.mw_len_ramsey.setEnabled(val)
         # This is the save button
         self._mw.action_Save.setEnabled(val)
+        self._mw.action_cw_mode.setEnabled(val)
 
 
     def run_stop_measurement(self, is_checked):
@@ -296,7 +299,7 @@ class PulsedGui(GUIBase):
         mw_min_len_rabi = self._mw.mw_min_len_rabi.value() * 1e6
         mw_stop_distance_rabi = self._mw.mw_stop_distance_rabi.value() * 1e6
         mw_steps_rabi = self._mw.mw_steps_rabi.value() * 1e6
-
+        no_iq_mod = self._mw.no_iq_mod_checkBox.isChecked()
         # ramsey tab
         mw_start_distance_ramsey = self._mw.mw_start_distance_ramsey.value() * 1e6
         mw_min_len_ramsey = self._mw.mw_min_len_ramsey.value() * 1e6
@@ -341,6 +344,7 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.mw_min_len_rabi = mw_min_len_rabi
         self._master_pulselogic.mw_stop_distance_rabi = mw_stop_distance_rabi
         self._master_pulselogic.mw_steps_rabi = mw_steps_rabi
+        self._master_pulselogic.no_iq_mod = no_iq_mod
 
         # ramsey tab
         self._master_pulselogic.mw_start_distance_ramsey = mw_start_distance_ramsey
@@ -389,6 +393,7 @@ class PulsedGui(GUIBase):
         mw_min_len_rabi = self._master_pulselogic.mw_min_len_rabi
         mw_stop_distance_rabi = self._master_pulselogic.mw_stop_distance_rabi
         mw_steps_rabi = self._master_pulselogic.mw_steps_rabi
+        np_iq_mod = self._master_pulselogic.no_iq_mod
 
         # ramsey tab
         mw_start_distance_ramsey = self._master_pulselogic.mw_start_distance_ramsey
@@ -397,6 +402,7 @@ class PulsedGui(GUIBase):
         mw_steps_ramsey = self._master_pulselogic.mw_steps_ramsey
         mw_len_ramsey = self._master_pulselogic.mw_len_ramsey
         phase_shift_ramsey = self._master_pulselogic.phase_shift
+
         # Fill in the values into the GUI
         # Some values need to be converted from us -> s
 
@@ -434,6 +440,7 @@ class PulsedGui(GUIBase):
         self._mw.mw_min_len_rabi.setValue(mw_min_len_rabi * 1e-6)
         self._mw.mw_stop_distance_rabi.setValue(mw_stop_distance_rabi * 1e-6)
         self._mw.mw_steps_rabi.setValue(mw_steps_rabi * 1e-6)
+        self._mw.no_iq_mod_checkBox.setChecked(np_iq_mod)
 
         # ramsey tab
         self._mw.mw_start_distance_ramsey.setValue(mw_start_distance_ramsey * 1e-6)
