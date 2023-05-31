@@ -339,6 +339,7 @@ class ODMRGui(GUIBase):
         self._mw.sweep_power_DoubleSpinBox.setValue(self._odmr_logic.mw_power)
 
         self._mw.podmr_selected.setChecked(self._odmr_logic.podmr_active)
+        self._mw.podmr_pipulse.setValue(self._odmr_logic.podmr_pipulse)
         self.podmr_interactions_enabled(self._odmr_logic.podmr_active)
 
         self._setup_connections()
@@ -594,6 +595,7 @@ class ODMRGui(GUIBase):
         self.curr_odmr_trace.setData(
             self._odmr_logic.freq_axis, self._odmr_logic.curr_odmr_trace
         )
+
         # Draw average odmr trace
         if self._odmr_logic._average_index > 0:
             self.average_odmr_trace.setData(
@@ -1103,10 +1105,6 @@ class ODMRGui(GUIBase):
         self._mw.restoreGeometry(self.mwsettings.value("geometry", ""))
         self._mw.restoreState(self.mwsettings.value("windowState", ""))
 
-    def update_elapsedtime(self):
-        """Updates current completed frequency sweeps"""
-        self._mw.elapsed_sweeps_DisplayWidget.display(self._odmr_logic._average_index)
-
     def update_elapsed_sweeps(self):
         self._mw.elapsed_sweeps_DisplayWidget.display(self._odmr_logic._average_index)
 
@@ -1321,12 +1319,6 @@ class ODMRGui(GUIBase):
                     stop = object_dict[object_name].value()
 
         return start, stop, step
-
-    def change_runtime(self):
-        """Change time after which microwave sweep is stopped"""
-        runtime = self._mw.runtime_DoubleSpinBox.value()
-        self.sigRuntimeChanged.emit(runtime)
-        return
 
     def save_data(self):
         self._odmr_logic.save_data()

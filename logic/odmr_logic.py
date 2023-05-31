@@ -74,7 +74,7 @@ class ODMRPxLogic(GenericLogic):
     podmr_apd_read = StatusVar("podmr_apd_read", 500e-9)
     podmr_final_delay = StatusVar("podmr_final_delay", 0)
     podmr_clkrate = StatusVar("podmr_clkrate", 1250e6)
-    podmr_pipulse = StatusVar("pdomr_pipulse", 500e-9)
+    podmr_pipulse = StatusVar("podmr_pipulse", 500e-9)
 
     fc = StatusVar('fits', None)
     integration_time = StatusVar('integration_time', 30e-3)  # In ms
@@ -318,7 +318,7 @@ class ODMRPxLogic(GenericLogic):
                 self._mw_source.off()
                 if self.podmr_active:
                     self._master_pulselogic.cw()
-                    self._mw_source.set_IQmod(self.podmr_active)
+                    self._mw_source.set_IQmod(False)
                 self._photon_counter.close_counters()
                 try:
                     self._photon_counter.module_state.unlock()
@@ -456,6 +456,7 @@ class ODMRPxLogic(GenericLogic):
         return list(self.fc.fit_list)
 
     def _acquire_pixel(self):
+        time.sleep(5e-3)
         counts, _ = self._photon_counter.read_pixel(self._photon_samples)
         return counts
 
