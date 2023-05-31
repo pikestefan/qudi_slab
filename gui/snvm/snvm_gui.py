@@ -510,6 +510,8 @@ class SnvmGui(GUIBase):
 
         self._mainwindow.actionStop_scan.setEnabled(False)
 
+        self._mainwindow.actionLaser.triggered.connect(self.laser_on)
+
         self.snvm_interactions_enabled(enabled=False)
         self.conf_interactions_enabled()
         self.show()
@@ -1012,10 +1014,10 @@ class SnvmGui(GUIBase):
         if sendername == "actionOptimize":
             self.sigStartOptimizer.emit()
         elif sendername == "action_snvm_goToPoint":
-            self._mainwindow.actionStop_scan.setEnabled(False)
+            self.snvm_interactions_enabled(enabled=False)
             self.sigGoTo.emit("snvm")
         elif sendername == "action_cfc_goToPoint":
-            self._mainwindow.actionStop_scan.setEnabled(False)
+            self.conf_interactions_enabled(enabled=False)
             self.sigGoTo.emit("cfc")
         elif sendername == "actionStart_conf_scan":
             self.conf_interactions_enabled(enabled=False)
@@ -1479,7 +1481,11 @@ class SnvmGui(GUIBase):
     def go_to_finished(self, callertag):
         if callertag == "gui":
             self.opti_interactions_enabled()
-            self._mainwindow.actionStop_scan.setEnabled(True)
+            tabidx = self._mainwindow.scanningSettingsTab.currentIndex()
+            if tabidx==0:
+                self.snvm_interactions_enabled(enabled=True)
+            elif tabidx==1:
+                self.conf_interactions_enabled(enabled=True)
         else:
             pass
 
@@ -1488,3 +1494,7 @@ class SnvmGui(GUIBase):
 
     def save_confocal_data(self):
         self._scanning_logic.save_confocal()
+
+    def laser_on(self, is_checked):
+        self._scanning_logic.laser(is_checked)
+

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1387</width>
-    <height>892</height>
+    <height>890</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -355,6 +355,7 @@
    <addaction name="separator"/>
    <addaction name="actionOptimize"/>
    <addaction name="separator"/>
+   <addaction name="actionLaser"/>
   </widget>
   <widget class="QDockWidget" name="odmrDock">
    <property name="sizePolicy">
@@ -1697,6 +1698,19 @@
    </property>
    <property name="text">
     <string>Pulsing settings</string>
+   </property>
+  </action>
+  <action name="actionLaser">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset>
+     <normalon>../../artwork/icons/oxygen/22x22/go-home.png</normalon>
+    </iconset>
+   </property>
+   <property name="text">
+    <string>Laser</string>
    </property>
   </action>
  </widget>

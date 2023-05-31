@@ -793,9 +793,9 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
             daq.DAQmxStartTask(self._counter_ai_daq_task)
 
         count_matrix = np.full((len(self._counter_daq_tasks),
-                                samples), 222, dtype=np.uint32)
+                                samples), 0, dtype=np.uint32)
 
-        final_counts = np.full(len(self._counter_daq_tasks), 222)
+        final_counts = np.full(len(self._counter_daq_tasks), 0, dtype=np.uint32)
 
         read_samples = daq.int32()
 
