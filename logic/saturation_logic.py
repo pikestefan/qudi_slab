@@ -40,6 +40,8 @@ class SaturationLogic(GenericLogic):
     daq_card = Connector(interface='NationalInstrumentsXSeriesPxScan')
     laser = Connector(interface='NationalInstrumentsUSB6000x')
     plotlogic = Connector(interface='QDPlotLogic')
+    master_pulselogic = Connector(interface="MasterPulse")
+    savelogic = Connector(interface="SaveLogic")
 
     # Status Vars
     max_laser_voltage = ConfigOption('max_laser_voltage', 0.95)
@@ -56,6 +58,10 @@ class SaturationLogic(GenericLogic):
         self._daq_card = self.daq_card()
         self._laser = self.laser()
         self._plotlogic = self.plotlogic()
+        self._master_pulselogic = self.master_pulselogic()
+        self._savelogic = self.savelogic()
+        self._master_pulselogic.cw()
+
 
     def on_deactivate(self):
         pass
@@ -73,14 +79,26 @@ class SaturationLogic(GenericLogic):
             self._set_laser_voltage(v)
             photo_diode_voltages[i] = self._read_photo_diode()
             counts[i] = self._read_counts()
-
+        print(laser_voltages)
         self._set_laser_voltage(0.62)
         self._close_devices()
 
         self._plotlogic.set_data(plot_index=plot_index, x=photo_diode_voltages, y=counts)
         self.sigMeasuredSaturation.emit(plot_index, photo_diode_voltages, counts)
-        return
+        #old
+        # self.counts = counts
+        # self.photo_diode_voltages = laser_voltages      # this is weird
 
+        #new
+        self.counts = counts
+        self.photo_diode_voltages = photo_diode_voltages
+        self.laser_voltages = laser_voltages
+
+        self.start_voltage = start
+        self.stop_voltage = stop
+        self.steps = steps
+        self.integration_time = integration_time
+        return self.counts, self.photo_diode_voltages
 
 
     def _prepare_devices(self):
@@ -126,3 +144,34 @@ class SaturationLogic(GenericLogic):
 
     def _integration_time_to_samples(self):
         return round(self.integration_time * self._daq_card.get_counter_clock_frequency())
+
+    def save_data(self):
+        timestamp = datetime.datetime.now()
+
+        data_raw = OrderedDict()
+        data_raw["x_data"] = self.photo_diode_voltages
+        data_raw["y_data"] = self.counts
+
+        parameters = OrderedDict()
+        parameters["integration time"] = self.integration_time
+        parameters["Start voltage"] = self.start_voltage
+        parameters["End voltage"] = self.stop_voltage
+        parameters["Steps"] = self.steps
+        parameters["timestamp"] = timestamp.strftime("%Y-%m-%d, %H:%M:%S")
+
+        attributes = {"x_data": parameters}
+
+        # Check if a fit has been performed
+        # if method in self.fits_performed:
+        #     x_fit, y_fit, result = self.fits_performed[method]
+        #     data_raw["fit values"] = np.stack((x_fit, y_fit))
+        #     attributes["fit values"] = result.values
+
+        self._savelogic.save_hdf5_data(
+            data_raw,
+            attributes=attributes,
+            filename=timestamp.strftime("%Y-%m-%d-%H-%M-%S")
+            + "_"
+            + 'saturation'
+            + ".h5",
+        )
