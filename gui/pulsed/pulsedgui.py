@@ -80,8 +80,8 @@ class PulsedGui(GUIBase):
         self._mw.mw_power.setMaximum(16)
         self._mw.mw_power.setMinimum(-100)
         self._mw.mw_freq.setMaximum(6000e6)
-        self._mw.laser_power_2.setMaximum(1)
-        self._mw.laser_power_2.setMinimum(0)
+        self._mw.laser_power.setMaximum(1)
+        self._mw.laser_power.setMinimum(0)
         self.index = 0
         # fit settings
         self._fsd = FitSettingsDialog(self._master_pulselogic.fc)
@@ -117,7 +117,7 @@ class PulsedGui(GUIBase):
         self._mw.fill_puls_times_pushButton.clicked.connect(self.fill_pulse_times)
         # This button enables the reference counts in the plot
         self._mw.pulse_type_tabWidget.currentChanged.connect(self.tab_changed)
-        self._mw.laser_power_2.editingFinished.connect(self.changed_laser_power)
+        self._mw.laser_power.editingFinished.connect(self.changed_laser_power)
         self._mw.laser_button_cw.clicked.connect(self.changed_laser_power)
         self._mw.laser_button_high.clicked.connect(self.changed_laser_power)
         # instance plot:
@@ -206,38 +206,57 @@ class PulsedGui(GUIBase):
         self._mw.averages.setEnabled(val)
         self._mw.integration_time.setEnabled(val)
         self._mw.clk_awg.setEnabled(val)
-        self._mw.apd_start_time.setEnabled(val)
+        self._mw.apd_start.setEnabled(val)
         self._mw.apd_ref_len.setEnabled(val)
         self._mw.apd_len.setEnabled(val)
-        self._mw.apd_ref_start_time.setEnabled(val)
+        self._mw.apd_ref_start.setEnabled(val)
         self._mw.laser_in.setEnabled(val)
-        self._mw.laser_off.setEnabled(val)
+        self._mw.laser_break.setEnabled(val)
         self._mw.laser_re.setEnabled(val)
+        self._mw.seq_map_req.setEnabled(val)
+        #delay tab
         self._mw.apd_len_pulse_delay.setEnabled(val)
         self._mw.apd_min_start_delay.setEnabled(val)
         self._mw.apd_max_start_delay.setEnabled(val)
         self._mw.apd_steps_delay.setEnabled(val)
+
+        self._mw.laser_in_delay.setEnabled(val)
+        self._mw.laser_break_delay.setEnabled(val)
+        self._mw.laser_re_delay.setEnabled(val)
         self._mw.use_mw_delay.setEnabled(val)
         self._mw.mw_start_time_delay.setEnabled(val)
         self._mw.mw_len_delay.setEnabled(val)
-        self._mw.seq_map_req.setEnabled(val)
-        self._mw.no_iq_mod_checkBox.setEnabled(val)
-        self._mw.checkBox_phase_shift_ramsey.setEnabled(val)
 
-        self._mw.mw_stop_distance_rabi.setEnabled(val)
+        # rabi tab
+        self._mw.no_iq_mod_checkBox.setEnabled(val)
+        self._mw.mw_rabi_delay_after_laser_in.setEnabled(val)
         self._mw.mw_min_len_rabi.setEnabled(val)
-        self._mw.mw_start_distance_rabi.setEnabled(val)
+        self._mw.mw_max_len_rabi.setEnabled(val)
         self._mw.mw_steps_rabi.setEnabled(val)
 
-        self._mw.mw_start_distance_ramsey.setEnabled(val)
-        self._mw.mw_min_len_ramsey.setEnabled(val)
-        self._mw.mw_stop_distance_ramsey.setEnabled(val)
+        # ramsey tab
+        self._mw.checkBox_phase_shift_ramsey.setEnabled(val)
+        self._mw.mw_ramsey_delay_after_laser_in.setEnabled(val)
+        self._mw.mw_min_distance_ramsey.setEnabled(val)
+        self._mw.mw_max_distance_ramsey.setEnabled(val)
         self._mw.mw_steps_ramsey.setEnabled(val)
-        self._mw.laser_power_2.setEnabled(val)
-        self._mw.mw_len_ramsey.setEnabled(val)
+        self._mw.mw_pulse_len_ramsey.setEnabled(val)
+        self._mw.checkBox_phase_shift_ramsey.setEnabled(val)
+
+        # spin_echo tab
+        self._mw.checkBox_phase_shift_spin_echo.setEnabled(val)
+        self._mw.mw_spin_echo_delay_after_laser_in.setEnabled(val)
+        self._mw.mw_spin_echo_min_tau.setEnabled(val)
+        self._mw.mw_spin_echo_max_tau.setEnabled(val)
+        self._mw.mw_spin_echo_steps.setEnabled(val)
+        self._mw.mw_spin_echo_pi_pulse_time.setEnabled(val)
+        self._mw.checkBox_phase_shift_spin_echo.setEnabled(val)
+        self._mw.mw_spin_echo_fixed_tau.setEnabled(val)
+
         # This is the save button
         self._mw.action_Save.setEnabled(val)
         self._mw.action_cw_mode.setEnabled(val)
+        self._mw.laser_power.setEnabled(val)
 
 
     def run_stop_measurement(self, is_checked):
@@ -272,18 +291,18 @@ class PulsedGui(GUIBase):
         averages = self._mw.averages.value()
         int_time = self._mw.integration_time.value()  # in sec
         sampling_rate_awg = int(self._mw.clk_awg.value() * 1e-6)  # in MHz
-        apd_start = self._mw.apd_start_time.value() * 1e6
+        apd_start = self._mw.apd_start.value() * 1e6
         apd_len = self._mw.apd_len.value() * 1e6
-        apd_ref_start = self._mw.apd_ref_start_time.value() * 1e6
+        apd_ref_start = self._mw.apd_ref_start.value() * 1e6
         apd_ref_len = self._mw.apd_ref_len.value() * 1e6
         seq_map_req = self._mw.seq_map_req.isChecked()
         plaintext_field = self._mw.plaintext_field.toPlainText()
 
-        # laser times tab
+        # laser settings from the general tab
         laser_in = self._mw.laser_in.value() * 1e6
-        laser_off = self._mw.laser_off.value() * 1e6
         laser_re = self._mw.laser_re.value() * 1e6
-        laser_power = self._mw.laser_power_2.value()
+        laser_break = self._mw.laser_break.value() * 1e6
+        laser_power = self._mw.laser_power.value()
 
         # delay_sweep tab
         apd_len_delay = self._mw.apd_len_pulse_delay.value() * 1e6
@@ -293,23 +312,36 @@ class PulsedGui(GUIBase):
         use_mw_delay = self._mw.use_mw_delay.isChecked()
         mw_start_delay = self._mw.mw_start_time_delay.value() * 1e6
         mw_len_delay = self._mw.mw_len_delay.value() * 1e6
+        laser_in_delay = self._mw.laser_in_delay.value() * 1e6
+        laser_break_delay = self._mw.laser_break_delay.value() * 1e6
+        laser_re_delay = self._mw.laser_re_delay.value() * 1e6
 
         # rabi tab
-        mw_start_distance_rabi = self._mw.mw_start_distance_rabi.value() * 1e6
+        mw_start_distance_rabi = self._mw.mw_rabi_delay_after_laser_in.value() * 1e6
         mw_min_len_rabi = self._mw.mw_min_len_rabi.value() * 1e6
-        mw_stop_distance_rabi = self._mw.mw_stop_distance_rabi.value() * 1e6
+        mw_max_len_rabi = self._mw.mw_max_len_rabi.value() * 1e6
         mw_steps_rabi = self._mw.mw_steps_rabi.value() * 1e6
         no_iq_mod = self._mw.no_iq_mod_checkBox.isChecked()
+
         # ramsey tab
-        mw_start_distance_ramsey = self._mw.mw_start_distance_ramsey.value() * 1e6
-        mw_min_len_ramsey = self._mw.mw_min_len_ramsey.value() * 1e6
-        mw_stop_distance_ramsey = self._mw.mw_stop_distance_ramsey.value() * 1e6
+        mw_start_distance_ramsey = self._mw.mw_ramsey_delay_after_laser_in.value() * 1e6
+        mw_min_distance_ramsey = self._mw.mw_min_distance_ramsey.value() * 1e6
+        mw_max_distance_ramsey = self._mw.mw_max_distance_ramsey.value() * 1e6
         mw_steps_ramsey = self._mw.mw_steps_ramsey.value() * 1e6
-        mw_len_ramsey = self._mw.mw_len_ramsey.value() * 1e6
+        mw_pulse_len_ramsey = self._mw.mw_pulse_len_ramsey.value() * 1e6
         phase_shift_ramsey = self._mw.checkBox_phase_shift_ramsey.isChecked()
 
-        ### -----------------------------------------------------------------------------
-        # Now send all the parameters from above to the masterlogic
+        # spin echo tab
+        mw_start_distance_spin_echo = self._mw.mw_spin_echo_delay_after_laser_in.value() * 1e6
+        mw_min_distance_spin_echo = self._mw.mw_spin_echo_min_tau.value() * 1e6
+        mw_max_distance_spin_echo = self._mw.mw_spin_echo_max_tau.value() * 1e6
+        mw_steps_spin_echo = self._mw.mw_spin_echo_steps.value() * 1e6
+        mw_pi_pulse_len_spin_echo = self._mw.mw_spin_echo_pi_pulse_time.value() * 1e6
+        phase_shift_spin_echo = self._mw.checkBox_phase_shift_spin_echo.isChecked()
+        mw_fixed_tau_spin_echo = self._mw.mw_spin_echo_fixed_tau.value() * 1e6
+
+        ### -------------------------------------------------------------------------
+        # Now send all the parameters from above to the masterpulselogic
         self._master_pulselogic.mw_power = mw_power
         self._master_pulselogic.mw_frequency = mw_freq
         self._master_pulselogic.method = method
@@ -323,10 +355,8 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.apd_ref_len = apd_ref_len
         self._master_pulselogic.seq_map_req = seq_map_req
         self._master_pulselogic.plaintext_field = plaintext_field
-
-        # laser times tab
         self._master_pulselogic.laser_in = laser_in
-        self._master_pulselogic.laser_off = laser_off
+        self._master_pulselogic.laser_break = laser_break
         self._master_pulselogic.laser_re = laser_re
         self._master_pulselogic.laser_power = laser_power
 
@@ -338,21 +368,33 @@ class PulsedGui(GUIBase):
         self._master_pulselogic.mw_pulse_setting = use_mw_delay
         self._master_pulselogic.mw_start_delay = mw_start_delay
         self._master_pulselogic.mw_len_delay = mw_len_delay
+        self._master_pulselogic.laser_in_delay = laser_in_delay
+        self._master_pulselogic.laser_break_delay = laser_break_delay
+        self._master_pulselogic.laser_re_delay = laser_re_delay
 
         # rabi tab
-        self._master_pulselogic.mw_start_distance_rabi = mw_start_distance_rabi
+        self._master_pulselogic.mw_rabi_delay_after_laser_in = mw_start_distance_rabi
         self._master_pulselogic.mw_min_len_rabi = mw_min_len_rabi
-        self._master_pulselogic.mw_stop_distance_rabi = mw_stop_distance_rabi
+        self._master_pulselogic.mw_max_len_rabi = mw_max_len_rabi
         self._master_pulselogic.mw_steps_rabi = mw_steps_rabi
         self._master_pulselogic.no_iq_mod = no_iq_mod
 
         # ramsey tab
-        self._master_pulselogic.mw_start_distance_ramsey = mw_start_distance_ramsey
-        self._master_pulselogic.mw_min_len_ramsey = mw_min_len_ramsey
-        self._master_pulselogic.mw_stop_distance_ramsey = mw_stop_distance_ramsey
+        self._master_pulselogic.mw_ramsey_delay_after_laser_in = mw_start_distance_ramsey
+        self._master_pulselogic.mw_min_distance_ramsey = mw_min_distance_ramsey
+        self._master_pulselogic.mw_max_distance_ramsey = mw_max_distance_ramsey
         self._master_pulselogic.mw_steps_ramsey = mw_steps_ramsey
-        self._master_pulselogic.mw_len_ramsey = mw_len_ramsey
-        self._master_pulselogic.phase_shift = phase_shift_ramsey
+        self._master_pulselogic.mw_pulse_len_ramsey = mw_pulse_len_ramsey
+        self._master_pulselogic.phase_shift_ramsey = phase_shift_ramsey
+
+        # spin echo tab
+        self._master_pulselogic.mw_start_distance_spin_echo = mw_start_distance_spin_echo
+        self._master_pulselogic.mw_min_distance_spin_echo = mw_min_distance_spin_echo
+        self._master_pulselogic.mw_max_distance_spin_echo = mw_max_distance_spin_echo
+        self._master_pulselogic.mw_steps_spin_echo = mw_steps_spin_echo
+        self._master_pulselogic.mw_len_spin_echo = mw_pi_pulse_len_spin_echo
+        self._master_pulselogic.phase_shift_spin_echo = phase_shift_spin_echo
+        self._master_pulselogic.mw_fixed_tau_spin_echo = mw_fixed_tau_spin_echo
 
     def _get_parameters_from_logic(self):
         # Grabs all the parameters from the logic and fills them into the GUI
@@ -366,16 +408,13 @@ class PulsedGui(GUIBase):
         sampling_rate_awg = self._master_pulselogic.clk_rate_awg
         averages = self._master_pulselogic.averages
         seq_map_req = self._master_pulselogic.seq_map_req
-        plaintext_field = self._master_pulselogic.plaintext_field
 
         apd_start = self._master_pulselogic.apd_start
         apd_len = self._master_pulselogic.apd_len
         apd_ref_start = self._master_pulselogic.apd_ref_start
         apd_ref_len = self._master_pulselogic.apd_ref_len
-
-        # laser times tab
         laser_in = self._master_pulselogic.laser_in
-        laser_off = self._master_pulselogic.laser_off
+        laser_break = self._master_pulselogic.laser_break
         laser_re = self._master_pulselogic.laser_re
         laser_power = self._master_pulselogic.laser_power
 
@@ -387,21 +426,34 @@ class PulsedGui(GUIBase):
         use_mw_delay = self._master_pulselogic.mw_pulse_setting
         mw_start_delay = self._master_pulselogic.mw_start_delay
         mw_len_delay = self._master_pulselogic.mw_len_delay
+        laser_in_delay = self._master_pulselogic.laser_in_delay
+        laser_break_delay = self._master_pulselogic.laser_break_delay
+        laser_re_delay = self._master_pulselogic.laser_break_delay
 
         # rabi tab
         mw_start_distance_rabi = self._master_pulselogic.mw_start_distance_rabi
         mw_min_len_rabi = self._master_pulselogic.mw_min_len_rabi
-        mw_stop_distance_rabi = self._master_pulselogic.mw_stop_distance_rabi
+        mw_max_len_rabi = self._master_pulselogic.mw_max_len_rabi
         mw_steps_rabi = self._master_pulselogic.mw_steps_rabi
         np_iq_mod = self._master_pulselogic.no_iq_mod
 
         # ramsey tab
         mw_start_distance_ramsey = self._master_pulselogic.mw_start_distance_ramsey
-        mw_min_len_ramsey = self._master_pulselogic.mw_min_len_ramsey
-        mw_stop_distance_ramsey = self._master_pulselogic.mw_stop_distance_ramsey
+        mw_min_distance_ramsey = self._master_pulselogic.mw_min_distance_ramsey
+        mw_max_distance_ramsey = self._master_pulselogic.mw_max_distance_ramsey
         mw_steps_ramsey = self._master_pulselogic.mw_steps_ramsey
-        mw_len_ramsey = self._master_pulselogic.mw_len_ramsey
-        phase_shift_ramsey = self._master_pulselogic.phase_shift
+        mw_pulse_len_ramsey = self._master_pulselogic.mw_pulse_len_ramsey
+        phase_shift_ramsey = self._master_pulselogic.phase_shift_ramsey
+
+        # spin echo tab
+        mw_start_distance_spin_echo = self._master_pulselogic.mw_start_distance_spin_echo
+        mw_min_distance_spin_echo = self._master_pulselogic.mw_min_distance_spin_echo
+        mw_max_distance_spin_echo = self._master_pulselogic.mw_max_distance_spin_echo
+        mw_steps_spin_echo = self._master_pulselogic.mw_steps_spin_echo
+        mw_len_spin_echo = self._master_pulselogic.mw_len_spin_echo
+        phase_shift_spin_echo = self._master_pulselogic.phase_shift_spin_echo
+        mw_fixed_tau_spin_echo = self._master_pulselogic.mw_fixed_tau_spin_echo
+        print('mw_len_spin_echo', mw_len_spin_echo)
 
         # Fill in the values into the GUI
         # Some values need to be converted from us -> s
@@ -413,18 +465,16 @@ class PulsedGui(GUIBase):
         self._mw.averages.setValue(averages)
         self._mw.integration_time.setValue(int_time)  # in sec
         self._mw.clk_awg.setValue(int(sampling_rate_awg * 1e6))  # in MHz
-        self._mw.apd_start_time.setValue(apd_start * 1e-6)
+        self._mw.apd_start.setValue(apd_start * 1e-6)
         self._mw.apd_len.setValue(apd_len * 1e-6)
-        self._mw.apd_ref_start_time.setValue(apd_ref_start * 1e-6)
+        self._mw.apd_ref_start.setValue(apd_ref_start * 1e-6)
         self._mw.apd_ref_len.setValue(apd_ref_len * 1e-6)
         self._mw.seq_map_req.setChecked(seq_map_req)
 
-
-        # laser times tab
         self._mw.laser_in.setValue(laser_in * 1e-6)
-        self._mw.laser_off.setValue(laser_off * 1e-6)
+        self._mw.laser_break.setValue(laser_break * 1e-6)
         self._mw.laser_re.setValue(laser_re * 1e-6)
-        self._mw.laser_power_2.setValue(laser_power)
+        self._mw.laser_power.setValue(laser_power)
 
         # delay_sweep tab
         self._mw.apd_len_pulse_delay.setValue(apd_len_delay * 1e-6)
@@ -434,30 +484,44 @@ class PulsedGui(GUIBase):
         self._mw.use_mw_delay.setChecked(use_mw_delay)
         self._mw.mw_start_time_delay.setValue(mw_start_delay * 1e-6)
         self._mw.mw_len_delay.setValue(mw_len_delay * 1e-6)
+        self._mw.laser_in_delay.setValue(laser_in_delay * 1e-6)
+        self._mw.laser_break_delay.setValue(laser_break_delay * 1e-6)
+        self._mw.laser_re_delay.setValue(laser_re_delay * 1e-6)
 
         # rabi tab
-        self._mw.mw_start_distance_rabi.setValue(mw_start_distance_rabi * 1e-6)
+        self._mw.mw_rabi_delay_after_laser_in.setValue(mw_start_distance_rabi * 1e-6)
         self._mw.mw_min_len_rabi.setValue(mw_min_len_rabi * 1e-6)
-        self._mw.mw_stop_distance_rabi.setValue(mw_stop_distance_rabi * 1e-6)
+        self._mw.mw_max_len_rabi.setValue(mw_max_len_rabi * 1e-6)
         self._mw.mw_steps_rabi.setValue(mw_steps_rabi * 1e-6)
         self._mw.no_iq_mod_checkBox.setChecked(np_iq_mod)
 
         # ramsey tab
-        self._mw.mw_start_distance_ramsey.setValue(mw_start_distance_ramsey * 1e-6)
-        self._mw.mw_min_len_ramsey.setValue(mw_min_len_ramsey * 1e-6)
-        self._mw.mw_stop_distance_ramsey.setValue(mw_stop_distance_ramsey * 1e-6)
+        self._mw.mw_ramsey_delay_after_laser_in.setValue(mw_start_distance_ramsey * 1e-6)
+        self._mw.mw_min_distance_ramsey.setValue(mw_min_distance_ramsey * 1e-6)
+        self._mw.mw_max_distance_ramsey.setValue(mw_max_distance_ramsey * 1e-6)
         self._mw.mw_steps_ramsey.setValue(mw_steps_ramsey * 1e-6)
-        self._mw.mw_len_ramsey.setValue(mw_len_ramsey * 1e-6)
+        self._mw.mw_pulse_len_ramsey.setValue(mw_pulse_len_ramsey * 1e-6)
         self._mw.checkBox_phase_shift_ramsey.setChecked(phase_shift_ramsey)
+
+        # spin_echo tab
+        self._mw.mw_spin_echo_delay_after_laser_in.setValue(mw_start_distance_spin_echo * 1e-6)
+        self._mw.mw_min_distance_ramsey.setValue(mw_min_distance_spin_echo * 1e-6)
+        self._mw.mw_max_distance_ramsey.setValue(mw_max_distance_spin_echo * 1e-6)
+        self._mw.mw_steps_ramsey.setValue(mw_steps_spin_echo * 1e-6)
+        self._mw.mw_pulse_len_ramsey.setValue(mw_len_spin_echo * 1e-6)
+        self._mw.checkBox_phase_shift_spin_echo.setChecked(phase_shift_spin_echo)
+        self._mw.mw_spin_echo_fixed_tau.setValue(mw_fixed_tau_spin_echo * 1e-6)
 
     def start_measurement(self):
         self._master_pulselogic.start_stop_timetrace(False)
         self._send_parameters_to_logic()
-        # print(self._mw.laser_power_2.value())
+        # print(self._mw.laser_power.value())
         self.fit_image.clear()
         # This one sets the x axis right
         x_axis = self._master_pulselogic.get_x_axis() # in microseconds
         self._mw.pulsed_PlotWidget.setXRange(min(x_axis), max(x_axis))
+        #Calculates from the mW value we put in the GUI ...maybe not the best...
+        self._mw.laser_power_mW_DisplayWidget.display(self._master_pulselogic.calc_laser_power_mW(self._mw.laser_power.value()))
         # This is where the measurement really starts
         self._master_pulselogic.sigStartMeasurent.emit()
         #self._master_pulselogic.start_measurement()
@@ -478,12 +542,13 @@ class PulsedGui(GUIBase):
     #checks if the House button is checked in general
         if is_checked:
             self._master_pulselogic.start_stop_timetrace(True)
-            # print(self._mw.laser_power_2.valueChanged(), self._mw.laser_power_2.valueChanged)
-            laser_power = self._mw.laser_power_2.value() # Takes the value from the box
+            # print(self._mw.laser_power.valueChanged(), self._mw.laser_power.valueChanged)
+            laser_power = self._mw.laser_power.value() # Takes the value from the box
 
             self._master_pulselogic.laser_power = laser_power
             self._master_pulselogic.cw(True)
             self._master_pulselogic.set_laser_power()
+            self._mw.laser_power_mW_DisplayWidget.display(self._master_pulselogic.calc_laser_power_uW())
             self._mw.action_run_stop.setEnabled(False)
             self._mw.action_Save.setEnabled(False)
             # Laser is on and counts are in the timeseries
@@ -504,10 +569,11 @@ class PulsedGui(GUIBase):
                 self._master_pulselogic.laser_power = 0.628
                 # self._master_pulselogic.set_laser_power()
             else:
-                laser_power = self._mw.laser_power_2.value()
+                laser_power = self._mw.laser_power.value()
                 self._master_pulselogic.laser_power = laser_power
             # time.sleep(1)
             self._master_pulselogic.set_laser_power()
+            self._mw.laser_power_mW_DisplayWidget.display(self._master_pulselogic.calc_laser_power_uW())
         else:
             pass
             # print('is not checked')
@@ -541,7 +607,6 @@ class PulsedGui(GUIBase):
         # Draw current trace
         # This is where the data from the logic should be
         # maybe have a method on the masterpulselogic which gives all values in one row? They give one plot in the GUI
-
         self.curr_trace.setData(self._master_pulselogic.get_x_axis(), current_row)
 
         # Draw average trace
@@ -644,7 +709,7 @@ class PulsedGui(GUIBase):
         # if method == 'rabi':
         #     self._mw.mw_steps_rabi.setValue(real_len * 1e-6)
         # elif method == 'ramsey':
-        #     self._mw.mw_len_ramsey.setValue(real_len * 1e-6)
+        #     self._mw.mw_pulse_len_ramsey.setValue(real_len * 1e-6)
 
         self._mw.plot_instance_Button.setEnabled(True)
 
@@ -682,7 +747,6 @@ class PulsedGui(GUIBase):
     ### new attemt for rouding due to clock_rate
     def update_mw_values(self):
         ''' This tries to replace the values in the mask with real values
-        #  for now it only works for rabi
         # call this function before the values get fished from the GUI
         # to make sure that the updated values get used in the actual plot and measurement!
         # this one gets the needed values from the masterpulselogic
@@ -694,7 +758,11 @@ class PulsedGui(GUIBase):
         if method == 'rabi':
             mw_steps = self._mw.mw_steps_rabi.value() * 1e6
         elif method == 'ramsey':
-            mw_steps = self._mw.mw_len_ramsey.value() * 1e6
+            mw_steps = self._mw.mw_pulse_len_ramsey.value() * 1e6
+        elif method == 'spin_echo':
+            mw_steps = self._mw.mw_spin_echo_pi_pulse_time.value() * 1e6
+        elif method == 'spin_echo_tau':
+            mw_steps = self._mw.mw_spin_echo_pi_pulse_time.value() * 1e6
         elif method == 'delaysweep' or method == 'delaysweep_ref':
             mw_steps = self._mw.mw_len_delay.value() * 1e6
 
@@ -703,7 +771,11 @@ class PulsedGui(GUIBase):
         if method == 'rabi':
             self._mw.mw_steps_rabi.setValue(real_len * 1e-6)
         elif method == 'ramsey':
-            self._mw.mw_len_ramsey.setValue(real_len * 1e-6)
+            self._mw.mw_pulse_len_ramsey.setValue(real_len * 1e-6)
+        elif method == 'spin_echo':
+            self._mw.mw_spin_echo_pi_pulse_time.setValue(real_len * 1e-6)
+        elif method == 'spin_echo_tau':
+            self._mw.mw_spin_echo_pi_pulse_time.setValue(real_len * 1e-6)
         elif method == 'delaysweep' or method == 'delaysweep_ref':
             self._mw.mw_len_delay.setValue(real_len * 1e-6)
 

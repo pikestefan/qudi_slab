@@ -40,7 +40,7 @@ from core.statusvariable import StatusVar
 class MasterPulse(GenericLogic):
     pulsegenerator = Connector(interface="PulserInterface")
     laser = Connector(interface="SimpleLaserInterface")
-    photon_counter = Connector(interface="SnvmScannerInterface")
+    photon_counter = Connector(interface="SnvmScannerInterface") # This is the daq card
     mw_source = Connector(interface="MicrowaveInterface")
     savelogic = Connector(interface="SaveLogic")
     pulselogic = Connector(interface="Pulse")
@@ -54,6 +54,7 @@ class MasterPulse(GenericLogic):
     mw_frequency = StatusVar("mw_frequency", 2.8685e9)
     mw_power = StatusVar("mw_power", -30)  # in dBm
     integration_time = StatusVar("integration_time", 30e-3)  # in s
+    integration_time_photodiode = StatusVar("integration_time_photodiode", 0.03)
     laser_power = StatusVar("laser_power", 0.628)  # in V... Max is 1V!
     clk_rate_awg = StatusVar("clk_rate_awg", int(1000e6))  # in MHz
     seq_map_req = StatusVar("seq_map_req", False)
@@ -75,10 +76,8 @@ class MasterPulse(GenericLogic):
     apd_len = StatusVar("apd_len", 250e-9)
     apd_ref_start = StatusVar("apd_ref_start", 4.5e-6)
     apd_ref_len = StatusVar("apd_ref_len", 100e-9)
-
-    # laser times tab
     laser_in = StatusVar("laser_in", 1e-6)
-    laser_off = StatusVar("laser_off", 2e-6)
+    laser_break = StatusVar("laser_break", 2e-6)
     laser_re = StatusVar("laser_re", 2e-6)
 
     # delay_sweep tab
@@ -86,25 +85,35 @@ class MasterPulse(GenericLogic):
     apd_min_start_delay = StatusVar("apd_min_start_delay", 0e-6)
     apd_max_start_delay = StatusVar("apd_max_start_delay", 2.6e-6)
     apd_steps_delay = StatusVar("apd_steps_delay", 50e-9)
-
+    laser_in_delay = StatusVar("laser_in_delay", 1e-6)
+    laser_break_delay = StatusVar("laser_break_delay", 1e-6)
+    laser_re_delay = StatusVar("laser_re_delay", 1e-6)
     mw_start_delay = StatusVar("mw_start_delay", 1.3e-6)
     mw_len_delay = StatusVar("mw_len_delay", 500e-9)  # What ever the pi pulse is
 
     # rabi tab
     mw_start_distance_rabi = StatusVar("mw_start_distance_rabi", 1.3e-6)
     mw_min_len_rabi = StatusVar("mw_min_len_rabi", 0e-6)
-    mw_stop_distance_rabi = StatusVar("mw_stop_distance_rabi", 900e-9)
+    mw_max_len_rabi = StatusVar("mw_max_len_rabi", 900e-9)
     mw_steps_rabi = StatusVar("mw_steps_rabi", 500e-9)
     no_iq_mod = StatusVar("no_iq_mod", False)
 
-
     # ramsey tab
     mw_start_distance_ramsey = StatusVar("mw_start_distance_ramsey", 1.3e-6)
-    mw_min_len_ramsey = StatusVar("mw_min_len_ramsey", 0e-6)
-    mw_stop_distance_ramsey = StatusVar("mw_stop_distance_ramsey", 900e-9)
+    mw_min_distance_ramsey = StatusVar("mw_min_distance_ramsey", 0e-6)
+    mw_max_distance_ramsey = StatusVar("mw_max_distance_ramsey", 9e-6)
     mw_steps_ramsey = StatusVar("mw_steps_ramsey", 50e-9)
-    mw_len_ramsey = StatusVar("mw_len_ramsey", 16e-9)  # whatever the rabi says
-    phase_shift = StatusVar("phase shift", False)
+    mw_pulse_len_ramsey = StatusVar("mw_pulse_len_ramsey", 16e-9)  # whatever the rabi says
+    phase_shift_ramsey = StatusVar("phase shift", False)
+
+    # spin_echo tab
+    mw_start_distance_spin_echo = StatusVar("mw_start_distance_spin_echo", 1.3e-6)
+    mw_min_distance_spin_echo = StatusVar("mw_min_distance_spin_echo", 0e-6)
+    mw_max_distance_spin_echo = StatusVar("mw_max_distance_spin_echo", 900e-9)
+    mw_steps_spin_echo = StatusVar("mw_steps_spin_echo", 50e-9)
+    mw_len_spin_echo = StatusVar("mw_len_spin_echo", 16e-9)  # whatever the rabi says
+    phase_shift_spin_echo = StatusVar("phase shift", False)
+    mw_fixed_tau_spin_echo = StatusVar("mw_fixed_tau_spin_echo", 0.5e-6)
 
     # Internal signals
     sigContinueLoop = QtCore.Signal()
@@ -180,68 +189,74 @@ class MasterPulse(GenericLogic):
 
         return active_channels
 
+
     def _build_pulse_arrays(self):
-        # and calculate the real values from the input parameters:
-        # For Rabi:
-        """Input parameter:
-        For Rabi
-        min_len: Minimal length of the mw pulse applied (in us) ...usually that's zero (unchanged)
-        start_distance: The distance between the end of the laserpulse and the start of the mw pulse (usual value: 300ns)
-        stop_distance: The distance between the end of the last mw pulse and the start of the laser_re pulse (in us)
+        # putting the statusVar in the arrays we use in the pulse :
+        """
+        For Rabi:
+        time delay between laser_in and mw pulse: laser_in stops, then it waits for example 300ns then the mw pulse starts
+        minimal length of pulse: Minimal length of the mw pulse applied (in us) ...usually that's zero (unchanged)
+        maximal length of pulse: Minimal length of the mw pulse applied (in us) ...usual value: 300ns
         steps: steps in us (unchanged)
+        For Ramsey:
+        time delay between laser_in and mw pulse: laser_in stops, then it waits for example 300ns then the mw pulse starts
+        min_distance: Minimal distance between the two pi/2 pulses (in us) ...usually that's zero (not changed)
+        max_distance: Maximal distance between the two pi/2 pulses (in us)
+        steps: steps in us (unchanged)
+        mw_pulse_len_ramsey: length of the mw pulse itself in us (unchanged)
+        For Spin echo:
+        time delay between laser_in and mw pulse: laser_in stops, then it waits for example 300ns then the mw pulse starts
+        min_distance: Minimal distance between the two pi/2 pulses (in us) ...usually that's zero (not changed)
+        max_distance: Maximal distance between the two pi/2 pulses (in us)
+        steps: steps in us (unchanged)
+        mw_len_spin_echo: length of the mw pi pulse itself in us (unchanged)
         """
-        self.mw_start_time_rabi = self.laser_in + self.mw_start_distance_rabi
-        self.mw_max_len_rabi = round(
-            ((self.laser_in + self.laser_off) - self.mw_stop_distance_rabi)
-            - self.mw_start_time_rabi,
-            ndigits=4,
-        )
-        """Input parameter: 
-            For Ramsey
-            min_distance: Minimal distance between the two pi/2 pulses (in us) ...usually that's zero (not changed)
-            start_distance: The distance between the end of the laserpulse and the start of the mw pulse (usual value: 300ns)
-            stop_distance: The distance between the end of the last mw pulse and the start of the laser_re pulse (in us)
-            steps: steps in us (unchanged)
-            mw_len_ramsey: length of the mw pulse itself (unchanged)
-        """
-        self.mw_start_time_ramsey = self.laser_in + self.mw_start_distance_ramsey
-        self.mw_max_len_ramsey = (
-            ((self.laser_in + self.laser_off) - self.mw_stop_distance_ramsey)
-            - self.mw_start_time_ramsey
-        ) - 2 * self.mw_len_ramsey
-
         # Build arrays from the StatusVar
-        self.apd_times = [
-            self.apd_start,
-            self.apd_len,
-        ]  # [time to start, length] all in microseconds
+        # APD and APD ref for Rabi, Ramsey, spin echo
+        self.apd_times = [self.apd_start, self.apd_len]  # [time to start, length] all in microseconds
         self.apd_ref_times = [self.apd_ref_start, self.apd_ref_len]
+        # laser for rabi, ramsey, spin echo
+        self.laser_times = [self.laser_in, self.laser_re, self.laser_break]
 
-        self.laser_times = [
-            self.laser_in,
-            self.laser_off,
-            self.laser_re,
-        ]  # on off on ...the rest is zeros
-        # [mw_start_time, mw_len_0, mw_len_max, steps] all in microsecond
+        # MW pulses for rabi
         self.mw_times_rabi = [
-            self.mw_start_time_rabi,
+            self.mw_start_distance_rabi,
             self.mw_min_len_rabi,
             self.mw_max_len_rabi,
-            self.mw_steps_rabi,
-        ]
-        # [start, distance_min, distance_max, steps, pulse length] all in microseconds
-        self.mw_times_ramsey = [
-            self.mw_start_time_ramsey,
-            self.mw_min_len_ramsey,
-            self.mw_max_len_ramsey,
-            self.mw_steps_ramsey,
-            self.mw_len_ramsey,
-        ]
+            self.mw_steps_rabi]
 
-        # mw_wait_time between laser off and mw on, mw_pulse_time
+        # MW pulses for ramsey
+        self.mw_times_ramsey = [
+            self.mw_start_distance_ramsey,
+            self.mw_min_distance_ramsey,
+            self.mw_max_distance_ramsey,
+            self.mw_steps_ramsey,
+            self.mw_pulse_len_ramsey]
+
+        # MW pulses for spin echo
+        self.mw_times_spin_echo = [
+            self.mw_start_distance_spin_echo,
+            self.mw_min_distance_spin_echo,
+            self.mw_max_distance_spin_echo,
+            self.mw_steps_spin_echo,
+            self.mw_len_spin_echo]
+
+        # MW pulses for spin echo
+        self.mw_times_spin_echo_tau = [
+            self.mw_start_distance_spin_echo,
+            self.mw_min_distance_spin_echo,
+            self.mw_max_distance_spin_echo,
+            self.mw_steps_spin_echo,
+            self.mw_len_spin_echo,
+            self.mw_fixed_tau_spin_echo]
+
+        # for delay sweep
+        # Microwave
         self.mw_times_sweep = [self.mw_start_delay, self.mw_len_delay]
+        # laser
+        self.laser_times_delay = [self.laser_in_delay, self.laser_break_delay, self.laser_re_delay]
         self.apd_times_sweep = [
-            self.apd_len_delay,
+            self.apd_len,
             self.apd_min_start_delay,
             self.apd_max_start_delay,
             self.apd_steps_delay,
@@ -307,32 +322,46 @@ class MasterPulse(GenericLogic):
     def stop_awg(self):  # Makes everything stop
         self._pulselogic.stop_awg()
 
-    def awg(self):
+    def awg(self): ## CONTINUE HERE
         """
         Setup and load awg
         clk_rate =  clock rate of the AWG in microseconds
-        seq_len =   whole length of the sequence in microseconds
-        laser_times = [laser_in, wait, laser_re] all in microseconds
-                laser_in:   length of initialisation laser pulse (it starts right at the beginning) in microseconds
-                wait:       time between the end of the initialisation and the reinitialisation in microseconds
-                laser_re:   length of the reinitialisation pulse in microseconds
+        Everything is in microseconds
         Depending on the method:
-        For Rabi
-            apd_times = [time to start, length] all in microseconds
-            mw_times = [mw_start_time, mw_len_0, mw_len_max, steps] all in microseconds
-                mw_start_time:  time from the beginning when MW pulse should start, does not change
-                mw_len_0:       minimal length of the mw pulse
-                mw_len_max:     maximal length of the mw pulse
-                steps:          stepsize for increasing the mw pulse duration
+        For Rabi:
+            laser_times = [laser_initialization, laser_reinitialization, break before the laser_re can start]
+            apd_times = [time to start after laser_in, length of the pulse]
+            apd_ref = [time to start after laser_in, length of the pulse]
+            mw_times = [start after laser_in turned off, length of the minimal pulse, length of the maximal pulse, stepsize in time]
         For Ramsey:
-            apd_times = [time to start, length of the pulse] both in microseconds
-            mw_times = [start, distance_min, distance_max, steps, pulse length] all in microseconds
-                start:          start position of the fist microwave pulse
-                duration_min:   minimal distance between the two pulses
-                duration_max:   maximal distance between the two pulses
-                steps:          step size for increasing the mw pulse duration
-                pulse length:   duration of pulses in microseconds (pi/2)
+            laser_times = [laser_initialization, laser_reinitialization, break before the laser_re can start]
+            apd_times = [time to start after laser_in, length of the pulse]
+            apd_ref = [time to start after laser_in, length of the pulse]
+            mw_times = [start after laser_in turned off, minimal distance between the 2 pulses, maximal distance between the 2 pulses, stepsize in time, pulse length]
+
+                apd_times = [time to start, length of the pulse] both in microseconds
+                mw_times = [start, distance_min, distance_max, steps, pulse length] all in microseconds
+                    start:          start position of the fist microwave pulse
+                    duration_min:   minimal distance between the two pulses
+                    duration_max:   maximal distance between the two pulses
+                    steps:          step size for increasing the mw pulse duration
+                    pulse length:   duration of pulses in microseconds (pi/2)
+        For Spin_echo
+            laser_times = [laser_in, laser_re, break before the laser_re can start]
+            apd_times = [time to start after laser_in, length of the pulse]
+            apd_ref = [time to start after laser_in, length of the pulse]
+            mw_times = [start after laser_in, distance_min, distance_max, stepsize in time, pulse length]
+        For Spin_echo_tau
+            laser_times = [laser_in, laser_re, break before the laser_re can start]
+            apd_times = [time to start after laser_in, length of the pulse]
+            apd_ref = [time to start after laser_in, length of the pulse]
+            mw_times = [start after laser_in, distance_min, distance_max, stepsize in time, pulse length, fixed_tau]
         For Delay sweep:
+            laser_times = [laser_in, time between the end of the initialisation and the reinitialisation, laser_re]
+            apd_times = [length, minimal start of the apd pulse, maximal start of the apd pulse, stepsize in time]
+            apd_ref = [time to laser_re, length of the pulse] both in microseconds
+            mw_times = [distance between the mw pulse end and the laser_re start, mw_pulse_length]
+
             apd_times = [length, min_start, max_start, steps]
                 length:      time to wait until the pulse should start
                 min_start:    minimal length of the apd pulse
@@ -341,15 +370,14 @@ class MasterPulse(GenericLogic):
             mw_times = [mw_wait_time, mw_pulse_time] all in microseconds
                 mw_wait_time: time between the end of the first laser pulse and the beginning of the microwave (delay)
                 mw_pulse_time: length of the mw pulse in between the two laser pulses
-        apd_ref = [start of reference pulse, length of reference pulse]
-        method =    can be rabi, ramsey or delaysweep
+        method =    can be rabi, ramsey, spin_echo, spin_echo_tau or delaysweep
         rep =       repetition time when no trigger is used
         mw_pulse =  With or without MW pulse in the middle
         trigger =   either True: software trigger or False: no trigger at all
         """
         method = self.method
+        phase_shift = False
         if method == "rabi":
-            # print('do rabi')
             if (
                 len(self.apd_times) == 2
                 and len(self.mw_times_rabi) == 4
@@ -357,6 +385,8 @@ class MasterPulse(GenericLogic):
             ):
                 apd_times = self.apd_times
                 mw_times = self.mw_times_rabi
+                laser_times = self.laser_times
+
             else:
                 self.log.warning("The input arrays don't have the right size.")
         elif method == "ramsey":
@@ -365,20 +395,47 @@ class MasterPulse(GenericLogic):
                 and len(self.mw_times_ramsey) == 5
                 and len(self.laser_times) == 3
             ):
-                # print ('do ramsey')
                 apd_times = self.apd_times
                 mw_times = self.mw_times_ramsey
+                laser_times = self.laser_times
+                phase_shift = self.phase_shift_ramsey
             else:
                 self.log.warning("The input arrays don't have the right size.")
+        elif method == "spin_echo":
+            if (
+                len(self.apd_times) == 2
+                and len(self.mw_times_spin_echo) == 5
+                and len(self.laser_times) == 3
+            ):
+                apd_times = self.apd_times
+                mw_times = self.mw_times_spin_echo
+                laser_times = self.laser_times
+                phase_shift = self.phase_shift_spin_echo
+            else:
+                self.log.warning("The input arrays don't have the right size.")
+
+        elif method == "spin_echo_tau":
+            if (
+                len(self.apd_times) == 2
+                and len(self.mw_times_spin_echo_tau) == 6
+                and len(self.laser_times) == 3
+            ):
+                apd_times = self.apd_times
+                mw_times = self.mw_times_spin_echo_tau
+                laser_times = self.laser_times
+                phase_shift = self.phase_shift_spin_echo
+            else:
+                self.log.warning("The input arrays don't have the right size.")
+
         elif method == "delaysweep":
             if (
                 len(self.apd_times_sweep) == 4
                 and len(self.mw_times_sweep) == 2
                 and len(self.laser_times) == 3
             ):
-                # print('do delay sweep')
                 apd_times = self.apd_times_sweep
                 mw_times = self.mw_times_sweep
+                laser_times = self.laser_times_delay
             else:
                 self.log.warning("The input arrays don't have the right size.")
         elif method == "delaysweep_ref":
@@ -387,20 +444,19 @@ class MasterPulse(GenericLogic):
                 and len(self.mw_times_sweep) == 2
                 and len(self.laser_times) == 3
             ):
-                # print('do delay sweep_ref')
                 apd_times = self.apd_times_sweep
                 mw_times = self.mw_times_sweep
+                laser_times = self.laser_times_delay
+
             else:
                 self.log.warning("The input arrays don't have the right size.")
         else:
             self.log.warning(
                 "The methode must be one of the following: delay_sweep, delay_sweep_ref, rabi, ramsey."
             )
-        self.seq_len = self.calc_seq_len()
         method, laser_times, apd_times, apd_ref, mw_times = self._pulselogic.play_any(
             self.clk_rate_awg,
-            self.seq_len,
-            self.laser_times,
+            laser_times,
             apd_times,
             self.apd_ref_times,
             mw_times,
@@ -410,7 +466,7 @@ class MasterPulse(GenericLogic):
             mw_pulse=self.mw_pulse_setting,
             trigger=self.trigger_setting,
             seq_map_req=self.seq_map_req,
-            phase_shift=self.phase_shift,
+            phase_shift=phase_shift,
             no_iq_mod=self.no_iq_mod,
         )
 
@@ -505,8 +561,13 @@ class MasterPulse(GenericLogic):
             self.step_count = self._pulselogic.get_step_count(self.mw_times_rabi)
         elif self.method == "ramsey":
             self.step_count = self._pulselogic.get_step_count(self.mw_times_ramsey)
+        elif self.method == "spin_echo":
+            self.step_count = self._pulselogic.get_step_count(self.mw_times_spin_echo)
+        elif self.method == "spin_echo_tau":
+            self.step_count = self._pulselogic.get_step_count(self.mw_times_spin_echo_tau)
         else:
             self.step_count = self._pulselogic.get_step_count(self.apd_times_sweep)
+
         count_matrix = np.full((int(self.averages), int(self.step_count)), 0)
         count_matrix_ref = np.full((int(self.averages), int(self.step_count)), 0)
         # These are the index for the matrix (step_index: columns and av_index: rows)
@@ -536,11 +597,13 @@ class MasterPulse(GenericLogic):
         self.stop_awg()
         self.set_laser_power()  # this one talks to the awg via awg.cw
         self.prepare_count_matrix()
+        self.laser_power_uw = self.calc_laser_power_uW()
         self.prepare_devices()
         self.awg()
         self.sigSeqPlaying.emit(True)
         self.sigContinueLoop.emit()
         # print(self.seq_map)
+
 
     # TODO: original continue_loop in here!
     #  ###################
@@ -615,13 +678,14 @@ class MasterPulse(GenericLogic):
         self.trigger()  # sends a software trigger to the AWG
         if not self.stopRequested:
             counts, ref_counts = self.acquire_pixel()
+            # print(counts)
+            # print(ref_counts)
             if len(self.seq_map) == 0:
                 step = self.step_index
             else:
                 step = self.seq_map[self.step_index]
             self.count_matrix[self.av_index, step] = counts
             self.count_matrix_ref[self.av_index, step] = ref_counts
-
         self.sigPxAcquired.emit()
         return self.count_matrix
 
@@ -675,6 +739,12 @@ class MasterPulse(GenericLogic):
         elif method == "ramsey":
             apd_times = self.apd_times
             mw_times = self.mw_times_ramsey
+        elif method == "spin_echo":
+            apd_times = self.apd_times
+            mw_times = self.mw_times_spin_echo
+        elif method == "spin_echo_tau":
+            apd_times = self.apd_times
+            mw_times = self.mw_times_spin_echo_tau
         else:
             apd_times = self.apd_times_sweep
             mw_times = self.mw_times_sweep
@@ -701,9 +771,9 @@ class MasterPulse(GenericLogic):
         parameters["MW pulse used?"] = self.mw_pulse_setting
         parameters["software trigger"] = self.trigger_setting
         parameters["laser power"] = self.laser_power
+        parameters["laser power in uW"] = self.calc_laser_power_mW(self.laser_power)
         parameters["extra notes"] = self.plaintext_field
         parameters["timestamp"] = timestamp.strftime("%Y-%m-%d, %H:%M:%S")
-
         attributes = {"count data": parameters, "REF count data": parameters}
 
         # Check if a fit has been performed
@@ -833,6 +903,14 @@ class MasterPulse(GenericLogic):
             step_count = self._pulselogic.get_step_count(self.mw_times_ramsey)
             max_val = self.mw_times_ramsey[2]
             min_val = self.mw_times_ramsey[1]
+        elif self.method == "spin_echo":
+            step_count = self._pulselogic.get_step_count(self.mw_times_spin_echo)
+            max_val = self.mw_times_spin_echo[2]
+            min_val = self.mw_times_spin_echo[1]
+        elif self.method == "spin_echo_tau":
+            step_count = self._pulselogic.get_step_count(self.mw_times_spin_echo_tau)
+            max_val = self.mw_times_spin_echo_tau[2]
+            min_val = self.mw_times_spin_echo_tau[1]
         else:
             step_count = self._pulselogic.get_step_count(self.apd_times_sweep)
             max_val = self.apd_times_sweep[2]
@@ -1148,6 +1226,57 @@ class MasterPulse(GenericLogic):
 
         return self.step_count, self.seq_map
 
+    def calc_seq_len(self):
+        if self.method == "delaysweep" or self.method == "delaysweep_ref":
+            self.seq_len = self.laser_in + self.laser_off + self.laser_re + 2e-6
+        else:
+            self.seq_len = self.laser_in + self.laser_off + self.laser_re
+        return self.seq_len
+
+    # Calculates from the actual Voltage of the Photodiode
+    def calc_laser_power_uW(self, a= 147.6, b=4.792):
+        # Here we calculate the laserpower above the objective in mW by using the readout of the photodiode
+        # First we need to read the current voltage of the photodiode
+        self._prepare_devices()
+        readout_photodiode = self._read_photo_diode()
+        self._close_devices()
+        # print(readout_photodiode)
+        laser_power_uw = a * readout_photodiode + b   # we assume a linear correlation
+        return laser_power_uw
+
+    # Calculates from the mW value we put in the GUI ...maybe not the best...
+    def calc_laser_power_mW(self, laser_power_mW, a=1272.8529, b= -739.9529):
+        laser_power_uw = a * laser_power_mW + b  # we assume a linear correlation
+        return laser_power_uw
+
+    ## Stuff for the photodiode
+    def _read_photo_diode(self): # stuff for photodiode
+        voltage = self._photon_counter.read_voltage()
+        if len(voltage) > 0:
+            voltage = voltage[0]
+
+        return voltage
+
+    def _prepare_devices(self): # stuff for photodiode
+        """
+        Initialize the counter and the settings of the MW device prior to starting scanning.
+        """
+
+        self._photon_counter.module_state.lock()
+        self._photon_samples = self._integration_time_to_samples()
+
+        self._photon_counter.prepare_counters(samples_to_acquire=self._photon_samples)
+        self._photon_counter.prepare_photo_diode()
+        self._photon_counter.module_state.unlock()
+
+    def _close_devices(self): # stuff for photodiode
+        self._photon_counter.close_photo_diode()
+        self._photon_counter.close_counters()
+
+    def _integration_time_to_samples(self): # stuff for photodiode
+        return round(self.integration_time_photodiode * self._photon_counter.get_counter_clock_frequency())
+
+
     # def recalc_from_seq_map(self, array):
     #     """
     #     array = the data array in the order of the seq_map
@@ -1163,13 +1292,6 @@ class MasterPulse(GenericLogic):
     #     # print('array', array)
     #     # print('array_new', array_new)
     #     return array_new
-
-    def calc_seq_len(self):
-        if self.method == "delaysweep" or self.method == "delaysweep_ref":
-            self.seq_len = self.laser_in + self.laser_off + self.laser_re + 2e-6
-        else:
-            self.seq_len = self.laser_in + self.laser_off + self.laser_re
-        return self.seq_len
 
     # def recalc_seq_map_test(self, array, seq_map, step_count):
     #     """
@@ -1196,3 +1318,71 @@ class MasterPulse(GenericLogic):
     #         nrow = self.recalc_from_seq_map(count_matrix[n])
     #         count_maxtrix_new.append(nrow)
     #     return count_maxtrix_new
+
+
+ # def _build_pulse_arrays_old(self):
+    #     # and calculate the real values from the input parameters:
+    #     # For Rabi:
+    #     """Input parameter:
+    #     For Rabi
+    #     min_len: Minimal length of the mw pulse applied (in us) ...usually that's zero (unchanged)
+    #     start_distance: The distance between the end of the laserpulse and the start of the mw pulse (usual value: 300ns)
+    #     stop_distance: The distance between the end of the last mw pulse and the start of the laser_re pulse (in us)
+    #     steps: steps in us (unchanged)
+    #     """
+    #     self.mw_start_time_rabi = self.laser_in + self.mw_start_distance_rabi
+    #     self.mw_max_len_rabi = round(
+    #         ((self.laser_in + self.laser_off) - self.mw_stop_distance_rabi)
+    #         - self.mw_start_time_rabi,
+    #         ndigits=4,
+    #     )
+    #     """Input parameter:
+    #         For Ramsey
+    #         min_distance: Minimal distance between the two pi/2 pulses (in us) ...usually that's zero (not changed)
+    #         start_distance: The distance between the end of the laserpulse and the start of the mw pulse (usual value: 300ns)
+    #         stop_distance: The distance between the end of the last mw pulse and the start of the laser_re pulse (in us)
+    #         steps: steps in us (unchanged)
+    #         mw_pulse_len_ramsey: length of the mw pulse itself (unchanged)
+    #     """
+    #     self.mw_start_time_ramsey = self.laser_in + self.mw_start_distance_ramsey
+    #     self.mw_max_distance_ramsey = (
+    #         ((self.laser_in + self.laser_off) - self.mw_stop_distance_ramsey)
+    #         - self.mw_start_time_ramsey
+    #     ) - 2 * self.mw_pulse_len_ramsey
+    #
+    #     # Build arrays from the StatusVar
+    #     self.apd_times = [
+    #         self.apd_start,
+    #         self.apd_len,
+    #     ]  # [time to start, length] all in microseconds
+    #     self.apd_ref_times = [self.apd_ref_start, self.apd_ref_len]
+    #
+    #     self.laser_times = [
+    #         self.laser_in,
+    #         self.laser_off,
+    #         self.laser_re,
+    #     ]  # on off on ...the rest is zeros
+    #     # [mw_start_time, mw_len_0, mw_len_max, steps] all in microsecond
+    #     self.mw_times_rabi = [
+    #         self.mw_start_time_rabi,
+    #         self.mw_min_len_rabi,
+    #         self.mw_max_len_rabi,
+    #         self.mw_steps_rabi,
+    #     ]
+    #     # [start, distance_min, distance_max, steps, pulse length] all in microseconds
+    #     self.mw_times_ramsey = [
+    #         self.mw_start_time_ramsey,
+    #         self.mw_min_distance_ramsey,
+    #         self.mw_max_distance_ramsey,
+    #         self.mw_steps_ramsey,
+    #         self.mw_pulse_len_ramsey,
+    #     ]
+    #
+    #     # mw_wait_time between laser off and mw on, mw_pulse_time
+    #     self.mw_times_sweep = [self.mw_start_delay, self.mw_len_delay]
+    #     self.apd_times_sweep = [
+    #         self.apd_len_delay,
+    #         self.apd_min_start_delay,
+    #         self.apd_max_start_delay,
+    #         self.apd_steps_delay,
+    #     ]  # length, min_start, max_start, steps in microseconds
