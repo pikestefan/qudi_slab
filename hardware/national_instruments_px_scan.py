@@ -554,6 +554,7 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         """
 
         motion_task = self._scanner_ao_tasks[stack]
+        timeout_val = 5 * position_array.shape[1] /  self.get_motion_clock_frequency()
 
         daq.DAQmxSetSampTimingType(motion_task, daq.DAQmx_Val_SampClk)
         self.set_up_linemotion(points=position_array.shape[1], stack=stack)
@@ -565,10 +566,10 @@ class NationalInstrumentsXSeriesPxScan(Base, SnvmScannerInterface):
         daq.DAQmxStartTask(self._motion_clock_task)
 
         daq.DAQmxWaitUntilTaskDone(self._motion_clock_task,
-                                   2 * self._RWTimeout * position_array.shape[1])
+                                   timeout_val)
 
         daq.DAQmxWaitUntilTaskDone(motion_task,
-                                   2 * self._RWTimeout * position_array.shape[1])
+                                   timeout_val)
 
         try:
             daq.DAQmxStopTask(self._motion_clock_task)
